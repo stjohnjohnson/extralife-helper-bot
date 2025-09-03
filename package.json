@@ -1,0 +1,37 @@
+{
+  "name": "extralife-helper-bot",
+  "version": "1.0.0",
+  "description": "A unified helper bot for managing ExtraLife 24 hour marathon streams, bridging between Discord and Twitch",
+  "main": "app.js",
+  "type": "module",
+  "scripts": {
+    "lint": "eslint .",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+    "start": "node app.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/stjohnjohnson/extralife-helper-bot.git"
+  },
+  "author": "St. John Johnson <st.john.johnson@gmail.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/stjohnjohnson/extralife-helper-bot/issues"
+  },
+  "homepage": "https://github.com/stjohnjohnson/extralife-helper-bot#readme",
+  "dependencies": {
+    "@discordjs/rest": "^2.4.0",
+    "discord-api-types": "^0.37.11",
+    "discord.js": "^14.5.0",
+    "dotenv": "^16.4.5",
+    "extra-life-api": "^8.0.0",
+    "log-timestamp": "^0.3.0",
+    "tmi.js": "^1.8.5"
+  },
+  "devDependencies": {
+    "eslint": "^9.34.0",
+    "globals": "^16.3.0",
+    "jest": "^30.1.2"
+  },
+  "keywords": []
+}

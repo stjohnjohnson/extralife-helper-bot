@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  extralife-helper-bot:
+    build: .
+    container_name: extralife-helper-bot
+    env_file: .env
+    restart: unless-stopped
+    volumes:
+      # Mount the app for development (optional)
+      # - ./app.js:/usr/src/app/app.js:ro
+    # Uncomment for development with hot-reload
+    # command: npm run dev
