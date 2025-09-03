@@ -15,15 +15,18 @@
   },
   "author": "St. John Johnson <st.john.johnson@gmail.com>",
   "license": "MIT",
+  "engines": {
+    "node": ">=24"
+  },
   "bugs": {
     "url": "https://github.com/stjohnjohnson/extralife-helper-bot/issues"
   },
   "homepage": "https://github.com/stjohnjohnson/extralife-helper-bot#readme",
   "dependencies": {
     "@discordjs/rest": "^2.4.0",
-    "discord-api-types": "^0.37.11",
+    "discord-api-types": "^0.38.22",
     "discord.js": "^14.5.0",
-    "dotenv": "^16.4.5",
+    "dotenv": "^17.2.2",
     "extra-life-api": "^8.0.0",
     "log-timestamp": "^0.3.0",
     "tmi.js": "^1.8.5"
