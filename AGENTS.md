@@ -23,5 +23,5 @@ This file applies to the entire repository. Create additional `AGENTS.md` files 
 ## Commit and PR guidelines
 - Commit messages: short, imperative style, e.g., "Add command handler".
 - Leave the working tree clean (`git status` shows no changes) before finishing.
-- PR titles: `[feature] short description`.
+- PR titles: use [Conventional Commits](https://www.conventionalcommits.org/) format, e.g., `docs: add AGENTS guidelines`.
 - In PR descriptions, summarize changes and list test commands executed.
