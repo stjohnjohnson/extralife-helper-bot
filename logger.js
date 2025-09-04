@@ -10,7 +10,7 @@ const logger = createLogger({
     ),
     transports: [
         new transports.Console({
-            stderrLevels: ['error']
+            stderrLevels: ['error', 'warn']
         })
     ]
 });
