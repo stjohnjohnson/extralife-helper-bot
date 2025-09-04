@@ -28,8 +28,8 @@
     "discord.js": "^14.5.0",
     "dotenv": "^17.2.2",
     "extra-life-api": "^8.0.0",
-    "log-timestamp": "^0.3.0",
-    "tmi.js": "^1.8.5"
+    "tmi.js": "^1.8.5",
+    "winston": "^3.17.0"
   },
   "devDependencies": {
     "eslint": "^9.34.0",
