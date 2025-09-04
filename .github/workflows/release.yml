@@ -1,0 +1,43 @@
+name: Release
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  release:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - id: version
+        run: |
+          commit_message=$(git log -1 --pretty=%B)
+          bump="patch"
+          if echo "$commit_message" | grep -iq "\[release: major\]"; then
+            bump="major"
+          elif echo "$commit_message" | grep -iq "\[release: minor\]"; then
+            bump="minor"
+          fi
+          echo "bump=$bump" >> $GITHUB_OUTPUT
+      - id: bump
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          npm version ${{ steps.version.outputs.bump }} -m "chore(release): %s [skip ci]"
+          git push --follow-tags
+          version=$(node -p 'require("./package.json").version')
+          echo "tag=v$version" >> $GITHUB_OUTPUT
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.bump.outputs.tag }}
+          name: ${{ steps.bump.outputs.tag }}
+          body: "Automated release for ${{ steps.bump.outputs.tag }}"
