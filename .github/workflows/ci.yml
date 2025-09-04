@@ -18,3 +18,11 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm test
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: false
+          tags: extralife-helper-bot:latest
