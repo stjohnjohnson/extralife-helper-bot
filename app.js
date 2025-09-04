@@ -2,10 +2,16 @@ import { getUserInfo, getUserDonations } from 'extra-life-api';
 import dotenv from 'dotenv';
 import { Client as DiscordClient, GatewayIntentBits } from 'discord.js';
 import tmi from 'tmi.js';
-import 'log-timestamp';
+import getLogger from './logger.js';
 
 // Load config from disk
 dotenv.config();
+
+// Setup loggers
+const log = getLogger('app');
+const discordLog = getLogger('discord');
+const twitchLog = getLogger('twitch');
+const extralifeLog = getLogger('extralife');
 
 // Validate we have all the required variables
 const requiredEnvVars = [
@@ -44,12 +50,12 @@ if (!discordConfigured && !twitchConfigured) {
 }
 
 if (configErrors.length > 0) {
-    console.error(configErrors.join('\n'));
+    log.error(configErrors.join('\n'));
     process.exit(1);
 }
 
-console.log(`ExtraLife Helper Bot starting for participant ${process.env.EXTRALIFE_PARTICIPANT_ID}`);
-console.log(`Services enabled: Discord=${discordConfigured}, Twitch=${twitchConfigured}`);
+log.info(`ExtraLife Helper Bot starting for participant ${process.env.EXTRALIFE_PARTICIPANT_ID}`);
+log.info(`Services enabled: Discord=${discordConfigured}, Twitch=${twitchConfigured}`);
 
 // Setup a formatter
 const moneyFormatter = new Intl.NumberFormat('en-US', {
@@ -69,20 +75,20 @@ if (discordConfigured) {
 
     // When the Discord client is ready
     discordClient.once('ready', () => {
-        console.log('Discord Bot Online');
+        discordLog.info('Discord Bot Online');
 
         // Find our channels
         donationChannel = discordClient.channels.cache.get(process.env.DISCORD_DONATION_CHANNEL);
         if (!donationChannel) {
             throw new Error(`Unable to find donation channel with id ${process.env.DISCORD_DONATION_CHANNEL}`);
         }
-        console.log(`Found Discord Donation Channel: ${donationChannel.id}`);
+        discordLog.info(`Found Discord Donation Channel: ${donationChannel.id}`);
 
         summaryChannel = discordClient.channels.cache.get(process.env.DISCORD_SUMMARY_CHANNEL);
         if (!summaryChannel) {
             throw new Error(`Unable to find summary channel with id ${process.env.DISCORD_SUMMARY_CHANNEL}`);
         }
-        console.log(`Found Discord Summary Channel: ${summaryChannel.id}`);
+        discordLog.info(`Found Discord Summary Channel: ${summaryChannel.id}`);
     });
 
     // Login to Discord
@@ -108,7 +114,9 @@ if (twitchConfigured) {
     });
 
     // Connect to Twitch
-    twitchClient.connect().catch(console.error);
+    twitchClient.connect().catch(err => {
+        twitchLog.error('Error connecting to Twitch', { err });
+    });
 
     // Listen for Twitch messages
     twitchClient.on('message', (channel, tags, message, self) => {
@@ -124,13 +132,13 @@ if (twitchConfigured) {
 
                 twitchClient.say(channel, `${data.displayName} has raised ${sumDonations} out of ${fundraisingGoal} (${percentComplete}%)`);
             }).catch(err => {
-                console.error('Error getting User Info for Twitch goal command:', err);
+                twitchLog.error('Error getting User Info for Twitch goal command', { err });
             });
             break;
         }
     });
 
-    console.log('Twitch Bot connecting...');
+    twitchLog.info('Twitch Bot connecting...');
 }
 
 // Unified donation checking function
@@ -153,7 +161,7 @@ function getLatestDonation(silent = false) {
             const twitchMessage = `ExtraLife ExtraLife ${displayName} just donated ${amount}${message}! ExtraLife ExtraLife`;
 
             msgQueue.unshift({ discord: discordMessage, twitch: twitchMessage });
-            console.log(`Donation: ${displayName} / ${amount}${message}`);
+            extralifeLog.info(`Donation: ${displayName} / ${amount}${message}`);
         });
 
         if (msgQueue.length > 0 && !silent) {
@@ -176,15 +184,15 @@ function getLatestDonation(silent = false) {
                         percentComplete = Math.round(data.sumDonations / data.fundraisingGoal * 100),
                         summary = `${sumDonations} (${percentComplete}%) Raised`;
 
-                    console.log(`Updating Discord status: "${summary}"`);
+                    discordLog.info(`Updating Discord status: "${summary}"`);
                     return summaryChannel.setName(summary);
                 })
                 .catch(err => {
-                    console.error(`Error updating Discord summary:`, err);
+                    discordLog.error('Error updating Discord summary', { err });
                 });
         }
     }).catch(err => {
-        console.error(`Error getting Donations:`, err);
+        extralifeLog.error('Error getting Donations', { err });
     });
 }
 
@@ -195,7 +203,7 @@ getLatestDonation(true);
 
 // Handle graceful shutdown
 process.on('SIGTERM', () => {
-    console.log('Received SIGTERM, shutting down gracefully...');
+    log.info('Received SIGTERM, shutting down gracefully...');
     
     if (discordClient) {
         discordClient.destroy();
@@ -209,7 +217,7 @@ process.on('SIGTERM', () => {
 });
 
 process.on('SIGINT', () => {
-    console.log('Received SIGINT, shutting down gracefully...');
+    log.info('Received SIGINT, shutting down gracefully...');
     
     if (discordClient) {
         discordClient.destroy();
