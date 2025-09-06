@@ -32,6 +32,18 @@ const twitchEnvVars = [
     'TWITCH_OAUTH'              // OAuth token from https://twitchapps.com/tmi/
 ];
 
+// Optional Discord voice channel variables (for !promote command)
+const discordVoiceEnvVars = [
+    'DISCORD_WAITING_ROOM_CHANNEL', // Voice channel ID for waiting room
+    'DISCORD_LIVE_ROOM_CHANNEL'     // Voice channel ID for live chat
+];
+
+// Optional admin user variables (for restricted commands)
+const adminUsersEnvVars = [
+    'DISCORD_ADMIN_USERS',     // Comma-separated Discord user IDs
+    'TWITCH_ADMIN_USERS'       // Comma-separated Twitch usernames
+];
+
 // Check required variables
 const configErrors = requiredEnvVars.map(key => {
     if (!process.env[key]) {
@@ -42,6 +54,26 @@ const configErrors = requiredEnvVars.map(key => {
 // Check if at least one service is configured
 const discordConfigured = discordEnvVars.every(key => process.env[key]);
 const twitchConfigured = twitchEnvVars.every(key => process.env[key]);
+const discordVoiceConfigured = discordVoiceEnvVars.every(key => process.env[key]);
+const adminUsersConfigured = adminUsersEnvVars.reduce((acc, key) => {
+    acc[key] = (process.env[key] || '').split(',').map(id => id.trim()).filter(Boolean);
+    return acc;
+}, {});
+
+// Parse admin users from environment variables
+const discordAdmins = adminUsersConfigured['DISCORD_ADMIN_USERS'];
+const twitchAdmins = adminUsersConfigured['TWITCH_ADMIN_USERS'];
+
+// Helper function to check if user is admin
+function isAdmin(platform, userId) {
+    console.log(`Looking for admin access on ${platform} for user ${userId}`);
+    if (platform === 'discord') {
+        return discordAdmins.includes(userId);
+    } else if (platform === 'twitch') {
+        return twitchAdmins.includes(userId.toLowerCase());
+    }
+    return false;
+}
 
 if (!discordConfigured && !twitchConfigured) {
     configErrors.push('At least one service must be configured (Discord or Twitch)');
@@ -55,7 +87,8 @@ if (configErrors.length > 0) {
 }
 
 log.info(`ExtraLife Helper Bot starting for participant ${process.env.EXTRALIFE_PARTICIPANT_ID}`);
-log.info(`Services enabled: Discord=${discordConfigured}, Twitch=${twitchConfigured}`);
+log.info(`Services enabled: Discord=${discordConfigured}, Twitch=${twitchConfigured}, Voice=${discordVoiceConfigured}`);
+log.info(`Admin users: Discord=${discordAdmins.length}, Twitch=${twitchAdmins.length}`);
 
 // Setup a formatter
 const moneyFormatter = new Intl.NumberFormat('en-US', {
@@ -70,8 +103,15 @@ const seenDonationIDs = {};
 let discordClient, donationChannel, summaryChannel;
 
 if (discordConfigured) {
-    // Create Discord client
-    discordClient = new DiscordClient({ intents: [GatewayIntentBits.Guilds] });
+    // Create Discord client with additional intents for voice and messages
+    discordClient = new DiscordClient({ 
+        intents: [
+            GatewayIntentBits.Guilds,
+            GatewayIntentBits.GuildMessages,
+            GatewayIntentBits.MessageContent,
+            GatewayIntentBits.GuildVoiceStates
+        ] 
+    });
 
     // When the Discord client is ready
     discordClient.once('ready', () => {
@@ -89,6 +129,25 @@ if (discordConfigured) {
             throw new Error(`Unable to find summary channel with id ${process.env.DISCORD_SUMMARY_CHANNEL}`);
         }
         discordLog.info(`Found Discord Summary Channel: ${summaryChannel.id}`);
+    });
+
+    // Handle Discord messages for commands
+    discordClient.on('messageCreate', async (message) => {
+        if (message.author.bot) return;
+
+        // Handle commands
+        if (message.content.startsWith('!')) {
+            const command = message.content.slice(1).toLowerCase();
+            const response = await handleCommand(command, 'discord', {
+                message,
+                userId: message.author.id,
+                username: message.author.username
+            });
+            
+            if (response) {
+                message.reply(response);
+            }
+        }
     });
 
     // Login to Discord
@@ -119,26 +178,104 @@ if (twitchConfigured) {
     });
 
     // Listen for Twitch messages
-    twitchClient.on('message', (channel, tags, message, self) => {
+    twitchClient.on('message', async (channel, tags, message, self) => {
         // Ignore self
         if (self) return;
 
-        switch (message.toLowerCase()) {
-        case '!goal':
-            getUserInfo(process.env.EXTRALIFE_PARTICIPANT_ID).then(data => {
-                const sumDonations = moneyFormatter.format(data.sumDonations),
-                    fundraisingGoal = moneyFormatter.format(data.fundraisingGoal),
-                    percentComplete = Math.round(data.sumDonations / data.fundraisingGoal * 100);
-
-                twitchClient.say(channel, `${data.displayName} has raised ${sumDonations} out of ${fundraisingGoal} (${percentComplete}%)`);
-            }).catch(err => {
-                twitchLog.error('Error getting User Info for Twitch goal command', { err });
+        // Handle commands
+        if (message.startsWith('!')) {
+            const command = message.slice(1).toLowerCase();
+            const response = await handleCommand(command, 'twitch', {
+                channel,
+                tags,
+                userId: tags.username,
+                username: tags['display-name'] || tags.username
             });
-            break;
+            
+            if (response) {
+                twitchClient.say(channel, response);
+            }
         }
     });
 
     twitchLog.info('Twitch Bot connecting...');
+}
+
+// Command handler for cross-platform commands
+async function handleCommand(command, platform, context) {
+    const logger = platform === 'discord' ? discordLog : twitchLog;
+    
+    switch (command) {
+    case 'goal':
+        try {
+            const data = await getUserInfo(process.env.EXTRALIFE_PARTICIPANT_ID);
+            const sumDonations = moneyFormatter.format(data.sumDonations);
+            const fundraisingGoal = moneyFormatter.format(data.fundraisingGoal);
+            const percentComplete = Math.round(data.sumDonations / data.fundraisingGoal * 100);
+            
+            const message = `${data.displayName} has raised ${sumDonations} out of ${fundraisingGoal} (${percentComplete}%)`;
+            logger.info('Goal command executed', { platform, message });
+            return message;
+        } catch (err) {
+            logger.error('Error getting goal info', { platform, error: err.message });
+            return 'Sorry, unable to get goal information right now.';
+        }
+
+    case 'promote':
+        // Check admin permissions
+        if (!isAdmin(platform, context.userId)) {
+            logger.warn('Unauthorized promote command attempt', { 
+                platform, 
+                userId: context.userId, 
+                username: context.username 
+            });
+            return 'You do not have permission to use this command.';
+        }
+
+        if (!discordConfigured || !discordVoiceConfigured) {
+            return 'Promote command not configured properly.';
+        }
+
+        try {
+            const waitingRoom = discordClient.channels.cache.get(process.env.DISCORD_WAITING_ROOM_CHANNEL);
+            const liveRoom = discordClient.channels.cache.get(process.env.DISCORD_LIVE_ROOM_CHANNEL);
+            
+            if (!waitingRoom || !liveRoom) {
+                logger.warn('Voice channels not found for promote command');
+                return 'Voice channels not found.';
+            }
+
+            const members = waitingRoom.members;
+            if (members.size === 0) {
+                return 'No one in the waiting room to promote.';
+            }
+
+            let promoted = 0;
+            for (const [id, member] of members) {
+                try {
+                    await member.voice.setChannel(liveRoom);
+                    promoted++;
+                } catch (err) {
+                    logger.warn('Failed to move member', { memberId: id, error: err.message });
+                }
+            }
+
+            const message = `Promoted ${promoted} member(s) to live chat!`;
+            logger.info('Promote command executed', { 
+                platform, 
+                promoted, 
+                totalInRoom: members.size,
+                executedBy: context.username 
+            });
+            return message;
+        } catch (err) {
+            logger.error('Error executing promote command', { platform, error: err.message });
+            return 'Error executing promote command.';
+        }
+
+    default:
+        return null; // Unknown command
+    }
 }
 
 // Unified donation checking function

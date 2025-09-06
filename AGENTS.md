@@ -21,7 +21,19 @@ This file applies to the entire repository. Create additional `AGENTS.md` files 
 - Add or update tests when modifying code.
 
 ## Commit and PR guidelines
-- Commit messages: short, imperative style, e.g., "Add command handler".
+- **Commit messages**: Use [Conventional Commits](https://www.conventionalcommits.org/) format for all commits:
+  - Format: `type(scope): description`
+  - Types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`
+  - Examples: 
+    - `feat: add voice channel management with admin permissions`
+    - `fix: resolve Discord authentication timeout`
+    - `docs: update README with admin setup instructions`
+- **Implementation commits**: When implementing features, provide detailed commit messages that include:
+  - Clear description of the feature/change
+  - Technical implementation details
+  - Security considerations (if applicable)
+  - Configuration requirements
+  - Cross-platform impacts
 - Leave the working tree clean (`git status` shows no changes) before finishing.
 - PR titles: use [Conventional Commits](https://www.conventionalcommits.org/) format, e.g., `docs: add AGENTS guidelines`.
 - In PR descriptions, summarize changes and list test commands executed.

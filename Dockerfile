@@ -15,7 +15,7 @@ COPY --chown=node:node package*.json ./
 RUN npm install
 
 # Copy application code
-COPY --chown=node:node app.js .
+COPY --chown=node:node *.js .
 
 # Expose port for health checks if needed
 EXPOSE 3000
