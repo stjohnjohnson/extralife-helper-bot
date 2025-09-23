@@ -1,3 +1,10 @@
+## [1.0.1](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v1.0.0...v1.0.1) (2025-09-23)
+
+
+### Bug Fixes
+
+* Removing dev dependencies when making the Docker container ([00380ed](https://github.com/stjohnjohnson/extralife-helper-bot/commit/00380ed36a3193c83041a08e45a028b1e75386b1))
+
 # 1.0.0 (2025-09-23)
 
 
