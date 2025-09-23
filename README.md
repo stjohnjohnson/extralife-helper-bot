@@ -54,7 +54,7 @@ cp env.example .env
 # Edit .env with your settings
 
 # Run the bot
-docker run --rm -it --env-file .env stjohnjohnson/extralife-helper-bot:latest
+docker run --rm -it --env-file .env ghcr.io/stjohnjohnson/extralife-helper-bot:latest
 ```
 
 ### Local Development
