@@ -1,12 +1,21 @@
 # ExtraLife Helper Bot Makefile
 
-.PHONY: install test lint build run clean
+.PHONY: help install test test-watch test-coverage lint build run clean
+
+help: ## Show available commands
+	@awk 'BEGIN {FS = ":.*##"} /^[a-zA-Z_-]+:.*##/ { printf "  %-15s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 
 install: ## Install dependencies
 	npm install
 
 test: ## Run tests
 	npm test
+
+test-watch: ## Run tests in watch mode
+	npm run test:watch
+
+test-coverage: ## Run tests with coverage
+	npm run test:coverage
 
 lint: ## Run linter
 	npm run lint

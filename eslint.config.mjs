@@ -19,5 +19,14 @@ export default [
             // Enforce consistent quotes
             'quotes': ['error', 'single', { 'allowTemplateLiterals': true }]
         }
+    },
+    {
+        files: ['tests/**/*.test.js'],
+        languageOptions: {
+            globals: {
+                ...globals.node,
+                ...globals.jest
+            }
+        }
     }
 ];

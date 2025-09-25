@@ -1,11 +1,9 @@
-import { getUserInfo, getUserDonations } from 'extra-life-api';
-import dotenv from 'dotenv';
-import { Client as DiscordClient, GatewayIntentBits } from 'discord.js';
-import tmi from 'tmi.js';
-import getLogger from './logger.js';
-
-// Load config from disk
-dotenv.config();
+const { getUserDonations, getUserInfo } = require('extra-life-api');
+const { Client: DiscordClient, GatewayIntentBits } = require('discord.js');
+const tmi = require('tmi.js');
+const getLogger = require('./logger.js');
+const { parseConfiguration } = require('./src/config.js');
+const { handleCommand } = require('./src/commands.js');
 
 // Setup loggers
 const log = getLogger('app');
@@ -13,82 +11,18 @@ const discordLog = getLogger('discord');
 const twitchLog = getLogger('twitch');
 const extralifeLog = getLogger('extralife');
 
-// Validate we have all the required variables
-const requiredEnvVars = [
-    'EXTRALIFE_PARTICIPANT_ID'  // Participant ID for Extra Life (required for both services)
-];
+// Parse and validate configuration
+const config = parseConfiguration();
 
-// Optional Discord variables (Discord service is enabled if these are present)
-const discordEnvVars = [
-    'DISCORD_SUMMARY_CHANNEL',  // Discord channel ID for updating the title
-    'DISCORD_DONATION_CHANNEL', // Discord channel ID for listing donations
-    'DISCORD_TOKEN'             // Bot token to talk to Discord
-];
-
-// Optional Twitch variables (Twitch service is enabled if these are present)
-const twitchEnvVars = [
-    'TWITCH_CHANNEL',           // Twitch channel to sit in
-    'TWITCH_USERNAME',          // Bot's username
-    'TWITCH_OAUTH'              // OAuth token from https://twitchapps.com/tmi/
-];
-
-// Optional Discord voice channel variables (for !promote command)
-const discordVoiceEnvVars = [
-    'DISCORD_WAITING_ROOM_CHANNEL', // Voice channel ID for waiting room
-    'DISCORD_LIVE_ROOM_CHANNEL'     // Voice channel ID for live chat
-];
-
-// Optional admin user variables (for restricted commands)
-const adminUsersEnvVars = [
-    'DISCORD_ADMIN_USERS',     // Comma-separated Discord user IDs
-    'TWITCH_ADMIN_USERS'       // Comma-separated Twitch usernames
-];
-
-// Check required variables
-const configErrors = requiredEnvVars.map(key => {
-    if (!process.env[key]) {
-        return `${key} is a required environment variable`;
-    }
-}).filter(Boolean);
-
-// Check if at least one service is configured
-const discordConfigured = discordEnvVars.every(key => process.env[key]);
-const twitchConfigured = twitchEnvVars.every(key => process.env[key]);
-const discordVoiceConfigured = discordVoiceEnvVars.every(key => process.env[key]);
-const adminUsersConfigured = adminUsersEnvVars.reduce((acc, key) => {
-    acc[key] = (process.env[key] || '').split(',').map(id => id.trim()).filter(Boolean);
-    return acc;
-}, {});
-
-// Parse admin users from environment variables
-const discordAdmins = adminUsersConfigured['DISCORD_ADMIN_USERS'];
-const twitchAdmins = adminUsersConfigured['TWITCH_ADMIN_USERS'];
-
-// Helper function to check if user is admin
-function isAdmin(platform, userId) {
-    console.log(`Looking for admin access on ${platform} for user ${userId}`);
-    if (platform === 'discord') {
-        return discordAdmins.includes(userId);
-    } else if (platform === 'twitch') {
-        return twitchAdmins.includes(userId.toLowerCase());
-    }
-    return false;
-}
-
-if (!discordConfigured && !twitchConfigured) {
-    configErrors.push('At least one service must be configured (Discord or Twitch)');
-    configErrors.push('Discord requires: ' + discordEnvVars.join(', '));
-    configErrors.push('Twitch requires: ' + twitchEnvVars.join(', '));
-}
-
-if (configErrors.length > 0) {
-    log.error(configErrors.join('\n'));
+// Check for configuration errors
+if (!config.isValid) {
+    log.error(config.errors.join('\n'));
     process.exit(1);
 }
 
-log.info(`ExtraLife Helper Bot starting for participant ${process.env.EXTRALIFE_PARTICIPANT_ID}`);
-log.info(`Services enabled: Discord=${discordConfigured}, Twitch=${twitchConfigured}, Voice=${discordVoiceConfigured}`);
-log.info(`Admin users: Discord=${discordAdmins.length}, Twitch=${twitchAdmins.length}`);
+log.info(`ExtraLife Helper Bot starting for participant ${config.participantId}`);
+log.info(`Services enabled: Discord=${config.discord.configured}, Twitch=${config.twitch.configured}, Voice=${config.discord.voiceConfigured}`);
+log.info(`Admin users: Discord=${config.discord.admins.length}, Twitch=${config.twitch.admins.length}`);
 
 // Setup a formatter
 const moneyFormatter = new Intl.NumberFormat('en-US', {
@@ -102,7 +36,7 @@ const seenDonationIDs = {};
 // Discord setup
 let discordClient, donationChannel, summaryChannel;
 
-if (discordConfigured) {
+if (config.discord.configured) {
     // Create Discord client with additional intents for voice and messages
     discordClient = new DiscordClient({ 
         intents: [
@@ -118,15 +52,15 @@ if (discordConfigured) {
         discordLog.info('Discord Bot Online');
 
         // Find our channels
-        donationChannel = discordClient.channels.cache.get(process.env.DISCORD_DONATION_CHANNEL);
+        donationChannel = discordClient.channels.cache.get(config.discord.donationChannel);
         if (!donationChannel) {
-            throw new Error(`Unable to find donation channel with id ${process.env.DISCORD_DONATION_CHANNEL}`);
+            throw new Error(`Unable to find donation channel with id ${config.discord.donationChannel}`);
         }
         discordLog.info(`Found Discord Donation Channel: ${donationChannel.id}`);
 
-        summaryChannel = discordClient.channels.cache.get(process.env.DISCORD_SUMMARY_CHANNEL);
+        summaryChannel = discordClient.channels.cache.get(config.discord.summaryChannel);
         if (!summaryChannel) {
-            throw new Error(`Unable to find summary channel with id ${process.env.DISCORD_SUMMARY_CHANNEL}`);
+            throw new Error(`Unable to find summary channel with id ${config.discord.summaryChannel}`);
         }
         discordLog.info(`Found Discord Summary Channel: ${summaryChannel.id}`);
     });
@@ -138,11 +72,13 @@ if (discordConfigured) {
         // Handle commands
         if (message.content.startsWith('!')) {
             const command = message.content.slice(1).toLowerCase();
-            const response = await handleCommand(command, 'discord', {
+            const context = {
                 message,
                 userId: message.author.id,
                 username: message.author.username
-            });
+            };
+            const clients = { discord: discordClient };
+            const response = await handleCommand(command, 'discord', context, config, clients, discordLog);
             
             if (response) {
                 message.reply(response);
@@ -151,13 +87,13 @@ if (discordConfigured) {
     });
 
     // Login to Discord
-    discordClient.login(process.env.DISCORD_TOKEN);
+    discordClient.login(config.discord.token);
 }
 
 // Twitch setup
 let twitchClient;
 
-if (twitchConfigured) {
+if (config.twitch.configured) {
     // Create Twitch client
     twitchClient = new tmi.Client({
         options: { debug: true, messagesLogLevel: 'info' },
@@ -166,10 +102,10 @@ if (twitchConfigured) {
             secure: true
         },
         identity: {
-            username: process.env.TWITCH_USERNAME,
-            password: process.env.TWITCH_OAUTH
+            username: config.twitch.username,
+            password: config.twitch.oauth
         },
-        channels: [process.env.TWITCH_CHANNEL]
+        channels: [config.twitch.channel]
     });
 
     // Connect to Twitch
@@ -185,12 +121,14 @@ if (twitchConfigured) {
         // Handle commands
         if (message.startsWith('!')) {
             const command = message.slice(1).toLowerCase();
-            const response = await handleCommand(command, 'twitch', {
+            const context = {
                 channel,
                 tags,
                 userId: tags.username,
                 username: tags['display-name'] || tags.username
-            });
+            };
+            const clients = { discord: discordClient, twitch: twitchClient };
+            const response = await handleCommand(command, 'twitch', context, config, clients, twitchLog);
             
             if (response) {
                 twitchClient.say(channel, response);
@@ -201,82 +139,7 @@ if (twitchConfigured) {
     twitchLog.info('Twitch Bot connecting...');
 }
 
-// Command handler for cross-platform commands
-async function handleCommand(command, platform, context) {
-    const logger = platform === 'discord' ? discordLog : twitchLog;
-    
-    switch (command) {
-    case 'goal':
-        try {
-            const data = await getUserInfo(process.env.EXTRALIFE_PARTICIPANT_ID);
-            const sumDonations = moneyFormatter.format(data.sumDonations);
-            const fundraisingGoal = moneyFormatter.format(data.fundraisingGoal);
-            const percentComplete = Math.round(data.sumDonations / data.fundraisingGoal * 100);
-            
-            const message = `${data.displayName} has raised ${sumDonations} out of ${fundraisingGoal} (${percentComplete}%)`;
-            logger.info('Goal command executed', { platform, message });
-            return message;
-        } catch (err) {
-            logger.error('Error getting goal info', { platform, error: err.message });
-            return 'Sorry, unable to get goal information right now.';
-        }
 
-    case 'promote':
-        // Check admin permissions
-        if (!isAdmin(platform, context.userId)) {
-            logger.warn('Unauthorized promote command attempt', { 
-                platform, 
-                userId: context.userId, 
-                username: context.username 
-            });
-            return 'You do not have permission to use this command.';
-        }
-
-        if (!discordConfigured || !discordVoiceConfigured) {
-            return 'Promote command not configured properly.';
-        }
-
-        try {
-            const waitingRoom = discordClient.channels.cache.get(process.env.DISCORD_WAITING_ROOM_CHANNEL);
-            const liveRoom = discordClient.channels.cache.get(process.env.DISCORD_LIVE_ROOM_CHANNEL);
-            
-            if (!waitingRoom || !liveRoom) {
-                logger.warn('Voice channels not found for promote command');
-                return 'Voice channels not found.';
-            }
-
-            const members = waitingRoom.members;
-            if (members.size === 0) {
-                return 'No one in the waiting room to promote.';
-            }
-
-            let promoted = 0;
-            for (const [id, member] of members) {
-                try {
-                    await member.voice.setChannel(liveRoom);
-                    promoted++;
-                } catch (err) {
-                    logger.warn('Failed to move member', { memberId: id, error: err.message });
-                }
-            }
-
-            const message = `Promoted ${promoted} member(s) to live chat!`;
-            logger.info('Promote command executed', { 
-                platform, 
-                promoted, 
-                totalInRoom: members.size,
-                executedBy: context.username 
-            });
-            return message;
-        } catch (err) {
-            logger.error('Error executing promote command', { platform, error: err.message });
-            return 'Error executing promote command.';
-        }
-
-    default:
-        return null; // Unknown command
-    }
-}
 
 // Unified donation checking function
 function getLatestDonation(silent = false) {
@@ -303,19 +166,19 @@ function getLatestDonation(silent = false) {
 
         if (msgQueue.length > 0 && !silent) {
             // Send to Discord if configured
-            if (discordConfigured && donationChannel) {
+            if (config.discord.configured && donationChannel) {
                 msgQueue.forEach(msg => donationChannel.send(msg.discord));
             }
 
             // Send to Twitch if configured
-            if (twitchConfigured && twitchClient) {
-                msgQueue.forEach(msg => twitchClient.say(process.env.TWITCH_CHANNEL, msg.twitch));
+            if (config.twitch.configured && twitchClient) {
+                msgQueue.forEach(msg => twitchClient.say(config.twitch.channel, msg.twitch));
             }
         }
 
         // Update Discord summary channel after any donations
-        if (msgQueue.length > 0 && discordConfigured && summaryChannel) {
-            getUserInfo(process.env.EXTRALIFE_PARTICIPANT_ID)
+        if (msgQueue.length > 0 && config.discord.configured && summaryChannel) {
+            getUserInfo(config.participantId)
                 .then(data => {
                     const sumDonations = moneyFormatter.format(data.sumDonations),
                         percentComplete = Math.round(data.sumDonations / data.fundraisingGoal * 100),
