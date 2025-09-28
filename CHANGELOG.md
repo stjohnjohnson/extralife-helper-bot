@@ -1,3 +1,15 @@
+# [2.0.0](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v1.0.1...v2.0.0) (2025-09-28)
+
+
+### Features
+
+* add Discord-to-Twitch game update bridge with smart matching ([370016e](https://github.com/stjohnjohnson/extralife-helper-bot/commit/370016e9e9e21c13536ddebe250821c8b69f4223)), closes [#11](https://github.com/stjohnjohnson/extralife-helper-bot/issues/11)
+
+
+### BREAKING CHANGES
+
+* Twitch configuration now requires separate TWITCH_CHAT_OAUTH and TWITCH_API_OAUTH tokens instead of single TWITCH_OAUTH token
+
 ## [1.0.1](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v1.0.0...v1.0.1) (2025-09-23)
 
 
