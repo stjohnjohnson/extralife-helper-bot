@@ -12,9 +12,9 @@ if (process.env.NODE_ENV !== 'test') {
 function parseConfiguration() {
     const requiredEnvVars = ['EXTRALIFE_PARTICIPANT_ID'];
     const discordEnvVars = ['DISCORD_SUMMARY_CHANNEL', 'DISCORD_DONATION_CHANNEL', 'DISCORD_TOKEN'];
-    const twitchEnvVars = ['TWITCH_CHANNEL', 'TWITCH_USERNAME', 'TWITCH_OAUTH'];
+    const twitchEnvVars = ['TWITCH_CHANNEL', 'TWITCH_USERNAME', 'TWITCH_CHAT_OAUTH', 'TWITCH_CLIENT_ID'];
     const discordVoiceEnvVars = ['DISCORD_WAITING_ROOM_CHANNEL', 'DISCORD_LIVE_ROOM_CHANNEL'];
-
+    const gameUpdateEnvVars = ['DISCORD_GAME_UPDATE_USER_ID', 'TWITCH_API_OAUTH'];
 
     // Check required variables
     const configErrors = requiredEnvVars
@@ -25,6 +25,7 @@ function parseConfiguration() {
     const discordConfigured = discordEnvVars.every(key => process.env[key]);
     const twitchConfigured = twitchEnvVars.every(key => process.env[key]);
     const discordVoiceConfigured = discordVoiceEnvVars.every(key => process.env[key]);
+    const gameUpdateConfigured = gameUpdateEnvVars.every(key => process.env[key]) && discordConfigured && twitchConfigured;
 
     // Parse admin users
     const discordAdmins = parseAdminUsers(process.env.DISCORD_ADMIN_USERS);
@@ -54,9 +55,16 @@ function parseConfiguration() {
         twitch: {
             configured: twitchConfigured,
             username: process.env.TWITCH_USERNAME,
-            oauth: process.env.TWITCH_OAUTH,
+            chatOauth: process.env.TWITCH_CHAT_OAUTH,
+            apiOauth: process.env.TWITCH_API_OAUTH,
+            clientId: process.env.TWITCH_CLIENT_ID,
             channel: process.env.TWITCH_CHANNEL,
             admins: twitchAdmins
+        },
+        gameUpdates: {
+            configured: gameUpdateConfigured,
+            userId: process.env.DISCORD_GAME_UPDATE_USER_ID,
+            messageTemplate: process.env.DISCORD_GAME_UPDATE_MESSAGE || 'Now playing {game}!'
         }
     };
 }

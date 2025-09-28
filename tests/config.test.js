@@ -126,5 +126,82 @@ describe('Config Module', () => {
             expect(config.isValid).toBe(false);
             expect(config.errors).toContain('At least one service must be configured (Discord or Twitch)');
         });
+
+        test('should configure game updates when Discord, Twitch, and user ID are present', () => {
+            process.env.EXTRALIFE_PARTICIPANT_ID = '12345';
+            process.env.DISCORD_TOKEN = 'discord-token';
+            process.env.DISCORD_DONATION_CHANNEL = '111111';
+            process.env.DISCORD_SUMMARY_CHANNEL = '222222';
+            process.env.TWITCH_CHANNEL = 'testchannel';
+            process.env.TWITCH_USERNAME = 'testbot';
+            process.env.TWITCH_CHAT_OAUTH = 'oauth:chat-token';
+            process.env.TWITCH_CLIENT_ID = 'client-id';
+            process.env.DISCORD_GAME_UPDATE_USER_ID = '987654321';
+            process.env.TWITCH_API_OAUTH = 'oauth:api-token';
+
+            const config = parseConfiguration();
+            expect(config.gameUpdates.configured).toBe(true);
+            expect(config.gameUpdates.userId).toBe('987654321');
+            expect(config.gameUpdates.messageTemplate).toBe('Now playing {game}!');
+        });
+
+        test('should use custom message template when provided', () => {
+            process.env.EXTRALIFE_PARTICIPANT_ID = '12345';
+            process.env.DISCORD_TOKEN = 'discord-token';
+            process.env.DISCORD_DONATION_CHANNEL = '111111';
+            process.env.DISCORD_SUMMARY_CHANNEL = '222222';
+            process.env.TWITCH_CHANNEL = 'testchannel';
+            process.env.TWITCH_USERNAME = 'testbot';
+            process.env.TWITCH_CHAT_OAUTH = 'oauth:chat-token';
+            process.env.TWITCH_CLIENT_ID = 'client-id';
+            process.env.DISCORD_GAME_UPDATE_USER_ID = '987654321';
+            process.env.TWITCH_API_OAUTH = 'oauth:api-token';
+            process.env.DISCORD_GAME_UPDATE_MESSAGE = 'Now playing: {game}';
+
+            const config = parseConfiguration();
+            expect(config.gameUpdates.messageTemplate).toBe('Now playing: {game}');
+        });
+
+        test('should not configure game updates when Discord is missing', () => {
+            process.env.EXTRALIFE_PARTICIPANT_ID = '12345';
+            process.env.TWITCH_CHANNEL = 'testchannel';
+            process.env.TWITCH_USERNAME = 'testbot';
+            process.env.TWITCH_CHAT_OAUTH = 'oauth:chat-token';
+            process.env.TWITCH_CLIENT_ID = 'client-id';
+            process.env.DISCORD_GAME_UPDATE_USER_ID = '987654321';
+            process.env.TWITCH_API_OAUTH = 'oauth:api-token';
+            // Missing Discord configuration
+
+            const config = parseConfiguration();
+            expect(config.gameUpdates.configured).toBe(false);
+        });
+
+        test('should not configure game updates when Twitch is missing', () => {
+            process.env.EXTRALIFE_PARTICIPANT_ID = '12345';
+            process.env.DISCORD_TOKEN = 'discord-token';
+            process.env.DISCORD_DONATION_CHANNEL = '111111';
+            process.env.DISCORD_SUMMARY_CHANNEL = '222222';
+            process.env.DISCORD_GAME_UPDATE_USER_ID = '987654321';
+            // Missing Twitch configuration
+
+            const config = parseConfiguration();
+            expect(config.gameUpdates.configured).toBe(false);
+        });
+
+        test('should not configure game updates when user ID is missing', () => {
+            process.env.EXTRALIFE_PARTICIPANT_ID = '12345';
+            process.env.DISCORD_TOKEN = 'discord-token';
+            process.env.DISCORD_DONATION_CHANNEL = '111111';
+            process.env.DISCORD_SUMMARY_CHANNEL = '222222';
+            process.env.TWITCH_CHANNEL = 'testchannel';
+            process.env.TWITCH_USERNAME = 'testbot';
+            process.env.TWITCH_CHAT_OAUTH = 'oauth:chat-token';
+            process.env.TWITCH_CLIENT_ID = 'client-id';
+            process.env.TWITCH_API_OAUTH = 'oauth:api-token';
+            // Missing DISCORD_GAME_UPDATE_USER_ID
+
+            const config = parseConfiguration();
+            expect(config.gameUpdates.configured).toBe(false);
+        });
     });
 });
