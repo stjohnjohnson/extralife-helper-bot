@@ -1,4 +1,4 @@
-const { getGameFromActivities, findBestGameMatch } = require('../src/gameUpdates');
+const { getGameFromActivities, findBestGameMatch, isWholeWordMatch } = require('../src/gameUpdates');
 
 describe('Game Updates Module', () => {
     describe('getGameFromActivities', () => {
@@ -223,7 +223,7 @@ describe('Game Updates Module', () => {
                 { id: '3', name: 'CS' }
             ];
             const result = findBestGameMatch('World of Warcraft', games);
-            expect(result.name).toBe('WoW'); // "World of Warcraft" starts with "WoW" when normalized
+            expect(result.name).toBe('WoW'); // "WoW" is an abbreviation for "World of Warcraft" (abbreviation matching)
         });
 
         it('should handle Priority 3: common game abbreviations', () => {
@@ -337,6 +337,50 @@ describe('Game Updates Module', () => {
             ];
             const result = findBestGameMatch('Mario', games);
             expect(result.name).toBe('Super Mario World'); // Should find word boundary match
+        });
+    });
+
+    describe('isWholeWordMatch', () => {
+        it('should match whole words at the beginning', () => {
+            expect(isWholeWordMatch('mario', 'mario kart')).toBe(true);
+        });
+
+        it('should match whole words in the middle', () => {
+            expect(isWholeWordMatch('mario', 'super mario world')).toBe(true);
+        });
+
+        it('should match whole words at the end', () => {
+            expect(isWholeWordMatch('mario', 'call mario')).toBe(true);
+        });
+
+        it('should match single word exactly', () => {
+            expect(isWholeWordMatch('mario', 'mario')).toBe(true);
+        });
+
+        it('should not match partial words', () => {
+            expect(isWholeWordMatch('mario', 'mariokart')).toBe(false);
+            expect(isWholeWordMatch('mario', 'supermario')).toBe(false);
+            expect(isWholeWordMatch('mario', 'mariott')).toBe(false);
+        });
+
+        it('should handle punctuation as word boundaries', () => {
+            expect(isWholeWordMatch('mario', 'mario: the game')).toBe(true);
+            expect(isWholeWordMatch('mario', 'game (mario edition)')).toBe(true);
+            expect(isWholeWordMatch('mario', 'mario-world')).toBe(true);
+        });
+
+        it('should return false for no match', () => {
+            expect(isWholeWordMatch('mario', 'zelda adventure')).toBe(false);
+        });
+
+        it('should handle empty strings', () => {
+            expect(isWholeWordMatch('', 'mario')).toBe(false); // Empty string has no match
+            expect(isWholeWordMatch('mario', '')).toBe(false);
+        });
+
+        it('should be case sensitive (since we normalize before calling)', () => {
+            expect(isWholeWordMatch('mario', 'Mario Kart')).toBe(false);
+            expect(isWholeWordMatch('mario', 'mario kart')).toBe(true);
         });
     });
 });

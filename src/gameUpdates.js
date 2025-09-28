@@ -90,9 +90,10 @@ async function getBroadcasterIdFromChannel(channelName, clientId, accessToken) {
  * @param {string} gameName - Name of the game to search for
  * @param {string} clientId - Twitch client ID
  * @param {string} accessToken - OAuth access token
+ * @param {Object} logger - Logger instance
  * @returns {Promise<string|null>} Game ID or null if not found
  */
-async function searchGameCategory(gameName, clientId, accessToken) {
+async function searchGameCategory(gameName, clientId, accessToken, logger) {
     try {
         const response = await makeTwitchApiRequest(`/search/categories?query=${encodeURIComponent(gameName)}`, {}, clientId, accessToken);
         if (!response.data || response.data.length === 0) {
@@ -104,15 +105,39 @@ async function searchGameCategory(gameName, clientId, accessToken) {
         
         // Log the matching result for debugging
         if (bestMatch) {
-            console.log(`Game search for "${gameName}" matched: "${bestMatch.name}" (ID: ${bestMatch.id})`);
+            logger.debug('Game search result found', {
+                searchTerm: gameName,
+                matchedGame: bestMatch.name,
+                gameId: bestMatch.id
+            });
         } else {
-            console.log(`No match found for game: "${gameName}"`);
+            logger.warn('No game match found', { searchTerm: gameName });
         }
         
         return bestMatch ? bestMatch.id : null;
     } catch (err) {
         throw new Error(`Failed to search for game "${gameName}": ${err.message}`);
     }
+}
+
+/**
+ * Checks if a target word appears as a complete word in the text
+ * @param {string} target - The word to search for
+ * @param {string} text - The text to search in
+ * @returns {boolean} True if target appears as a whole word
+ */
+function isWholeWordMatch(target, text) {
+    const index = text.indexOf(target);
+    if (index === -1) return false;
+    
+    // Check character before the match
+    const charBefore = index > 0 ? text[index - 1] : '';
+    const charAfter = index + target.length < text.length ? text[index + target.length] : '';
+    
+    // Word boundary characters (non-alphanumeric)
+    const isWordBoundary = (char) => !char || !/[a-zA-Z0-9]/.test(char);
+    
+    return isWordBoundary(charBefore) && isWordBoundary(charAfter);
 }
 
 /**
@@ -153,9 +178,8 @@ function findBestGameMatch(targetGame, games) {
     // Priority 4: Contains the target as a whole word
     for (const game of games) {
         const gameName = normalizeString(game.name);
-        // Use word boundaries to match whole words
-        const regex = new RegExp(`\\b${target.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`);
-        if (regex.test(gameName)) {
+        // Use word boundaries - check if target appears as a complete word
+        if (isWholeWordMatch(target, gameName)) {
             return game;
         }
     }
@@ -286,7 +310,8 @@ async function sendGameUpdateNotification(gameName, config, twitchClient, logger
         const gameId = await searchGameCategory(
             searchName, 
             config.twitch.clientId, 
-            cleanToken
+            cleanToken,
+            logger
         );
 
         if (!gameId) {
@@ -330,5 +355,6 @@ module.exports = {
     getBroadcasterIdFromChannel,
     searchGameCategory,
     updateChannelGame,
-    findBestGameMatch
+    findBestGameMatch,
+    isWholeWordMatch
 };
