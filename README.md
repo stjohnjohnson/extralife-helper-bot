@@ -52,6 +52,14 @@ The bot requires at least one service (Discord or Twitch) to be configured. Set 
 - `TWITCH_API_OAUTH`: OAuth token with `channel:manage:broadcast` scope (see setup instructions below)
 - `TWITCH_CLIENT_ID`: Your Twitch application client ID
 
+### Custom Command Responses (optional)
+- `CUSTOM_RESPONSES`: Define custom bot commands and their responses
+  - Format: `command1:"response1",command2:"response2"`
+  - Example: `donate:"Check out https://donate.example.com",discord:"Join our Discord: https://discord.gg/example"`
+  - Commands must start with a letter and contain only lowercase letters and numbers
+  - Cannot conflict with built-in commands (`goal`, `promote`)
+  - Commands are case-insensitive when used (e.g., `!DONATE` and `!donate` work the same)
+
 ## Running
 
 ### Docker (Recommended)
@@ -128,7 +136,7 @@ npm run lint
 
 ## Commands
 
-### Available Commands (work on both Discord and Twitch)
+### Built-in Commands (work on both Discord and Twitch)
 - **`!goal`**: Shows current fundraising progress
   ```
   St. John Johnson has raised $1,250.00 out of $10,000.00 (13%)
@@ -139,6 +147,23 @@ npm run lint
   Promoted 3 member(s) to live chat!
   ```
   *Note: This command requires Discord voice channel management to be configured and admin permissions*
+
+### Custom Commands
+You can create your own custom commands using the `CUSTOM_RESPONSES` environment variable. Custom commands:
+- Work on both Discord and Twitch
+- Are available to all users (not admin-restricted)
+- Are case-insensitive (`!donate` and `!DONATE` work the same)
+- Cannot override built-in commands
+
+**Examples:**
+- **`!donate`**: Custom donation link response
+  ```
+  Check out my donation page: https://donate.example.com
+  ```
+- **`!discord`**: Custom Discord invite response
+  ```
+  Join our community Discord: https://discord.gg/example
+  ```
 
 ## Admin Commands
 
