@@ -18,8 +18,10 @@ This bot combines the functionality of both Discord and Twitch bridges, allowing
 
 ### Twitch Integration  
 - **Donation Announcements**: Posts new donations to Twitch chat with ExtraLife emotes
+- **Automatic Game Category Updates**: Changes Twitch channel game category when Discord user changes games
 
-### Overall
+### Cross-Platform Features
+- **Game Update Bridge**: Detects Discord game status changes and automatically updates Twitch channel category
 - **Cross-platform Commands**: `!goal` and `!promote` commands work from Twitch and Discord
 - **Real-time Updates**: Checks for new donations every 30 seconds
 
@@ -41,8 +43,14 @@ The bot requires at least one service (Discord or Twitch) to be configured. Set 
 
 ### Twitch Service (optional)  
 - `TWITCH_USERNAME`: Your bot's Twitch username
-- `TWITCH_OAUTH`: OAuth token from [https://twitchapps.com/tmi/](https://twitchapps.com/tmi/)
+- `TWITCH_CHAT_OAUTH`: Bot OAuth token from [https://twitchapps.com/tmi/](https://twitchapps.com/tmi/)
 - `TWITCH_CHANNEL`: The Twitch channel name to join
+
+### Game Update Notifications (optional - requires both Discord and Twitch)
+- `DISCORD_GAME_UPDATE_USER_ID`: Discord user ID to monitor for game changes
+- `DISCORD_GAME_UPDATE_MESSAGE`: Custom message template (optional, default: "Streamer is now playing {game}!")
+- `TWITCH_API_OAUTH`: OAuth token with `channel:manage:broadcast` scope (see setup instructions below)
+- `TWITCH_CLIENT_ID`: Your Twitch application client ID
 
 ## Running
 
@@ -90,9 +98,33 @@ npm run lint
 5. **For voice management**: Set up waiting room and live room voice channel IDs in your environment
 
 ### Twitch Bot Setup  
-1. Create a Twitch account for your bot
-2. Get an OAuth token from https://twitchapps.com/tmi/
-3. Set the channel name (without the # prefix)
+1. **Create a Twitch application** at https://dev.twitch.tv/console/apps
+2. **Copy your Client ID** from the application
+3. **Generate two OAuth tokens**:
+
+   **For Chat (Bot Account)**:
+   - Use your bot account (can be separate from streamer)
+   - Get token from https://twitchapps.com/tmi/
+   - Set as `TWITCH_CHAT_OAUTH`
+   
+   **For API/Game Updates (Streamer Account)**:
+   - **Must use streamer/broadcaster account**
+   - Use [Twitch Token Generator](https://twitchtokengenerator.com/) with your Client ID
+   - Select `channel:manage:broadcast` scope
+   - Set as `TWITCH_API_OAUTH`
+
+4. **Set configuration**:
+   - `TWITCH_USERNAME`: Your bot's username (for chat)
+   - `TWITCH_CHANNEL`: Your streamer channel name (without # prefix)
+
+### Game Update Setup (optional)
+1. **Requires both Discord and Twitch services** to be configured
+2. Get the Discord user ID to monitor:
+   - Enable Developer Mode in Discord settings
+   - Right-click the user's profile and select "Copy User ID"
+   - Set this as `DISCORD_GAME_UPDATE_USER_ID`
+3. **Note**: The Discord bot needs the "Server Members Intent" enabled for presence monitoring
+4. Customize the notification message with `DISCORD_GAME_UPDATE_MESSAGE` (use `{game}` as placeholder)
 
 ## Commands
 
@@ -143,4 +175,11 @@ ExtraLife ExtraLife St. John Johnson just donated $25.00 with the message "Good 
 !goal
 St. John Johnson has raised $1,250.00 out of $10,000.00 (13%)
 ```
+
+### Game Update Behavior
+When the monitored Discord user changes their game status:
+- **Game Start**: Twitch channel game category automatically updates to match the new game
+- **Game Stop**: Twitch channel game category automatically updates to "Just Chatting"
+- **Game Switch**: Twitch channel game category updates from old game to new game
+- **Not Found**: If the game isn't found on Twitch, no change is made and an error is logged
 Helper bot for automating some Discord and Twitch integrations (and maybe more?!)

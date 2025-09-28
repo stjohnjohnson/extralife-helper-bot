@@ -1,4 +1,4 @@
-import { createLogger, format, transports } from 'winston';
+const { createLogger, format, transports } = require('winston');
 
 const logger = createLogger({
     level: process.env.LOG_LEVEL || 'info',
@@ -15,6 +15,8 @@ const logger = createLogger({
     ]
 });
 
-export default function getLogger(module) {
+function getLogger(module) {
     return logger.child({ module });
 }
+
+module.exports = getLogger;

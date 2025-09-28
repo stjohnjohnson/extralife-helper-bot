@@ -4,6 +4,7 @@ const tmi = require('tmi.js');
 const getLogger = require('./logger.js');
 const { parseConfiguration } = require('./src/config.js');
 const { handleCommand } = require('./src/commands.js');
+const { handlePresenceUpdate } = require('./src/gameUpdates.js');
 
 // Setup loggers
 const log = getLogger('app');
@@ -37,14 +38,15 @@ const seenDonationIDs = {};
 let discordClient, donationChannel, summaryChannel;
 
 if (config.discord.configured) {
-    // Create Discord client with additional intents for voice and messages
+    // Create Discord client with additional intents for voice, messages, and presence
     discordClient = new DiscordClient({ 
         intents: [
             GatewayIntentBits.Guilds,
             GatewayIntentBits.GuildMessages,
             GatewayIntentBits.MessageContent,
-            GatewayIntentBits.GuildVoiceStates
-        ] 
+            GatewayIntentBits.GuildVoiceStates,
+            GatewayIntentBits.GuildPresences
+        ]
     });
 
     // When the Discord client is ready
@@ -86,6 +88,15 @@ if (config.discord.configured) {
         }
     });
 
+    // Handle Discord presence updates for game changes (if configured)
+    if (config.gameUpdates.configured) {
+        discordClient.on('presenceUpdate', async (oldPresence, newPresence) => {
+            await handlePresenceUpdate(oldPresence, newPresence, config, twitchClient, discordLog);
+        });
+        
+        discordLog.info(`Game update monitoring enabled for user ${config.gameUpdates.userId}`);
+    }
+
     // Login to Discord
     discordClient.login(config.discord.token);
 }
@@ -103,7 +114,7 @@ if (config.twitch.configured) {
         },
         identity: {
             username: config.twitch.username,
-            password: config.twitch.oauth
+            password: config.twitch.chatOauth
         },
         channels: [config.twitch.channel]
     });
