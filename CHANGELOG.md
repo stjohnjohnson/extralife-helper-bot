@@ -1,3 +1,10 @@
+# [2.1.0](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v2.0.0...v2.1.0) (2025-09-28)
+
+
+### Features
+
+* add custom command responses via CUSTOM_RESPONSES env var ([0670082](https://github.com/stjohnjohnson/extralife-helper-bot/commit/067008247b6506a5af8e44e0f4ced98069ff8de0)), closes [#10](https://github.com/stjohnjohnson/extralife-helper-bot/issues/10)
+
 # [2.0.0](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v1.0.1...v2.0.0) (2025-09-28)
 
 
