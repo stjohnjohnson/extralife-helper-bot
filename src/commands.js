@@ -20,16 +20,31 @@ const moneyFormatter = new Intl.NumberFormat('en-US', {
  * @returns {Promise<string|null>} Response message or null if command not found
  */
 async function handleCommand(command, platform, context, config, clients, logger) {
-    switch (command) {
+    // Convert command to lowercase for case-insensitive matching
+    const normalizedCommand = command.toLowerCase();
+
+    // Check for built-in commands first
+    switch (normalizedCommand) {
     case 'goal':
         return await handleGoalCommand(config.participantId, logger);
-        
+
     case 'promote':
         return await handlePromoteCommand(platform, context, config, clients, logger);
-        
-    default:
-        return null; // Unknown command
     }
+
+    // Check for custom responses
+    if (config.customResponses && config.customResponses.has(normalizedCommand)) {
+        const response = config.customResponses.get(normalizedCommand);
+        logger.info('Custom command executed', {
+            command: normalizedCommand,
+            platform,
+            username: context.username
+        });
+        return response;
+    }
+
+    // Unknown command
+    return null;
 }
 
 /**
@@ -44,7 +59,7 @@ async function handleGoalCommand(participantId, logger) {
         const sumDonations = moneyFormatter.format(data.sumDonations);
         const fundraisingGoal = moneyFormatter.format(data.fundraisingGoal);
         const percentComplete = Math.round(data.sumDonations / data.fundraisingGoal * 100);
-        
+
         const message = `${data.displayName} has raised ${sumDonations} out of ${fundraisingGoal} (${percentComplete}%)`;
         logger.info('Goal command executed', { message });
         return message;
@@ -66,10 +81,10 @@ async function handleGoalCommand(participantId, logger) {
 async function handlePromoteCommand(platform, context, config, clients, logger) {
     // Check admin permissions
     if (!isAdmin(platform, context.userId, config)) {
-        logger.warn('Unauthorized promote command attempt', { 
-            platform, 
-            userId: context.userId, 
-            username: context.username 
+        logger.warn('Unauthorized promote command attempt', {
+            platform,
+            userId: context.userId,
+            username: context.username
         });
         return 'You do not have permission to use this command.';
     }
@@ -81,7 +96,7 @@ async function handlePromoteCommand(platform, context, config, clients, logger) 
     try {
         const waitingRoom = clients.discord.channels.cache.get(config.discord.waitingRoomChannel);
         const liveRoom = clients.discord.channels.cache.get(config.discord.liveRoomChannel);
-        
+
         if (!waitingRoom || !liveRoom) {
             logger.warn('Voice channels not found for promote command');
             return 'Voice channels not found.';
@@ -103,11 +118,11 @@ async function handlePromoteCommand(platform, context, config, clients, logger) 
         }
 
         const message = `Promoted ${promoted} member(s) to live chat!`;
-        logger.info('Promote command executed', { 
-            platform, 
-            promoted, 
+        logger.info('Promote command executed', {
+            platform,
+            promoted,
             totalInRoom: members.size,
-            executedBy: context.username 
+            executedBy: context.username
         });
         return message;
     } catch (err) {

@@ -22,7 +22,7 @@ describe('Commands Module', () => {
                 sumDonations: 1250.50,
                 fundraisingGoal: 10000
             };
-            
+
             getUserInfo.mockResolvedValue(mockData);
 
             const result = await handleGoalCommand('12345', mockLogger);
@@ -51,7 +51,7 @@ describe('Commands Module', () => {
                 sumDonations: 100,
                 fundraisingGoal: 0
             };
-            
+
             getUserInfo.mockResolvedValue(mockData);
 
             const result = await handleGoalCommand('12345', mockLogger);
@@ -91,8 +91,8 @@ describe('Commands Module', () => {
 
         test('should check Discord configuration', async () => {
             const unconfiguredConfig = {
-                discord: { 
-                    configured: false, 
+                discord: {
+                    configured: false,
                     voiceConfigured: false,
                     admins: ['admin1'] // Need to include admins array for isAdmin check
                 }
@@ -124,7 +124,7 @@ describe('Commands Module', () => {
             const mockWaitingRoom = {
                 members: { size: 0 }
             };
-            
+
             const mockClients = {
                 discord: {
                     channels: {
@@ -151,7 +151,7 @@ describe('Commands Module', () => {
             const mockMember2 = {
                 voice: { setChannel: jest.fn().mockResolvedValue() }
             };
-            
+
             const mockWaitingRoom = {
                 members: {
                     size: 2,
@@ -161,9 +161,9 @@ describe('Commands Module', () => {
                     }
                 }
             };
-            
+
             const mockLiveRoom = { id: 'live-456' };
-            
+
             const mockClients = {
                 discord: {
                     channels: {
@@ -207,6 +207,81 @@ describe('Commands Module', () => {
 
         test('should return null for unknown commands', async () => {
             const result = await handleCommand('unknown', 'discord', {}, {}, {}, mockLogger);
+
+            expect(result).toBeNull();
+        });
+
+        test('should handle custom responses', async () => {
+            const customResponses = new Map();
+            customResponses.set('donate', 'Check out my donation link!');
+            customResponses.set('discord', 'Join our Discord server!');
+
+            const config = {
+                customResponses: customResponses
+            };
+
+            const context = { username: 'testuser' };
+
+            const result = await handleCommand('donate', 'discord', context, config, {}, mockLogger);
+
+            expect(result).toBe('Check out my donation link!');
+            expect(mockLogger.info).toHaveBeenCalledWith('Custom command executed', {
+                command: 'donate',
+                platform: 'discord',
+                username: 'testuser'
+            });
+        });
+
+        test('should handle custom responses case insensitively', async () => {
+            const customResponses = new Map();
+            customResponses.set('donate', 'Check out my donation link!');
+
+            const config = {
+                customResponses: customResponses
+            };
+
+            const context = { username: 'testuser' };
+
+            const result = await handleCommand('DONATE', 'twitch', context, config, {}, mockLogger);
+
+            expect(result).toBe('Check out my donation link!');
+            expect(mockLogger.info).toHaveBeenCalledWith('Custom command executed', {
+                command: 'donate',
+                platform: 'twitch',
+                username: 'testuser'
+            });
+        });
+
+        test('should prioritize built-in commands over custom responses', async () => {
+            getUserInfo.mockResolvedValue({
+                displayName: 'Test User',
+                sumDonations: 500,
+                fundraisingGoal: 1000
+            });
+
+            const customResponses = new Map();
+            customResponses.set('goal', 'This should not be returned');
+
+            const config = {
+                participantId: '12345',
+                customResponses: customResponses
+            };
+
+            const result = await handleCommand('goal', 'discord', {}, config, {}, mockLogger);
+
+            expect(result).toBe('Test User has raised $500.00 out of $1,000.00 (50%)');
+            // Should not log custom command execution
+            expect(mockLogger.info).toHaveBeenCalledWith('Goal command executed', {
+                message: 'Test User has raised $500.00 out of $1,000.00 (50%)'
+            });
+        });
+
+        test('should return null when no custom responses configured', async () => {
+            const config = {
+                customResponses: null
+            };
+
+            const result = await handleCommand('donate', 'discord', {}, config, {}, mockLogger);
 
             expect(result).toBeNull();
         });

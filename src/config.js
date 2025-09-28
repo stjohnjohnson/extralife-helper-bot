@@ -31,6 +31,10 @@ function parseConfiguration() {
     const discordAdmins = parseAdminUsers(process.env.DISCORD_ADMIN_USERS);
     const twitchAdmins = parseAdminUsers(process.env.TWITCH_ADMIN_USERS);
 
+    // Parse custom responses
+    const { customResponses, customResponseErrors } = parseCustomResponses(process.env.CUSTOM_RESPONSES);
+    configErrors.push(...customResponseErrors);
+
     // Validate at least one service is configured
     if (!discordConfigured && !twitchConfigured) {
         configErrors.push('At least one service must be configured (Discord or Twitch)');
@@ -65,7 +69,8 @@ function parseConfiguration() {
             configured: gameUpdateConfigured,
             userId: process.env.DISCORD_GAME_UPDATE_USER_ID,
             messageTemplate: process.env.DISCORD_GAME_UPDATE_MESSAGE || 'Now playing {game}!'
-        }
+        },
+        customResponses: customResponses
     };
 }
 
@@ -80,6 +85,104 @@ function parseAdminUsers(adminString) {
         .split(',')
         .map(id => id.trim())
         .filter(Boolean);
+}
+
+/**
+ * Parses custom responses from configuration string
+ * @param {string} customResponseString - Format: 'command1:"response1",command2:"response2"'
+ * @returns {Object} Object with customResponses map and errors array
+ */
+function parseCustomResponses(customResponseString) {
+    const customResponses = new Map();
+    const errors = [];
+    const builtInCommands = ['goal', 'promote']; // List of built-in commands
+
+    if (!customResponseString) {
+        return { customResponses, customResponseErrors: errors };
+    }
+
+    try {
+        // Split by comma, but be careful about commas inside quoted strings
+        const pairs = [];
+        let current = '';
+        let inQuotes = false;
+        let quoteChar = '';
+
+        for (let i = 0; i < customResponseString.length; i++) {
+            const char = customResponseString[i];
+
+            if ((char === '"' || char === '\'') && !inQuotes) {
+                inQuotes = true;
+                quoteChar = char;
+                current += char;
+            } else if (char === quoteChar && inQuotes) {
+                inQuotes = false;
+                quoteChar = '';
+                current += char;
+            } else if (char === ',' && !inQuotes) {
+                if (current.trim()) {
+                    pairs.push(current.trim());
+                }
+                current = '';
+            } else {
+                current += char;
+            }
+        }
+
+        // Add the last pair
+        if (current.trim()) {
+            pairs.push(current.trim());
+        }
+
+        // Parse each pair
+        for (const pair of pairs) {
+            const colonIndex = pair.indexOf(':');
+            if (colonIndex === -1) {
+                errors.push(`Invalid custom response format: "${pair}". Expected format: command:"response"`);
+                continue;
+            }
+
+            const command = pair.substring(0, colonIndex).trim().toLowerCase();
+            const responseWithQuotes = pair.substring(colonIndex + 1).trim();
+
+            // Remove quotes from response
+            let response = responseWithQuotes;
+            if ((response.startsWith('"') && response.endsWith('"')) ||
+                (response.startsWith('\'') && response.endsWith('\''))) {
+                response = response.slice(1, -1);
+            }
+
+            // Validate command name
+            if (!command) {
+                errors.push(`Empty command name in: "${pair}"`);
+                continue;
+            }
+
+            if (!/^[a-z][a-z0-9]*$/.test(command)) {
+                errors.push(`Invalid command name "${command}". Commands must start with a letter and contain only lowercase letters and numbers.`);
+                continue;
+            }
+
+            // Check for conflicts with built-in commands
+            if (builtInCommands.includes(command)) {
+                errors.push(`Custom command "${command}" conflicts with built-in command. Please choose a different name.`);
+                continue;
+            }
+
+            // Check for duplicates
+            if (customResponses.has(command)) {
+                errors.push(`Duplicate custom command "${command}" found.`);
+                continue;
+            }
+
+            customResponses.set(command, response);
+        }
+
+    } catch (err) {
+        errors.push(`Error parsing custom responses: ${err.message}`);
+    }
+
+    return { customResponses, customResponseErrors: errors };
 }
 
 /**
@@ -101,5 +204,6 @@ function isAdmin(platform, userId, config) {
 module.exports = {
     parseConfiguration,
     parseAdminUsers,
+    parseCustomResponses,
     isAdmin
 };

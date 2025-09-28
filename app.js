@@ -39,7 +39,7 @@ let discordClient, donationChannel, summaryChannel;
 
 if (config.discord.configured) {
     // Create Discord client with additional intents for voice, messages, and presence
-    discordClient = new DiscordClient({ 
+    discordClient = new DiscordClient({
         intents: [
             GatewayIntentBits.Guilds,
             GatewayIntentBits.GuildMessages,
@@ -81,7 +81,7 @@ if (config.discord.configured) {
             };
             const clients = { discord: discordClient };
             const response = await handleCommand(command, 'discord', context, config, clients, discordLog);
-            
+
             if (response) {
                 message.reply(response);
             }
@@ -93,7 +93,7 @@ if (config.discord.configured) {
         discordClient.on('presenceUpdate', async (oldPresence, newPresence) => {
             await handlePresenceUpdate(oldPresence, newPresence, config, twitchClient, discordLog);
         });
-        
+
         discordLog.info(`Game update monitoring enabled for user ${config.gameUpdates.userId}`);
     }
 
@@ -140,7 +140,7 @@ if (config.twitch.configured) {
             };
             const clients = { discord: discordClient, twitch: twitchClient };
             const response = await handleCommand(command, 'twitch', context, config, clients, twitchLog);
-            
+
             if (response) {
                 twitchClient.say(channel, response);
             }
@@ -215,28 +215,28 @@ getLatestDonation(true);
 // Handle graceful shutdown
 process.on('SIGTERM', () => {
     log.info('Received SIGTERM, shutting down gracefully...');
-    
+
     if (discordClient) {
         discordClient.destroy();
     }
-    
+
     if (twitchClient) {
         twitchClient.disconnect();
     }
-    
+
     process.exit(0);
 });
 
 process.on('SIGINT', () => {
     log.info('Received SIGINT, shutting down gracefully...');
-    
+
     if (discordClient) {
         discordClient.destroy();
     }
-    
+
     if (twitchClient) {
         twitchClient.disconnect();
     }
-    
+
     process.exit(0);
 });
