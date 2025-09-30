@@ -14,7 +14,7 @@ function parseConfiguration() {
     const discordEnvVars = ['DISCORD_SUMMARY_CHANNEL', 'DISCORD_DONATION_CHANNEL', 'DISCORD_TOKEN'];
     const twitchEnvVars = ['TWITCH_CHANNEL', 'TWITCH_USERNAME', 'TWITCH_CHAT_OAUTH', 'TWITCH_CLIENT_ID'];
     const discordVoiceEnvVars = ['DISCORD_WAITING_ROOM_CHANNEL', 'DISCORD_LIVE_ROOM_CHANNEL'];
-    const gameUpdateEnvVars = ['DISCORD_GAME_UPDATE_USER_ID', 'TWITCH_API_OAUTH'];
+    const gameUpdateEnvVars = ['DISCORD_GAME_UPDATE_USER_ID', 'TWITCH_CLIENT_SECRET', 'TWITCH_REFRESH_TOKEN'];
 
     // Check required variables
     const configErrors = requiredEnvVars
@@ -62,6 +62,8 @@ function parseConfiguration() {
             chatOauth: process.env.TWITCH_CHAT_OAUTH,
             apiOauth: process.env.TWITCH_API_OAUTH,
             clientId: process.env.TWITCH_CLIENT_ID,
+            clientSecret: process.env.TWITCH_CLIENT_SECRET,
+            refreshToken: process.env.TWITCH_REFRESH_TOKEN,
             channel: process.env.TWITCH_CHANNEL,
             admins: twitchAdmins
         },

@@ -5,6 +5,12 @@
 
 const https = require('https');
 
+// In-memory token cache (no disk persistence needed)
+let cachedTokenData = {
+    accessToken: null,
+    expiresAt: null
+};
+
 /**
  * Makes an HTTPS request to the Twitch API
  * @param {string} path - API endpoint path
@@ -40,12 +46,12 @@ function makeTwitchApiRequest(path, options = {}, clientId, accessToken) {
                         resolve({});
                         return;
                     }
-                    
+
                     if (!data) {
                         reject(new Error(`Empty response with status ${res.statusCode}`));
                         return;
                     }
-                    
+
                     const parsed = JSON.parse(data);
                     if (res.statusCode >= 200 && res.statusCode < 300) {
                         resolve(parsed);
@@ -68,6 +74,100 @@ function makeTwitchApiRequest(path, options = {}, clientId, accessToken) {
 
         req.end();
     });
+}
+
+/**
+ * Refreshes user access token using refresh token
+ * @param {string} clientId - Twitch client ID
+ * @param {string} clientSecret - Twitch client secret
+ * @param {string} refreshToken - Refresh token
+ * @returns {Promise<Object>} Token response with access_token and refresh_token
+ */
+async function refreshUserToken(clientId, clientSecret, refreshToken) {
+    return new Promise((resolve, reject) => {
+        const postData = `client_id=${clientId}&client_secret=${clientSecret}&grant_type=refresh_token&refresh_token=${refreshToken}`;
+
+        const options = {
+            hostname: 'id.twitch.tv',
+            port: 443,
+            path: '/oauth2/token',
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'Content-Length': Buffer.byteLength(postData)
+            }
+        };
+
+        const req = https.request(options, (res) => {
+            let data = '';
+            res.on('data', (chunk) => {
+                data += chunk;
+            });
+            res.on('end', () => {
+                try {
+                    const response = JSON.parse(data);
+                    if (res.statusCode >= 200 && res.statusCode < 300) {
+                        resolve(response);
+                    } else {
+                        reject(new Error(`Failed to refresh token: ${response.message || data}`));
+                    }
+                } catch (err) {
+                    reject(new Error(`Failed to parse refresh response: ${err.message}`));
+                }
+            });
+        });
+
+        req.on('error', (err) => {
+            reject(err);
+        });
+
+        req.write(postData);
+        req.end();
+    });
+}
+
+/**
+ * Gets valid user access token with automatic refresh and in-memory caching
+ * @param {Object} config - Configuration object
+ * @param {Object} logger - Logger instance
+ * @returns {Promise<string>} Valid access token
+ */
+async function getValidAccessToken(config, logger) {
+    // Require refresh token and client secret for channel management
+    if (!config.twitch.clientSecret || !config.twitch.refreshToken) {
+        throw new Error('TWITCH_CLIENT_SECRET and TWITCH_REFRESH_TOKEN are required for channel management. Please set both environment variables.');
+    }
+
+    // Use cached token if still valid (with 5 minute buffer for safety)
+    if (cachedTokenData.accessToken && cachedTokenData.expiresAt && Date.now() < (cachedTokenData.expiresAt - 300000)) {
+        return cachedTokenData.accessToken;
+    }
+
+    // Need to get a fresh token
+    logger.info('Getting fresh Twitch access token');
+
+    try {
+        const refreshResponse = await refreshUserToken(
+            config.twitch.clientId,
+            config.twitch.clientSecret,
+            config.twitch.refreshToken
+        );
+
+        // Cache new token in memory
+        cachedTokenData.accessToken = refreshResponse.access_token;
+        cachedTokenData.expiresAt = Date.now() + (refreshResponse.expires_in * 1000); // Convert seconds to milliseconds
+
+        logger.info('Successfully refreshed Twitch access token', {
+            expiresIn: refreshResponse.expires_in,
+            expiresAt: new Date(cachedTokenData.expiresAt).toISOString()
+        });
+
+        return cachedTokenData.accessToken;
+
+    } catch (refreshErr) {
+        logger.error('Failed to refresh access token', { error: refreshErr.message });
+        throw new Error(`Token refresh failed: ${refreshErr.message}. Please re-authorize the application and get a new refresh token.`);
+    }
 }
 
 /**
@@ -102,7 +202,7 @@ async function searchGameCategory(gameName, clientId, accessToken, logger) {
 
         // Find the best match using priority-based matching
         const bestMatch = findBestGameMatch(gameName, response.data);
-        
+
         // Log the matching result for debugging
         if (bestMatch) {
             logger.debug('Game search result found', {
@@ -113,7 +213,7 @@ async function searchGameCategory(gameName, clientId, accessToken, logger) {
         } else {
             logger.warn('No game match found', { searchTerm: gameName });
         }
-        
+
         return bestMatch ? bestMatch.id : null;
     } catch (err) {
         throw new Error(`Failed to search for game "${gameName}": ${err.message}`);
@@ -129,14 +229,14 @@ async function searchGameCategory(gameName, clientId, accessToken, logger) {
 function isWholeWordMatch(target, text) {
     const index = text.indexOf(target);
     if (index === -1) return false;
-    
+
     // Check character before the match
     const charBefore = index > 0 ? text[index - 1] : '';
     const charAfter = index + target.length < text.length ? text[index + target.length] : '';
-    
+
     // Word boundary characters (non-alphanumeric)
     const isWordBoundary = (char) => !char || !/[a-zA-Z0-9]/.test(char);
-    
+
     return isWordBoundary(charBefore) && isWordBoundary(charAfter);
 }
 
@@ -150,31 +250,31 @@ function findBestGameMatch(targetGame, games) {
     if (!games || games.length === 0) {
         return null;
     }
-    
+
     const normalizeString = (str) => str.toLowerCase().trim();
     const target = normalizeString(targetGame);
-    
+
     // Priority 1: Exact match (case insensitive)
     for (const game of games) {
         if (normalizeString(game.name) === target) {
             return game;
         }
     }
-    
+
     // Priority 2: Starts with the target
     for (const game of games) {
         if (normalizeString(game.name).startsWith(target)) {
             return game;
         }
     }
-    
+
     // Priority 3: Target starts with the game name (handles abbreviations)
     for (const game of games) {
         if (target.startsWith(normalizeString(game.name))) {
             return game;
         }
     }
-    
+
     // Priority 4: Contains the target as a whole word
     for (const game of games) {
         const gameName = normalizeString(game.name);
@@ -183,16 +283,16 @@ function findBestGameMatch(targetGame, games) {
             return game;
         }
     }
-    
+
     // Priority 5: Fuzzy match - target contains all characters from game name
     for (const game of games) {
         const gameName = normalizeString(game.name);
-        if (gameName.length <= target.length && 
+        if (gameName.length <= target.length &&
             gameName.split('').every(char => target.includes(char))) {
             return game;
         }
     }
-    
+
     // Fallback: Return the first result (original behavior)
     return games[0];
 }
@@ -215,7 +315,7 @@ async function updateChannelGame(broadcasterId, gameId, clientId, accessToken) {
 /**
  * Handles Discord presence updates to detect game changes
  * @param {Object} oldPresence - Previous Discord presence
- * @param {Object} newPresence - New Discord presence  
+ * @param {Object} newPresence - New Discord presence
  * @param {Object} config - Configuration object
  * @param {Object} twitchClient - Twitch client instance
  * @param {Object} logger - Logger instance
@@ -291,26 +391,27 @@ async function sendGameUpdateNotification(gameName, config, twitchClient, logger
         const displayName = gameName || 'Just Chatting';
         const searchName = gameName || 'Just Chatting';
 
-        logger.info('Updating Twitch channel game', { 
+        logger.info('Updating Twitch channel game', {
             game: displayName,
             channel: config.twitch.channel,
-            clientId: config.twitch.clientId ? config.twitch.clientId.substring(0, 8) + '...' : 'undefined',
-            tokenLength: config.twitch.apiOauth ? config.twitch.apiOauth.length : 0
+            clientId: config.twitch.clientId ? config.twitch.clientId.substring(0, 8) + '...' : 'undefined'
         });
 
-        // Get broadcaster ID (we'll cache this in the future if needed)  
-        const cleanToken = config.twitch.apiOauth.replace('oauth:', '');
+        // Get a valid access token (user token required for channel management)
+        const accessToken = await getValidAccessToken(config, logger);
+
+        // Get broadcaster ID (we'll cache this in the future if needed)
         const broadcasterId = await getBroadcasterIdFromChannel(
-            config.twitch.channel, 
-            config.twitch.clientId, 
-            cleanToken
+            config.twitch.channel,
+            config.twitch.clientId,
+            accessToken
         );
 
         // Search for the game category
         const gameId = await searchGameCategory(
-            searchName, 
-            config.twitch.clientId, 
-            cleanToken,
+            searchName,
+            config.twitch.clientId,
+            accessToken,
             logger
         );
 
@@ -321,10 +422,10 @@ async function sendGameUpdateNotification(gameName, config, twitchClient, logger
 
         // Update the channel's game category
         await updateChannelGame(
-            broadcasterId, 
-            gameId, 
-            config.twitch.clientId, 
-            cleanToken
+            broadcasterId,
+            gameId,
+            config.twitch.clientId,
+            accessToken
         );
 
         logger.info('Successfully updated Twitch channel game', {
@@ -335,14 +436,14 @@ async function sendGameUpdateNotification(gameName, config, twitchClient, logger
         });
 
     } catch (err) {
-        logger.error('Error updating Twitch channel game', { 
-            game: gameName || 'Just Chatting', 
+        logger.error('Error updating Twitch channel game', {
+            game: gameName || 'Just Chatting',
             error: err.message,
             clientId: config.twitch.clientId ? config.twitch.clientId.substring(0, 8) + '...' : 'undefined',
             channel: config.twitch.channel,
             tokenPrefix: config.twitch.apiOauth ? config.twitch.apiOauth.substring(0, 10) + '...' : 'undefined'
         });
-        
+
         // Don't throw the error - just log it and continue
     }
 }
