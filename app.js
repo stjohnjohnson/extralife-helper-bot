@@ -22,7 +22,7 @@ if (!config.isValid) {
 }
 
 log.info(`ExtraLife Helper Bot starting for participant ${config.participantId}`);
-log.info(`Services enabled: Discord=${config.discord.configured}, Twitch=${config.twitch.configured}, Voice=${config.discord.voiceConfigured}`);
+log.info('All services configured and enabled: Discord, Twitch, Voice, Game Updates');
 log.info(`Admin users: Discord=${config.discord.admins.length}, Twitch=${config.twitch.admins.length}`);
 
 // Setup a formatter
@@ -37,123 +37,117 @@ const seenDonationIDs = {};
 // Discord setup
 let discordClient, donationChannel, summaryChannel;
 
-if (config.discord.configured) {
-    // Create Discord client with additional intents for voice, messages, and presence
-    discordClient = new DiscordClient({
-        intents: [
-            GatewayIntentBits.Guilds,
-            GatewayIntentBits.GuildMessages,
-            GatewayIntentBits.MessageContent,
-            GatewayIntentBits.GuildVoiceStates,
-            GatewayIntentBits.GuildPresences
-        ]
-    });
+// Create Discord client with additional intents for voice, messages, and presence
+discordClient = new DiscordClient({
+    intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.MessageContent,
+        GatewayIntentBits.GuildVoiceStates,
+        GatewayIntentBits.GuildPresences
+    ]
+});
 
-    // When the Discord client is ready
-    discordClient.once('ready', () => {
-        discordLog.info('Discord Bot Online');
+// When the Discord client is ready
+discordClient.once('ready', () => {
+    discordLog.info('Discord Bot Online');
 
-        // Find our channels
-        donationChannel = discordClient.channels.cache.get(config.discord.donationChannel);
-        if (!donationChannel) {
-            throw new Error(`Unable to find donation channel with id ${config.discord.donationChannel}`);
-        }
-        discordLog.info(`Found Discord Donation Channel: ${donationChannel.id}`);
-
-        summaryChannel = discordClient.channels.cache.get(config.discord.summaryChannel);
-        if (!summaryChannel) {
-            throw new Error(`Unable to find summary channel with id ${config.discord.summaryChannel}`);
-        }
-        discordLog.info(`Found Discord Summary Channel: ${summaryChannel.id}`);
-
-        // Get latest info
-        updateDiscordSummary();
-    });
-
-    // Handle Discord messages for commands
-    discordClient.on('messageCreate', async (message) => {
-        if (message.author.bot) return;
-
-        // Handle commands
-        if (message.content.startsWith('!')) {
-            const command = message.content.slice(1).toLowerCase();
-            const context = {
-                message,
-                userId: message.author.id,
-                username: message.author.username
-            };
-            const clients = { discord: discordClient };
-            const response = await handleCommand(command, 'discord', context, config, clients, discordLog);
-
-            if (response) {
-                message.reply(response);
-            }
-        }
-    });
-
-    // Handle Discord presence updates for game changes (if configured)
-    if (config.gameUpdates.configured) {
-        discordClient.on('presenceUpdate', async (oldPresence, newPresence) => {
-            await handlePresenceUpdate(oldPresence, newPresence, config, twitchClient, discordLog);
-        });
-
-        discordLog.info(`Game update monitoring enabled for user ${config.gameUpdates.userId}`);
+    // Find our channels
+    donationChannel = discordClient.channels.cache.get(config.discord.donationChannel);
+    if (!donationChannel) {
+        throw new Error(`Unable to find donation channel with id ${config.discord.donationChannel}`);
     }
+    discordLog.info(`Found Discord Donation Channel: ${donationChannel.id}`);
 
-    // Login to Discord
-    discordClient.login(config.discord.token);
+    summaryChannel = discordClient.channels.cache.get(config.discord.summaryChannel);
+    if (!summaryChannel) {
+        throw new Error(`Unable to find summary channel with id ${config.discord.summaryChannel}`);
+    }
+    discordLog.info(`Found Discord Summary Channel: ${summaryChannel.id}`);
+
+    // Get latest info
+    updateDiscordSummary();
+});
+
+// Handle Discord messages for commands
+discordClient.on('messageCreate', async (message) => {
+    if (message.author.bot) return;
+
+    // Handle commands
+    if (message.content.startsWith('!')) {
+        const command = message.content.slice(1).toLowerCase();
+        const context = {
+            message,
+            userId: message.author.id,
+            username: message.author.username
+        };
+        const clients = { discord: discordClient };
+        const response = await handleCommand(command, 'discord', context, config, clients, discordLog);
+
+        if (response) {
+            message.reply(response);
+        }
+    }
+});
+
+// Handle Discord presence updates for game changes (if userId configured)
+if (config.gameUpdates.userId) {
+    discordClient.on('presenceUpdate', async (oldPresence, newPresence) => {
+        await handlePresenceUpdate(oldPresence, newPresence, config, twitchClient, discordLog);
+    });
+
+    discordLog.info(`Game update monitoring enabled for user ${config.gameUpdates.userId}`);
 }
+
+// Login to Discord
+discordClient.login(config.discord.token);
 
 // Twitch setup
 let twitchClient;
 
-if (config.twitch.configured) {
-    // Create Twitch client
-    twitchClient = new tmi.Client({
-        options: { debug: true, messagesLogLevel: 'info' },
-        connection: {
-            reconnect: true,
-            secure: true
-        },
-        identity: {
-            username: config.twitch.username,
-            password: config.twitch.chatOauth
-        },
-        channels: [config.twitch.channel]
-    });
+// Create Twitch client
+twitchClient = new tmi.Client({
+    options: { debug: true, messagesLogLevel: 'info' },
+    connection: {
+        reconnect: true,
+        secure: true
+    },
+    identity: {
+        username: config.twitch.username,
+        password: config.twitch.chatOauth
+    },
+    channels: [config.twitch.channel]
+});
 
-    // Connect to Twitch
-    twitchClient.connect().catch(err => {
-        twitchLog.error('Error connecting to Twitch', { err });
-    });
+// Connect to Twitch
+twitchClient.connect().catch(err => {
+    twitchLog.error('Error connecting to Twitch', { err });
+});
 
-    // Listen for Twitch messages
-    twitchClient.on('message', async (channel, tags, message, self) => {
-        // Ignore self
-        if (self) return;
+// Listen for Twitch messages
+twitchClient.on('message', async (channel, tags, message, self) => {
+    // Ignore self
+    if (self) return;
 
-        // Handle commands
-        if (message.startsWith('!')) {
-            const command = message.slice(1).toLowerCase();
-            const context = {
-                channel,
-                tags,
-                userId: tags.username,
-                username: tags['display-name'] || tags.username
-            };
-            const clients = { discord: discordClient, twitch: twitchClient };
-            const response = await handleCommand(command, 'twitch', context, config, clients, twitchLog);
+    // Handle commands
+    if (message.startsWith('!')) {
+        const command = message.slice(1).toLowerCase();
+        const context = {
+            channel,
+            tags,
+            userId: tags.username,
+            username: tags['display-name'] || tags.username
+        };
+        const clients = { discord: discordClient, twitch: twitchClient };
+        const response = await handleCommand(command, 'twitch', context, config, clients, twitchLog);
 
-            if (response) {
-                twitchClient.say(channel, response);
-            }
+        if (response) {
+            twitchClient.say(channel, response);
         }
-    });
+    }
+});
 
-    twitchLog.info('Twitch Bot connecting...');
-}
-
-
+twitchLog.info('Twitch Bot connecting...');
 
 // Unified donation checking function
 function getLatestDonation(silent = false) {
