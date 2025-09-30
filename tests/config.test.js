@@ -243,7 +243,8 @@ describe('Config Module', () => {
             process.env.TWITCH_CHAT_OAUTH = 'oauth:chat-token';
             process.env.TWITCH_CLIENT_ID = 'client-id';
             process.env.DISCORD_GAME_UPDATE_USER_ID = '987654321';
-            process.env.TWITCH_API_OAUTH = 'oauth:api-token';
+            process.env.TWITCH_CLIENT_SECRET = 'client-secret';
+            process.env.TWITCH_REFRESH_TOKEN = 'refresh-token';
 
             const config = parseConfiguration();
             expect(config.gameUpdates.configured).toBe(true);
@@ -261,7 +262,8 @@ describe('Config Module', () => {
             process.env.TWITCH_CHAT_OAUTH = 'oauth:chat-token';
             process.env.TWITCH_CLIENT_ID = 'client-id';
             process.env.DISCORD_GAME_UPDATE_USER_ID = '987654321';
-            process.env.TWITCH_API_OAUTH = 'oauth:api-token';
+            process.env.TWITCH_CLIENT_SECRET = 'client-secret';
+            process.env.TWITCH_REFRESH_TOKEN = 'refresh-token';
             process.env.DISCORD_GAME_UPDATE_MESSAGE = 'Now playing: {game}';
 
             const config = parseConfiguration();
@@ -275,7 +277,8 @@ describe('Config Module', () => {
             process.env.TWITCH_CHAT_OAUTH = 'oauth:chat-token';
             process.env.TWITCH_CLIENT_ID = 'client-id';
             process.env.DISCORD_GAME_UPDATE_USER_ID = '987654321';
-            process.env.TWITCH_API_OAUTH = 'oauth:api-token';
+            process.env.TWITCH_CLIENT_SECRET = 'client-secret';
+            process.env.TWITCH_REFRESH_TOKEN = 'refresh-token';
             // Missing Discord configuration
 
             const config = parseConfiguration();
@@ -303,7 +306,8 @@ describe('Config Module', () => {
             process.env.TWITCH_USERNAME = 'testbot';
             process.env.TWITCH_CHAT_OAUTH = 'oauth:chat-token';
             process.env.TWITCH_CLIENT_ID = 'client-id';
-            process.env.TWITCH_API_OAUTH = 'oauth:api-token';
+            process.env.TWITCH_CLIENT_SECRET = 'client-secret';
+            process.env.TWITCH_REFRESH_TOKEN = 'refresh-token';
             // Missing DISCORD_GAME_UPDATE_USER_ID
 
             const config = parseConfiguration();
