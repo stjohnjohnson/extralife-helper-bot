@@ -65,6 +65,9 @@ if (config.discord.configured) {
             throw new Error(`Unable to find summary channel with id ${config.discord.summaryChannel}`);
         }
         discordLog.info(`Found Discord Summary Channel: ${summaryChannel.id}`);
+
+        // Get latest info
+        updateDiscordSummary();
     });
 
     // Handle Discord messages for commands
@@ -216,7 +219,6 @@ function updateDiscordSummary() {
 setInterval(getLatestDonation, 30000);
 // Be quiet the first time to avoid duplicate notifications on restart
 getLatestDonation(true);
-updateDiscordSummary();
 
 // Handle graceful shutdown
 process.on('SIGTERM', () => {
