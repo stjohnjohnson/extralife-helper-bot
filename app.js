@@ -185,32 +185,38 @@ function getLatestDonation(silent = false) {
             if (config.twitch.configured && twitchClient) {
                 msgQueue.forEach(msg => twitchClient.say(config.twitch.channel, msg.twitch));
             }
-        }
 
-        // Update Discord summary channel after any donations
-        if (msgQueue.length > 0 && config.discord.configured && summaryChannel) {
-            getUserInfo(config.participantId)
-                .then(data => {
-                    const sumDonations = moneyFormatter.format(data.sumDonations),
-                        percentComplete = Math.round(data.sumDonations / data.fundraisingGoal * 100),
-                        summary = `${sumDonations} (${percentComplete}%) Raised`;
-
-                    discordLog.info(`Updating Discord status: "${summary}"`);
-                    return summaryChannel.setName(summary);
-                })
-                .catch(err => {
-                    discordLog.error('Error updating Discord summary', { err });
-                });
+            // 5 seconds later, get the latest summary
+            setTimeout(updateDiscordSummary, 5000);
         }
     }).catch(err => {
         extralifeLog.error('Error getting Donations', { err });
     });
 }
 
+// Function to update Discord summary channel
+function updateDiscordSummary() {
+    if (config.discord.configured && summaryChannel) {
+        getUserInfo(config.participantId)
+            .then(data => {
+                const sumDonations = moneyFormatter.format(data.sumDonations),
+                    percentComplete = Math.round(data.sumDonations / data.fundraisingGoal * 100),
+                    summary = `${sumDonations} (${percentComplete}%) Raised`;
+
+                discordLog.info(`Updating Discord status: "${summary}"`);
+                return summaryChannel.setName(summary);
+            })
+            .catch(err => {
+                discordLog.error('Error updating Discord summary', { err });
+            });
+    }
+}
+
 // Start checking for donations every 30 seconds
 setInterval(getLatestDonation, 30000);
 // Be quiet the first time to avoid duplicate notifications on restart
 getLatestDonation(true);
+updateDiscordSummary();
 
 // Handle graceful shutdown
 process.on('SIGTERM', () => {
