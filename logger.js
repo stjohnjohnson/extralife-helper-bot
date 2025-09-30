@@ -6,7 +6,11 @@ const logger = createLogger({
         format.timestamp(),
         format.errors({ stack: true }),
         format.splat(),
-        format.json()
+        // Custom format that's both human readable and Splunk parsable
+        format.printf(({ timestamp, level, message, module, ...meta }) => {
+            const metaStr = Object.keys(meta).length ? ` ${JSON.stringify(meta)}` : '';
+            return `${timestamp} [${module || 'app'}] ${level.toUpperCase()}: ${message}${metaStr}`;
+        })
     ),
     transports: [
         new transports.Console({
