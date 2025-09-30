@@ -1,3 +1,15 @@
+# [3.0.0](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v2.2.0...v3.0.0) (2025-09-30)
+
+
+### Features
+
+* implement automatic Twitch token refresh with comprehensive documentation updates ([31abd99](https://github.com/stjohnjohnson/extralife-helper-bot/commit/31abd99c53cb3dbbc32ced5a65e06de9e1f27292))
+
+
+### BREAKING CHANGES
+
+* TWITCH_API_OAUTH environment variable removed in favor of automatic token refresh using TWITCH_CLIENT_SECRET and TWITCH_REFRESH_TOKEN
+
 # [2.2.0](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v2.1.1...v2.2.0) (2025-09-30)
 
 
