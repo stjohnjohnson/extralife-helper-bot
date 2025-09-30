@@ -1,3 +1,10 @@
+# [2.2.0](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v2.1.1...v2.2.0) (2025-09-30)
+
+
+### Features
+
+* improve logging format and Discord summary initialization ([5ba7258](https://github.com/stjohnjohnson/extralife-helper-bot/commit/5ba7258388bbd5fcc80e6f0a9346b104146abd6a))
+
 ## [2.1.1](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v2.1.0...v2.1.1) (2025-09-30)
 
 
