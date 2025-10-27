@@ -388,14 +388,9 @@ function getGameFromActivities(activities) {
  */
 async function sendGameUpdateNotification(gameName, config, twitchClient, logger) {
     try {
-        if (!config.twitch.configured) {
-            logger.warn('Twitch not configured for game update notification');
-            return;
-        }
-
         // Use "Just Chatting" as fallback when no game is specified
         const displayName = gameName || 'Just Chatting';
-        
+
         // Check for game overrides first
         let searchName = gameName || 'Just Chatting';
         if (gameName && GAME_OVERRIDES[gameName]) {

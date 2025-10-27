@@ -89,10 +89,6 @@ async function handlePromoteCommand(platform, context, config, clients, logger) 
         return 'You do not have permission to use this command.';
     }
 
-    if (!config.discord.configured || !config.discord.voiceConfigured) {
-        return 'Promote command not configured properly.';
-    }
-
     try {
         const waitingRoom = clients.discord.channels.cache.get(config.discord.waitingRoomChannel);
         const liveRoom = clients.discord.channels.cache.get(config.discord.liveRoomChannel);

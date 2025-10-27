@@ -177,13 +177,13 @@ function getLatestDonation(silent = false) {
         });
 
         if (msgQueue.length > 0 && !silent) {
-            // Send to Discord if configured
-            if (config.discord.configured && donationChannel) {
+            // Send to Discord if channel is loaded
+            if (donationChannel) {
                 msgQueue.forEach(msg => donationChannel.send(msg.discord));
             }
 
-            // Send to Twitch if configured
-            if (config.twitch.configured && twitchClient) {
+            // Send to Twitch if channel is loaded
+            if (twitchClient) {
                 msgQueue.forEach(msg => twitchClient.say(config.twitch.channel, msg.twitch));
             }
 
@@ -197,7 +197,7 @@ function getLatestDonation(silent = false) {
 
 // Function to update Discord summary channel
 function updateDiscordSummary() {
-    if (config.discord.configured && summaryChannel) {
+    if (summaryChannel) {
         getUserInfo(config.participantId)
             .then(data => {
                 const sumDonations = moneyFormatter.format(data.sumDonations),
