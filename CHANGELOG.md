@@ -1,3 +1,10 @@
+# [4.1.0](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v4.0.0...v4.1.0) (2025-10-27)
+
+
+### Features
+
+* add Twitch stream viewer count monitoring with comprehensive testing ([2c5a22f](https://github.com/stjohnjohnson/extralife-helper-bot/commit/2c5a22f740ab4aba4f1f45875e4dbc93024e3d58))
+
 # [4.0.0](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v3.0.1...v4.0.0) (2025-10-27)
 
 
