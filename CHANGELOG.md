@@ -1,3 +1,10 @@
+## [4.2.1](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v4.2.0...v4.2.1) (2025-10-27)
+
+
+### Bug Fixes
+
+* Reduce the noise when there is no stream ([965230f](https://github.com/stjohnjohnson/extralife-helper-bot/commit/965230f6731e047c249893650f31c003ee52d60b))
+
 # [4.2.0](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v4.1.0...v4.2.0) (2025-10-27)
 
 
