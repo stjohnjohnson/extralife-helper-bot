@@ -5,6 +5,7 @@ const getLogger = require('./logger.js');
 const { parseConfiguration } = require('./src/config.js');
 const { handleCommand } = require('./src/commands.js');
 const { handlePresenceUpdate } = require('./src/gameUpdates.js');
+const { startViewerCountMonitoring, stopViewerCountMonitoring } = require('./src/viewerMonitoring.js');
 
 // Setup loggers
 const log = getLogger('app');
@@ -33,6 +34,9 @@ const moneyFormatter = new Intl.NumberFormat('en-US', {
 
 // Track all "seen" donations across both services
 const seenDonationIDs = {};
+
+// Viewer count monitoring interval
+let viewerCountInterval = null;
 
 // Discord setup
 let discordClient, donationChannel, summaryChannel;
@@ -214,9 +218,16 @@ setInterval(getLatestDonation, 30000);
 // Be quiet the first time to avoid duplicate notifications on restart
 getLatestDonation(true);
 
+// Start viewer count monitoring (every 5 minutes)
+viewerCountInterval = startViewerCountMonitoring(config, twitchLog, 5);
+
 // Handle graceful shutdown
 process.on('SIGTERM', () => {
     log.info('Received SIGTERM, shutting down gracefully...');
+
+    if (viewerCountInterval) {
+        stopViewerCountMonitoring(viewerCountInterval, twitchLog);
+    }
 
     if (discordClient) {
         discordClient.destroy();
@@ -231,6 +242,10 @@ process.on('SIGTERM', () => {
 
 process.on('SIGINT', () => {
     log.info('Received SIGINT, shutting down gracefully...');
+
+    if (viewerCountInterval) {
+        stopViewerCountMonitoring(viewerCountInterval, twitchLog);
+    }
 
     if (discordClient) {
         discordClient.destroy();
