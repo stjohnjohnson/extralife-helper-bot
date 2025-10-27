@@ -1,3 +1,10 @@
+## [3.0.1](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v3.0.0...v3.0.1) (2025-10-27)
+
+
+### Bug Fixes
+
+* Write the new game to Twitch chat ([0c41b31](https://github.com/stjohnjohnson/extralife-helper-bot/commit/0c41b31832daf05550c71348324b7e98e5c3b811))
+
 # [3.0.0](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v2.2.0...v3.0.0) (2025-09-30)
 
 
