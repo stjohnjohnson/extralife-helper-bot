@@ -466,6 +466,8 @@ async function sendGameUpdateNotification(gameName, config, twitchClient, logger
     }
 }
 
+
+
 module.exports = {
     handlePresenceUpdate,
     getGameFromActivities,
@@ -475,5 +477,6 @@ module.exports = {
     searchGameCategory,
     updateChannelGame,
     findBestGameMatch,
-    isWholeWordMatch
+    isWholeWordMatch,
+    getValidAccessToken
 };
