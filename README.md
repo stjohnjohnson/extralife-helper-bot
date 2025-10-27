@@ -2,36 +2,14 @@
 
 A unified helper bot for managing your ExtraLife 24 hour marathon stream, bridging between Discord and Twitch.
 
-This bot combines the functionality of both Discord and Twitch bridges, allowing you to:
+## Features
+
 - Post donation notifications to Discord channels and Twitch chat
 - Update Discord channel names with fundraising progress
 - Cross-platform commands that work on both Discord and Twitch (`!goal`, `!promote`)
 - Custom command responses that work across both platforms
 - Voice channel management for stream participants
 - Automatic Twitch game category updates based on Discord presence changes
-- Smart game matching with 5-level priority system
-- Automatic token refresh management for seamless operation
-- Run both services simultaneously or independently
-
-## Features
-
-### Discord Integration
-- **Donation Stream**: Posts new donations to a specified Discord channel
-- **Summary Updates**: Updates a Discord channel name to show total amount raised and percentage of goal
-- **Voice Channel Management**: `!promote` command to move users from waiting room to live chat
-- **Presence Monitoring**: Detects when monitored users change their game status
-
-### Twitch Integration
-- **Donation Announcements**: Posts new donations to Twitch chat with ExtraLife emotes
-- **Automatic Game Category Updates**: Changes Twitch channel game category when Discord user changes games
-- **Smart Game Matching**: Uses 5-level priority system to find best Twitch category matches
-- **Automatic Token Management**: Refreshes access tokens automatically using refresh tokens
-
-### Cross-Platform Features
-- **Game Update Bridge**: Detects Discord game status changes and automatically updates Twitch channel category with smart matching
-- **Cross-platform Commands**: `!goal` and `!promote` commands work from both Twitch and Discord
-- **Custom Commands**: Define your own bot commands that work across both platforms
-- **Real-time Updates**: Checks for new donations every 30 seconds
 
 ## Configuration
 
@@ -40,26 +18,26 @@ The bot requires at least one service (Discord or Twitch) to be configured. Set 
 ### Required (for both services)
 - `EXTRALIFE_PARTICIPANT_ID`: Your ExtraLife/DonorDrive participant ID
 
-### Discord Service (optional)
+### Discord Service (required)
 - `DISCORD_TOKEN`: Your Discord bot token
 - `DISCORD_DONATION_CHANNEL`: Discord channel ID for posting donations
 - `DISCORD_SUMMARY_CHANNEL`: Discord channel ID for updating the name with progress
 
-### Discord Voice Channel Management (optional - for !promote command)
+### Discord Voice Channel Management (required - for !promote command)
 - `DISCORD_WAITING_ROOM_CHANNEL`: Voice channel ID for users waiting to join stream
 - `DISCORD_LIVE_ROOM_CHANNEL`: Voice channel ID for live streaming participants
 
-### Admin Users (optional - for restricted commands)
+### Admin Users (required - for restricted commands)
 - `DISCORD_ADMIN_USERS`: Comma-separated list of Discord user IDs who can use admin commands
 - `TWITCH_ADMIN_USERS`: Comma-separated list of Twitch usernames who can use admin commands
 
-### Twitch Service (optional)
+### Twitch Service (required)
 - `TWITCH_USERNAME`: Your bot's Twitch username
 - `TWITCH_CHAT_OAUTH`: Bot OAuth token from [https://twitchapps.com/tmi/](https://twitchapps.com/tmi/)
 - `TWITCH_CHANNEL`: The Twitch channel name to join
 - `TWITCH_CLIENT_ID`: Your Twitch application client ID
 
-### Game Update Notifications (optional - requires both Discord and Twitch)
+### Game Update Notifications (required)
 - `DISCORD_GAME_UPDATE_USER_ID`: Discord user ID to monitor for game changes
 - `DISCORD_GAME_UPDATE_MESSAGE`: Custom message template (optional, default: "Now playing {game}!")
 - `TWITCH_CLIENT_SECRET`: Your Twitch application client secret (for automatic token refresh)
@@ -135,8 +113,8 @@ npm run lint
    - `TWITCH_CHANNEL`: Your streamer channel name (without # prefix)
    - `TWITCH_CLIENT_ID`: Your application's client ID
 
-### Game Update Setup (optional)
-1. **Requires both Discord and Twitch services** to be configured
+### Game Update Setup
+1. **Both Discord and Twitch services** must be configured as shown above
 2. **Get refresh token for automatic token management**:
    - **Must use streamer/broadcaster account** (not bot account)
    - Use [Twitch Token Generator](https://twitchtokengenerator.com/) with your Client ID

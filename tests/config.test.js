@@ -189,12 +189,22 @@ describe('Config Module', () => {
             process.env.DISCORD_TOKEN = 'discord-token';
             process.env.DISCORD_DONATION_CHANNEL = '111111';
             process.env.DISCORD_SUMMARY_CHANNEL = '222222';
+            process.env.DISCORD_WAITING_ROOM_CHANNEL = '333333';
+            process.env.DISCORD_LIVE_ROOM_CHANNEL = '444444';
+            process.env.TWITCH_USERNAME = 'testbot';
+            process.env.TWITCH_CHAT_OAUTH = 'oauth:chat-token';
+            process.env.TWITCH_CHANNEL = 'testchannel';
+            process.env.TWITCH_CLIENT_ID = 'client-id';
+            process.env.TWITCH_CLIENT_SECRET = 'client-secret';
+            process.env.TWITCH_REFRESH_TOKEN = 'refresh-token';
+            process.env.DISCORD_GAME_UPDATE_USER_ID = '987654321';
 
             const config = parseConfiguration();
             expect(config.isValid).toBe(true);
             expect(config.errors).toHaveLength(0);
             expect(config.participantId).toBe('12345');
-            expect(config.discord.configured).toBe(true);
+            expect(config.discord.token).toBe('discord-token');
+            expect(config.twitch.username).toBe('testbot');
         });
 
         test('should return error when required vars missing', () => {
@@ -205,13 +215,14 @@ describe('Config Module', () => {
             expect(config.errors).toContain('EXTRALIFE_PARTICIPANT_ID is a required environment variable');
         });
 
-        test('should handle partial Discord configuration', () => {
+        test('should return error when Discord vars are missing', () => {
             process.env.EXTRALIFE_PARTICIPANT_ID = '12345';
             process.env.DISCORD_TOKEN = 'discord-token';
-            // Missing DISCORD_DONATION_CHANNEL and DISCORD_SUMMARY_CHANNEL
+            // Missing required Discord channels
 
             const config = parseConfiguration();
-            expect(config.discord.configured).toBe(false);
+            expect(config.isValid).toBe(false);
+            expect(config.errors).toContain('DISCORD_DONATION_CHANNEL is a required environment variable');
         });
 
         test('should parse admin users correctly', () => {
@@ -224,20 +235,23 @@ describe('Config Module', () => {
             expect(config.twitch.admins).toEqual(['mod1', 'mod2']);
         });
 
-        test('should require at least one service configured', () => {
+        test('should require all services configured', () => {
             process.env.EXTRALIFE_PARTICIPANT_ID = '12345';
             // No Discord or Twitch configuration
 
             const config = parseConfiguration();
             expect(config.isValid).toBe(false);
-            expect(config.errors).toContain('At least one service must be configured (Discord or Twitch)');
+            expect(config.errors).toContain('DISCORD_TOKEN is a required environment variable');
+            expect(config.errors).toContain('TWITCH_USERNAME is a required environment variable');
         });
 
-        test('should configure game updates when Discord, Twitch, and user ID are present', () => {
+        test('should include game updates when all required vars are present', () => {
             process.env.EXTRALIFE_PARTICIPANT_ID = '12345';
             process.env.DISCORD_TOKEN = 'discord-token';
             process.env.DISCORD_DONATION_CHANNEL = '111111';
             process.env.DISCORD_SUMMARY_CHANNEL = '222222';
+            process.env.DISCORD_WAITING_ROOM_CHANNEL = '333333';
+            process.env.DISCORD_LIVE_ROOM_CHANNEL = '444444';
             process.env.TWITCH_CHANNEL = 'testchannel';
             process.env.TWITCH_USERNAME = 'testbot';
             process.env.TWITCH_CHAT_OAUTH = 'oauth:chat-token';
@@ -247,7 +261,7 @@ describe('Config Module', () => {
             process.env.TWITCH_REFRESH_TOKEN = 'refresh-token';
 
             const config = parseConfiguration();
-            expect(config.gameUpdates.configured).toBe(true);
+            expect(config.isValid).toBe(true);
             expect(config.gameUpdates.userId).toBe('987654321');
             expect(config.gameUpdates.messageTemplate).toBe('Now playing {game}!');
         });
@@ -270,7 +284,7 @@ describe('Config Module', () => {
             expect(config.gameUpdates.messageTemplate).toBe('Now playing: {game}');
         });
 
-        test('should not configure game updates when Discord is missing', () => {
+        test('should fail validation when Discord vars are missing', () => {
             process.env.EXTRALIFE_PARTICIPANT_ID = '12345';
             process.env.TWITCH_CHANNEL = 'testchannel';
             process.env.TWITCH_USERNAME = 'testbot';
@@ -282,26 +296,32 @@ describe('Config Module', () => {
             // Missing Discord configuration
 
             const config = parseConfiguration();
-            expect(config.gameUpdates.configured).toBe(false);
+            expect(config.isValid).toBe(false);
+            expect(config.errors).toContain('DISCORD_TOKEN is a required environment variable');
         });
 
-        test('should not configure game updates when Twitch is missing', () => {
+        test('should fail validation when Twitch vars are missing', () => {
             process.env.EXTRALIFE_PARTICIPANT_ID = '12345';
             process.env.DISCORD_TOKEN = 'discord-token';
             process.env.DISCORD_DONATION_CHANNEL = '111111';
             process.env.DISCORD_SUMMARY_CHANNEL = '222222';
+            process.env.DISCORD_WAITING_ROOM_CHANNEL = '333333';
+            process.env.DISCORD_LIVE_ROOM_CHANNEL = '444444';
             process.env.DISCORD_GAME_UPDATE_USER_ID = '987654321';
             // Missing Twitch configuration
 
             const config = parseConfiguration();
-            expect(config.gameUpdates.configured).toBe(false);
+            expect(config.isValid).toBe(false);
+            expect(config.errors).toContain('TWITCH_USERNAME is a required environment variable');
         });
 
-        test('should not configure game updates when user ID is missing', () => {
+        test('should fail validation when game update user ID is missing', () => {
             process.env.EXTRALIFE_PARTICIPANT_ID = '12345';
             process.env.DISCORD_TOKEN = 'discord-token';
             process.env.DISCORD_DONATION_CHANNEL = '111111';
             process.env.DISCORD_SUMMARY_CHANNEL = '222222';
+            process.env.DISCORD_WAITING_ROOM_CHANNEL = '333333';
+            process.env.DISCORD_LIVE_ROOM_CHANNEL = '444444';
             process.env.TWITCH_CHANNEL = 'testchannel';
             process.env.TWITCH_USERNAME = 'testbot';
             process.env.TWITCH_CHAT_OAUTH = 'oauth:chat-token';
@@ -311,7 +331,8 @@ describe('Config Module', () => {
             // Missing DISCORD_GAME_UPDATE_USER_ID
 
             const config = parseConfiguration();
-            expect(config.gameUpdates.configured).toBe(false);
+            expect(config.isValid).toBe(false);
+            expect(config.errors).toContain('DISCORD_GAME_UPDATE_USER_ID is a required environment variable');
         });
 
         test('should parse custom responses correctly', () => {
@@ -319,6 +340,15 @@ describe('Config Module', () => {
             process.env.DISCORD_TOKEN = 'discord-token';
             process.env.DISCORD_DONATION_CHANNEL = '111111';
             process.env.DISCORD_SUMMARY_CHANNEL = '222222';
+            process.env.DISCORD_WAITING_ROOM_CHANNEL = '333333';
+            process.env.DISCORD_LIVE_ROOM_CHANNEL = '444444';
+            process.env.TWITCH_USERNAME = 'testbot';
+            process.env.TWITCH_CHAT_OAUTH = 'oauth:chat-token';
+            process.env.TWITCH_CHANNEL = 'testchannel';
+            process.env.TWITCH_CLIENT_ID = 'client-id';
+            process.env.TWITCH_CLIENT_SECRET = 'client-secret';
+            process.env.TWITCH_REFRESH_TOKEN = 'refresh-token';
+            process.env.DISCORD_GAME_UPDATE_USER_ID = '987654321';
             process.env.CUSTOM_RESPONSES = 'donate:"Check out my donation link!",info:"This is some info"';
 
             const config = parseConfiguration();
@@ -333,6 +363,15 @@ describe('Config Module', () => {
             process.env.DISCORD_TOKEN = 'discord-token';
             process.env.DISCORD_DONATION_CHANNEL = '111111';
             process.env.DISCORD_SUMMARY_CHANNEL = '222222';
+            process.env.DISCORD_WAITING_ROOM_CHANNEL = '333333';
+            process.env.DISCORD_LIVE_ROOM_CHANNEL = '444444';
+            process.env.TWITCH_USERNAME = 'testbot';
+            process.env.TWITCH_CHAT_OAUTH = 'oauth:chat-token';
+            process.env.TWITCH_CHANNEL = 'testchannel';
+            process.env.TWITCH_CLIENT_ID = 'client-id';
+            process.env.TWITCH_CLIENT_SECRET = 'client-secret';
+            process.env.TWITCH_REFRESH_TOKEN = 'refresh-token';
+            process.env.DISCORD_GAME_UPDATE_USER_ID = '987654321';
             process.env.CUSTOM_RESPONSES = 'goal:"This conflicts with built-in command"';
 
             const config = parseConfiguration();
