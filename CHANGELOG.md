@@ -1,3 +1,10 @@
+## [4.2.2](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v4.2.1...v4.2.2) (2025-10-27)
+
+
+### Bug Fixes
+
+* After refactor, forgot to remove configured checks ([9124243](https://github.com/stjohnjohnson/extralife-helper-bot/commit/9124243c80d04c5e20811ad8017e8695af4938e5))
+
 ## [4.2.1](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v4.2.0...v4.2.1) (2025-10-27)
 
 
