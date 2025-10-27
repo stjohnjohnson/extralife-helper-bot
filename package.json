@@ -1,6 +1,6 @@
 {
   "name": "extralife-helper-bot",
-  "version": "4.1.0",
+  "version": "4.2.0",
   "description": "A unified helper bot for managing ExtraLife 24 hour marathon streams, bridging between Discord and Twitch",
   "main": "app.js",
   "scripts": {

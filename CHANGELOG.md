@@ -1,3 +1,10 @@
+# [4.2.0](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v4.1.0...v4.2.0) (2025-10-27)
+
+
+### Features
+
+* **gameUpdates:** add game override system for Twitch category mapping ([305b66c](https://github.com/stjohnjohnson/extralife-helper-bot/commit/305b66c68fc0ff6e57050ddc53af0fc14fc56e02))
+
 # [4.1.0](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v4.0.0...v4.1.0) (2025-10-27)
 
 
