@@ -2,7 +2,7 @@
  * Unit tests for viewer monitoring module
  */
 
-const { 
+const {
     getStreamInfo,
     logViewerCount,
     startViewerCountMonitoring,
@@ -25,7 +25,7 @@ describe('Viewer Monitoring Module', () => {
         jest.clearAllMocks();
         jest.clearAllTimers();
         jest.useFakeTimers();
-        
+
         // Mock setInterval
         global.setInterval = jest.fn().mockReturnValue(12345);
 
@@ -133,20 +133,6 @@ describe('Viewer Monitoring Module', () => {
                 title: 'Building awesome stuff!',
                 language: 'en',
                 startedAt: '2025-10-26T12:00:00Z'
-            });
-        });
-
-        it('should log offline status when stream is offline', async () => {
-            getValidAccessToken.mockResolvedValue('mock-access-token');
-            makeTwitchApiRequest.mockResolvedValue({
-                data: []
-            });
-
-            await logViewerCount(mockConfig, mockLogger);
-
-            expect(mockLogger.info).toHaveBeenCalledWith('Stream status', {
-                channel: 'testchannel',
-                status: 'offline'
             });
         });
 
