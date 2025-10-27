@@ -63,8 +63,6 @@ describe('Commands Module', () => {
     describe('handlePromoteCommand', () => {
         const mockConfig = {
             discord: {
-                configured: true,
-                voiceConfigured: true,
                 waitingRoomChannel: 'waiting-123',
                 liveRoomChannel: 'live-456',
                 admins: ['admin1']
@@ -87,20 +85,6 @@ describe('Commands Module', () => {
                 userId: 'regular-user',
                 username: 'RegularUser'
             });
-        });
-
-        test('should check Discord configuration', async () => {
-            const unconfiguredConfig = {
-                discord: {
-                    configured: false,
-                    voiceConfigured: false,
-                    admins: ['admin1'] // Need to include admins array for isAdmin check
-                }
-            };
-
-            const result = await handlePromoteCommand('discord', mockContext, unconfiguredConfig, {}, mockLogger);
-
-            expect(result).toBe('Promote command not configured properly.');
         });
 
         test('should handle missing voice channels', async () => {

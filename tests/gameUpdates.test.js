@@ -47,7 +47,6 @@ describe('Game Updates Module', () => {
                     messageTemplate: 'Streamer is now playing {game}!'
                 },
                 twitch: {
-                    configured: true,
                     channel: 'testchannel',
                     clientId: 'test-client-id',
                     chatOauth: 'oauth:chat-token',
@@ -516,7 +515,6 @@ describe('Game Updates Module', () => {
                     messageTemplate: 'Now playing: {game}'
                 },
                 twitch: {
-                    configured: true,
                     channel: 'testchannel',
                     clientId: 'client123',
                     clientSecret: 'secret456',
@@ -585,21 +583,6 @@ describe('Game Updates Module', () => {
             const result = await handlePresenceUpdate(oldPresence, newPresence, mockConfig, mockTwitchClient, mockLogger);
 
             expect(result).toBe(false);
-        });
-
-        it('should handle Twitch not configured', async () => {
-            mockConfig.twitch.configured = false;
-
-            const oldPresence = null;
-            const newPresence = {
-                userId: '123456789',
-                activities: [{ type: 0, name: 'Minecraft' }]
-            };
-
-            const result = await handlePresenceUpdate(oldPresence, newPresence, mockConfig, mockTwitchClient, mockLogger);
-
-            expect(result).toBe(true);
-            expect(mockLogger.warn).toHaveBeenCalledWith('Twitch not configured for game update notification');
         });
 
         it('should handle sendGameUpdateNotification error', async () => {
@@ -680,7 +663,6 @@ describe('Game Updates Module', () => {
         beforeEach(() => {
             mockConfig = {
                 twitch: {
-                    configured: true,
                     channel: 'testchannel',
                     clientId: 'client123456789',
                     clientSecret: 'secret456',
