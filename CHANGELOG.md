@@ -1,3 +1,27 @@
+# [4.0.0](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v3.0.1...v4.0.0) (2025-10-27)
+
+
+* refactor!: make all services required, remove optional configuration ([e1f5c8a](https://github.com/stjohnjohnson/extralife-helper-bot/commit/e1f5c8a0723860acedbae8c229a0669ca38a31f6))
+
+
+### BREAKING CHANGES
+
+* Discord, Twitch, and Game Updates are now all required services instead of optional
+
+- Remove "configured" flags from config object (discord.configured, twitch.configured, gameUpdates.configured)
+- Make all Discord, Twitch, and Game Update environment variables required
+- Simplify application logic by removing conditional service initialization
+- Update configuration validation to require all services upfront
+- Update tests to reflect new required configuration structure
+- Update README documentation to clarify all services are now mandatory
+- Reduce code complexity by eliminating optional service detection logic
+
+Required environment variables are now:
+- Discord: DISCORD_TOKEN, DISCORD_DONATION_CHANNEL, DISCORD_SUMMARY_CHANNEL, DISCORD_WAITING_ROOM_CHANNEL, DISCORD_LIVE_ROOM_CHANNEL
+- Twitch: TWITCH_USERNAME, TWITCH_CHAT_OAUTH, TWITCH_CHANNEL, TWITCH_CLIENT_ID, TWITCH_CLIENT_SECRET, TWITCH_REFRESH_TOKEN
+- Game Updates: DISCORD_GAME_UPDATE_USER_ID
+- Core: EXTRALIFE_PARTICIPANT_ID
+
 ## [3.0.1](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v3.0.0...v3.0.1) (2025-10-27)
 
 
