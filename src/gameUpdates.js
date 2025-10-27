@@ -428,6 +428,24 @@ async function sendGameUpdateNotification(gameName, config, twitchClient, logger
             accessToken
         );
 
+        // Send chat message notification using the configured template
+        const messageTemplate = config.gameUpdates.messageTemplate || 'Now playing {game}!';
+        const chatMessage = messageTemplate.replace('{game}', displayName);
+        if (twitchClient && twitchClient.say) {
+            try {
+                await twitchClient.say(config.twitch.channel, chatMessage);
+                logger.info('Sent game update message to Twitch chat', {
+                    message: chatMessage,
+                    channel: config.twitch.channel
+                });
+            } catch (chatErr) {
+                logger.warn('Failed to send game update message to chat', {
+                    error: chatErr.message,
+                    message: chatMessage
+                });
+            }
+        }
+
         logger.info('Successfully updated Twitch channel game', {
             game: displayName,
             gameId,
