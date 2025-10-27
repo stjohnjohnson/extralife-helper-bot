@@ -11,6 +11,12 @@ let cachedTokenData = {
     expiresAt: null
 };
 
+// Game name overrides - maps specific game names to their desired Twitch categories
+const GAME_OVERRIDES = {
+    'The Jackbox Survey Scramble': 'Jackbox Party Packs',
+    'The Jackbox Party Pack 11': 'Jackbox Party Packs'
+};
+
 /**
  * Makes an HTTPS request to the Twitch API
  * @param {string} path - API endpoint path
@@ -389,7 +395,16 @@ async function sendGameUpdateNotification(gameName, config, twitchClient, logger
 
         // Use "Just Chatting" as fallback when no game is specified
         const displayName = gameName || 'Just Chatting';
-        const searchName = gameName || 'Just Chatting';
+        
+        // Check for game overrides first
+        let searchName = gameName || 'Just Chatting';
+        if (gameName && GAME_OVERRIDES[gameName]) {
+            searchName = GAME_OVERRIDES[gameName];
+            logger.info('Using game override', {
+                originalGame: gameName,
+                overrideCategory: searchName
+            });
+        }
 
         logger.info('Updating Twitch channel game', {
             game: displayName,

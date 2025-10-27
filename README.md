@@ -198,7 +198,10 @@ When the monitored Discord user changes their game status:
 - **Game Start**: Twitch channel game category automatically updates to match the new game using smart matching
 - **Game Stop**: Twitch channel game category automatically updates to "Just Chatting"
 - **Game Switch**: Twitch channel game category updates from old game to new game
-- **Smart Matching**: Uses 5-priority system:
+- **Game Overrides**: Specific games can be mapped to different Twitch categories (configured in code):
+  - `The Jackbox Survey Scramble` → `Jackbox Party Packs`
+  - `The Jackbox Party Pack 11` → `Jackbox Party Packs`
+- **Smart Matching**: When no override exists, uses 5-priority system:
   1. **Exact match** (case insensitive)
   2. **Game starts with** Discord activity name
   3. **Discord activity starts with** game name (abbreviations)

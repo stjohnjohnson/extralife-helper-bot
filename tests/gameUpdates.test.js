@@ -726,6 +726,38 @@ describe('Game Updates Module', () => {
                 clientId: 'undefined'
             }));
         });
+
+        it('should apply game overrides for specific games', async () => {
+            await sendGameUpdateNotification('The Jackbox Survey Scramble', mockConfig, mockTwitchClient, mockLogger);
+
+            // Should log the override being applied
+            expect(mockLogger.info).toHaveBeenCalledWith('Using game override', {
+                originalGame: 'The Jackbox Survey Scramble',
+                overrideCategory: 'Jackbox Party Packs'
+            });
+
+            // Should also log updating with the original game name as display name
+            expect(mockLogger.info).toHaveBeenCalledWith('Updating Twitch channel game', expect.objectContaining({
+                game: 'The Jackbox Survey Scramble'
+            }));
+        });
+
+        it('should apply game overrides for Jackbox Party Pack 11', async () => {
+            await sendGameUpdateNotification('The Jackbox Party Pack 11', mockConfig, mockTwitchClient, mockLogger);
+
+            // Should log the override being applied
+            expect(mockLogger.info).toHaveBeenCalledWith('Using game override', {
+                originalGame: 'The Jackbox Party Pack 11',
+                overrideCategory: 'Jackbox Party Packs'
+            });
+        });
+
+        it('should not apply overrides for games not in the override list', async () => {
+            await sendGameUpdateNotification('Minecraft', mockConfig, mockTwitchClient, mockLogger);
+
+            // Should NOT log any override
+            expect(mockLogger.info).not.toHaveBeenCalledWith('Using game override', expect.any(Object));
+        });
     });
 
     describe('More isWholeWordMatch scenarios', () => {
