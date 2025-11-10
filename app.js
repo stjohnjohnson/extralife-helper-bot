@@ -6,12 +6,14 @@ const { parseConfiguration } = require('./src/config.js');
 const { handleCommand } = require('./src/commands.js');
 const { handlePresenceUpdate } = require('./src/gameUpdates.js');
 const { startViewerCountMonitoring, stopViewerCountMonitoring } = require('./src/viewerMonitoring.js');
+const { HueController } = require('./src/hueControl.js');
 
 // Setup loggers
 const log = getLogger('app');
 const discordLog = getLogger('discord');
 const twitchLog = getLogger('twitch');
 const extralifeLog = getLogger('extralife');
+const hueLog = getLogger('hue');
 
 // Parse and validate configuration
 const config = parseConfiguration();
@@ -23,8 +25,18 @@ if (!config.isValid) {
 }
 
 log.info(`ExtraLife Helper Bot starting for participant ${config.participantId}`);
-log.info('All services configured and enabled: Discord, Twitch, Voice, Game Updates');
+log.info('All services configured and enabled: Discord, Twitch, Voice, Game Updates, Hue');
 log.info(`Admin users: Discord=${config.discord.admins.length}, Twitch=${config.twitch.admins.length}`);
+
+// Initialize Hue controller
+const hueController = new HueController(config, hueLog);
+hueController.initialize().then(success => {
+    if (success) {
+        log.info('Hue Bridge connected and ready for celebrations');
+    } else {
+        log.warn('Hue Bridge connection failed - light celebrations will be skipped');
+    }
+});
 
 // Setup a formatter
 const moneyFormatter = new Intl.NumberFormat('en-US', {
@@ -86,7 +98,7 @@ discordClient.on('messageCreate', async (message) => {
             username: message.author.username
         };
         const clients = { discord: discordClient };
-        const response = await handleCommand(command, 'discord', context, config, clients, discordLog);
+        const response = await handleCommand(command, 'discord', context, config, clients, discordLog, hueController);
 
         if (response) {
             message.reply(response);
@@ -143,7 +155,7 @@ twitchClient.on('message', async (channel, tags, message, self) => {
             username: tags['display-name'] || tags.username
         };
         const clients = { discord: discordClient, twitch: twitchClient };
-        const response = await handleCommand(command, 'twitch', context, config, clients, twitchLog);
+        const response = await handleCommand(command, 'twitch', context, config, clients, twitchLog, hueController);
 
         if (response) {
             twitchClient.say(channel, response);
@@ -186,6 +198,11 @@ function getLatestDonation(silent = false) {
             if (twitchClient) {
                 msgQueue.forEach(msg => twitchClient.say(config.twitch.channel, msg.twitch));
             }
+
+            // Trigger Hue celebration lights
+            hueController.celebrateDonation().catch(err => {
+                hueLog.error('Hue celebration failed', { err });
+            });
 
             // 5 seconds later, get the latest summary
             setTimeout(updateDiscordSummary, 5000);

@@ -1,4 +1,4 @@
-const { handleCommand, handleGoalCommand, handlePromoteCommand } = require('../src/commands.js');
+const { handleCommand, handleGoalCommand, handlePromoteCommand, handleTestLightsCommand } = require('../src/commands.js');
 const { getUserInfo } = require('extra-life-api');
 
 // Mock the external API
@@ -268,6 +268,82 @@ describe('Commands Module', () => {
             const result = await handleCommand('donate', 'discord', {}, config, {}, mockLogger);
 
             expect(result).toBeNull();
+        });
+    });
+
+    describe('handleTestLightsCommand', () => {
+        const mockConfig = {
+            discord: { admins: ['admin123'] },
+            twitch: { admins: ['admin_user'] }
+        };
+
+        const mockContext = {
+            userId: 'admin123',
+            username: 'admin_user'
+        };
+
+        test('should deny access to non-admin users', async () => {
+            const nonAdminContext = {
+                userId: 'regular_user',
+                username: 'regular_user'
+            };
+
+            const result = await handleTestLightsCommand('discord', nonAdminContext, mockConfig, null, mockLogger);
+
+            expect(result).toBe('You do not have permission to use this command.');
+            expect(mockLogger.warn).toHaveBeenCalledWith('Unauthorized testlights command attempt', {
+                platform: 'discord',
+                userId: 'regular_user',
+                username: 'regular_user'
+            });
+        });
+
+        test('should handle missing Hue controller', async () => {
+            const result = await handleTestLightsCommand('discord', mockContext, mockConfig, null, mockLogger);
+
+            expect(result).toBe('Hue controller not available.');
+            expect(mockLogger.warn).toHaveBeenCalledWith('Hue controller not available for testlights command');
+        });
+
+        test('should handle Hue connection test failure', async () => {
+            const mockHueController = {
+                celebrateDonation: jest.fn().mockRejectedValue(new Error('Bridge not found'))
+            };
+
+            const result = await handleTestLightsCommand('discord', mockContext, mockConfig, mockHueController, mockLogger);
+
+            expect(result).toBe('Error testing Hue lights.');
+            expect(mockLogger.error).toHaveBeenCalledWith('Error executing testlights command', {
+                error: 'Bridge not found'
+            });
+        });
+
+        test('should successfully test Hue lights', async () => {
+            const mockHueController = {
+                celebrateDonation: jest.fn().mockResolvedValue()
+            };
+
+            const result = await handleTestLightsCommand('discord', mockContext, mockConfig, mockHueController, mockLogger);
+
+            expect(result).toBe('🎉 Testing Hue lights! Simulating a donation celebration...');
+            expect(mockHueController.celebrateDonation).toHaveBeenCalled();
+            expect(mockLogger.info).toHaveBeenCalledWith('Test lights command executed', {
+                platform: 'discord',
+                executedBy: 'admin_user'
+            });
+        });
+
+        test('should handle celebration failure', async () => {
+            const mockHueController = {
+                celebrateDonation: jest.fn().mockRejectedValue(new Error('Celebration failed'))
+            };
+
+            const result = await handleTestLightsCommand('discord', mockContext, mockConfig, mockHueController, mockLogger);
+
+            expect(result).toBe('Error testing Hue lights.');
+            expect(mockLogger.error).toHaveBeenCalledWith('Error executing testlights command', {
+                error: 'Celebration failed'
+            });
         });
     });
 });

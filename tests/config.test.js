@@ -198,6 +198,9 @@ describe('Config Module', () => {
             process.env.TWITCH_CLIENT_SECRET = 'client-secret';
             process.env.TWITCH_REFRESH_TOKEN = 'refresh-token';
             process.env.DISCORD_GAME_UPDATE_USER_ID = '987654321';
+            process.env.HUE_USERNAME = 'hue-username';
+            process.env.HUE_IPADDRESS = '192.168.1.100';
+            process.env.HUE_GROUPID = '1';
 
             const config = parseConfiguration();
             expect(config.isValid).toBe(true);
@@ -205,6 +208,9 @@ describe('Config Module', () => {
             expect(config.participantId).toBe('12345');
             expect(config.discord.token).toBe('discord-token');
             expect(config.twitch.username).toBe('testbot');
+            expect(config.hue.username).toBe('hue-username');
+            expect(config.hue.ipAddress).toBe('192.168.1.100');
+            expect(config.hue.groupId).toBe('1');
         });
 
         test('should return error when required vars missing', () => {
@@ -259,6 +265,9 @@ describe('Config Module', () => {
             process.env.DISCORD_GAME_UPDATE_USER_ID = '987654321';
             process.env.TWITCH_CLIENT_SECRET = 'client-secret';
             process.env.TWITCH_REFRESH_TOKEN = 'refresh-token';
+            process.env.HUE_USERNAME = 'hue-username';
+            process.env.HUE_IPADDRESS = '192.168.1.100';
+            process.env.HUE_GROUPID = '1';
 
             const config = parseConfiguration();
             expect(config.isValid).toBe(true);
@@ -271,6 +280,8 @@ describe('Config Module', () => {
             process.env.DISCORD_TOKEN = 'discord-token';
             process.env.DISCORD_DONATION_CHANNEL = '111111';
             process.env.DISCORD_SUMMARY_CHANNEL = '222222';
+            process.env.DISCORD_WAITING_ROOM_CHANNEL = '333333';
+            process.env.DISCORD_LIVE_ROOM_CHANNEL = '444444';
             process.env.TWITCH_CHANNEL = 'testchannel';
             process.env.TWITCH_USERNAME = 'testbot';
             process.env.TWITCH_CHAT_OAUTH = 'oauth:chat-token';
@@ -278,6 +289,9 @@ describe('Config Module', () => {
             process.env.DISCORD_GAME_UPDATE_USER_ID = '987654321';
             process.env.TWITCH_CLIENT_SECRET = 'client-secret';
             process.env.TWITCH_REFRESH_TOKEN = 'refresh-token';
+            process.env.HUE_USERNAME = 'hue-username';
+            process.env.HUE_IPADDRESS = '192.168.1.100';
+            process.env.HUE_GROUPID = '1';
             process.env.DISCORD_GAME_UPDATE_MESSAGE = 'Now playing: {game}';
 
             const config = parseConfiguration();
@@ -349,6 +363,9 @@ describe('Config Module', () => {
             process.env.TWITCH_CLIENT_SECRET = 'client-secret';
             process.env.TWITCH_REFRESH_TOKEN = 'refresh-token';
             process.env.DISCORD_GAME_UPDATE_USER_ID = '987654321';
+            process.env.HUE_USERNAME = 'hue-username';
+            process.env.HUE_IPADDRESS = '192.168.1.100';
+            process.env.HUE_GROUPID = '1';
             process.env.CUSTOM_RESPONSES = 'donate:"Check out my donation link!",info:"This is some info"';
 
             const config = parseConfiguration();
@@ -378,6 +395,29 @@ describe('Config Module', () => {
             expect(config.isValid).toBe(false);
             expect(config.errors.length).toBeGreaterThan(0);
             expect(config.errors.some(error => error.includes('conflicts with built-in command'))).toBe(true);
+        });
+
+        test('should return error when Hue vars are missing', () => {
+            process.env.EXTRALIFE_PARTICIPANT_ID = '12345';
+            process.env.DISCORD_TOKEN = 'discord-token';
+            process.env.DISCORD_DONATION_CHANNEL = '111111';
+            process.env.DISCORD_SUMMARY_CHANNEL = '222222';
+            process.env.DISCORD_WAITING_ROOM_CHANNEL = '333333';
+            process.env.DISCORD_LIVE_ROOM_CHANNEL = '444444';
+            process.env.TWITCH_USERNAME = 'testbot';
+            process.env.TWITCH_CHAT_OAUTH = 'oauth:chat-token';
+            process.env.TWITCH_CHANNEL = 'testchannel';
+            process.env.TWITCH_CLIENT_ID = 'client-id';
+            process.env.TWITCH_CLIENT_SECRET = 'client-secret';
+            process.env.TWITCH_REFRESH_TOKEN = 'refresh-token';
+            process.env.DISCORD_GAME_UPDATE_USER_ID = '987654321';
+            // Missing HUE_USERNAME, HUE_IPADDRESS, HUE_GROUPID
+
+            const config = parseConfiguration();
+            expect(config.isValid).toBe(false);
+            expect(config.errors).toContain('HUE_USERNAME is a required environment variable');
+            expect(config.errors).toContain('HUE_IPADDRESS is a required environment variable');
+            expect(config.errors).toContain('HUE_GROUPID is a required environment variable');
         });
     });
 });
