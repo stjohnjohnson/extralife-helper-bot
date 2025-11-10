@@ -5,6 +5,7 @@ A unified helper bot for managing your ExtraLife 24 hour marathon stream, bridgi
 ## Features
 
 - Post donation notifications to Discord channels and Twitch chat
+- Flash your Hue lights in ExtraLife colors when donations are received
 - Update Discord channel names with fundraising progress
 - Cross-platform commands that work on both Discord and Twitch (`!goal`, `!promote`)
 - Custom command responses that work across both platforms
@@ -50,6 +51,20 @@ The bot requires at least one service (Discord or Twitch) to be configured. Set 
   - Commands must start with a letter and contain only lowercase letters and numbers
   - Cannot conflict with built-in commands (`goal`, `promote`)
   - Commands are case-insensitive when used (e.g., `!DONATE` and `!donate` work the same)
+
+### Philips Hue Light Celebration (required)
+- `HUE_USERNAME`: Your Hue bridge username/API key
+- `HUE_IPADDRESS`: IP address of your Hue bridge (e.g., `192.168.1.100`)
+- `HUE_GROUPID`: The Hue group ID containing lights for donation celebrations
+
+**Setting up Hue Integration:**
+1. Find your Hue bridge IP address (check your router admin panel or use the [Hue app](https://apps.apple.com/us/app/philips-hue/id1055281310))
+2. Create a new user on your bridge:
+   - Press the physical button on your Hue bridge
+   - Within 30 seconds, send a POST request to `http://[bridge-ip]/api` with body: `{"devicetype":"ExtraLife Helper Bot"}`
+   - The response will contain your `username` (API key)
+3. Find your group ID by making a GET request to `http://[bridge-ip]/api/[username]/groups`
+4. Configure the environment variables for this bot appropriately
 
 ## Running
 
@@ -166,6 +181,7 @@ Some commands are restricted to admin users only for security purposes. Admin us
 
 **Admin-only commands:**
 - `!promote` - Voice channel management (moves users from waiting room to live chat)
+- `!testlights` - Test Philips Hue light celebration (verifies connection and triggers a demo light show)
 
 **Admin Configuration Examples:**
 ```bash

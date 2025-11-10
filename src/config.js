@@ -26,7 +26,11 @@ function parseConfiguration() {
         // Game update required vars
         'DISCORD_GAME_UPDATE_USER_ID',
         'TWITCH_CLIENT_SECRET',
-        'TWITCH_REFRESH_TOKEN'
+        'TWITCH_REFRESH_TOKEN',
+        // Hue required vars
+        'HUE_USERNAME',
+        'HUE_IPADDRESS',
+        'HUE_GROUPID'
     ];
 
     // Check all required variables
@@ -67,6 +71,11 @@ function parseConfiguration() {
         gameUpdates: {
             userId: process.env.DISCORD_GAME_UPDATE_USER_ID,
             messageTemplate: process.env.DISCORD_GAME_UPDATE_MESSAGE || 'Now playing {game}!'
+        },
+        hue: {
+            username: process.env.HUE_USERNAME,
+            ipAddress: process.env.HUE_IPADDRESS,
+            groupId: process.env.HUE_GROUPID
         },
         customResponses: customResponses
     };

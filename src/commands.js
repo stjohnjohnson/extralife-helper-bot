@@ -17,9 +17,10 @@ const moneyFormatter = new Intl.NumberFormat('en-US', {
  * @param {Object} config - Application configuration
  * @param {Object} clients - Discord and Twitch clients
  * @param {Object} logger - Logger instance
+ * @param {Object} hueController - Hue controller instance (optional)
  * @returns {Promise<string|null>} Response message or null if command not found
  */
-async function handleCommand(command, platform, context, config, clients, logger) {
+async function handleCommand(command, platform, context, config, clients, logger, hueController = null) {
     // Convert command to lowercase for case-insensitive matching
     const normalizedCommand = command.toLowerCase();
 
@@ -30,6 +31,9 @@ async function handleCommand(command, platform, context, config, clients, logger
 
     case 'promote':
         return await handlePromoteCommand(platform, context, config, clients, logger);
+
+    case 'testlights':
+        return await handleTestLightsCommand(platform, context, config, hueController, logger);
     }
 
     // Check for custom responses
@@ -127,8 +131,50 @@ async function handlePromoteCommand(platform, context, config, clients, logger) 
     }
 }
 
+/**
+ * Handles the testlights command - admin only command to test Hue lights
+ * @param {string} platform - 'discord' or 'twitch'
+ * @param {Object} context - Command context
+ * @param {Object} config - Application configuration
+ * @param {Object} hueController - Hue controller instance
+ * @param {Object} logger - Logger instance
+ * @returns {Promise<string>} Response message
+ */
+async function handleTestLightsCommand(platform, context, config, hueController, logger) {
+    // Check admin permissions
+    if (!isAdmin(platform, context.userId, config)) {
+        logger.warn('Unauthorized testlights command attempt', {
+            platform,
+            userId: context.userId,
+            username: context.username
+        });
+        return 'You do not have permission to use this command.';
+    }
+
+    if (!hueController) {
+        logger.warn('Hue controller not available for testlights command');
+        return 'Hue controller not available.';
+    }
+
+    try {
+        // Simulate a donation by triggering celebration lights
+        await hueController.celebrateDonation();
+
+        logger.info('Test lights command executed', {
+            platform,
+            executedBy: context.username
+        });
+
+        return '🎉 Testing Hue lights! Simulating a donation celebration...';
+    } catch (err) {
+        logger.error('Error executing testlights command', { error: err.message });
+        return 'Error testing Hue lights.';
+    }
+}
+
 module.exports = {
     handleCommand,
     handleGoalCommand,
-    handlePromoteCommand
+    handlePromoteCommand,
+    handleTestLightsCommand
 };
