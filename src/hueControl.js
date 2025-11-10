@@ -146,6 +146,7 @@ class HueController {
             const lights = await this.getGroupLights();
             if (lights.length === 0) {
                 this.logger.warn('No lights found in group, skipping celebration');
+                this.isCelebrating = false;
                 return;
             }
 
