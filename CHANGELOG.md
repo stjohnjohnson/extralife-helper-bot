@@ -1,3 +1,10 @@
+# [4.3.0](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v4.2.2...v4.3.0) (2025-11-10)
+
+
+### Features
+
+* add Philips Hue light celebrations for donations ([d770bd1](https://github.com/stjohnjohnson/extralife-helper-bot/commit/d770bd14a3e4f392a423e0bf6e13476de5321803))
+
 ## [4.2.2](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v4.2.1...v4.2.2) (2025-10-27)
 
 
