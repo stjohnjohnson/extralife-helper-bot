@@ -126,8 +126,6 @@ describe('HueController', () => {
                 { id: '2', state: { on: false, bri: 100 } }
             ];
 
-            hueController.connected = true;
-            hueController.api = mockApi;
             hueController.group = mockGroup; // Set the group directly
             mockApi.lights.getLight.mockResolvedValueOnce(mockLights[0]);
             mockApi.lights.getLight.mockResolvedValueOnce(mockLights[1]);
