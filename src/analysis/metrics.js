@@ -1,3 +1,4 @@
+const { addParticipation } = require('./participation');
 const stopwords = require('./stopwords.js');
 const { legacyEmotes } = require('./emotes.js');
 
@@ -306,7 +307,7 @@ function calculateMetrics(events, sessions, options = {}) {
     const chat = buildChat(inWindow, sessions.gameSegments, botUsers, timeline);
     const donations = buildDonations(inWindow);
 
-    return {
+    return addParticipation({
         schemaVersion: 1,
         eventWindow: {
             start: selected.start,
@@ -335,7 +336,7 @@ function calculateMetrics(events, sessions, options = {}) {
             coverageGaps: sessions.gaps,
             excludedSessions: sessions.excluded
         }
-    };
+    }, events, sessions);
 }
 
 module.exports = { calculateMetrics };

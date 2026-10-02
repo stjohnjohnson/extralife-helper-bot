@@ -17,7 +17,7 @@ function sessionFromSamples(samples) {
     const differences = ordered.slice(1).map((sample, index) =>
         new Date(sample.timestamp) - new Date(ordered[index].timestamp)
     );
-    const cadenceMs = Math.min(median(differences), STITCH_LIMIT_MS);
+    const cadenceMs = ordered[0].data.intervalSeconds ? ordered[0].data.intervalSeconds * 1000 : Math.min(median(differences), STITCH_LIMIT_MS);
     const first = ordered[0];
     const last = ordered.at(-1);
     return {
@@ -34,22 +34,28 @@ function sessionFromSamples(samples) {
     };
 }
 
-function detectRawSessions(viewers) {
+function detectRawSessions(viewers, offline = []) {
     const groups = new Map();
     for (const viewer of viewers) {
-        const key = [viewer.data.channel, viewer.data.title, viewer.data.startedAt].join('\u0000');
+        const stop = offline.filter(event => event.data.channel === viewer.data.channel && event.timestamp < viewer.timestamp && event.timestamp >= viewer.data.startedAt).at(-1);
+        const key = [viewer.data.channel, viewer.data.title, viewer.data.startedAt, stop?.timestamp || ''].join('\u0000');
         if (!groups.has(key)) groups.set(key, []);
         groups.get(key).push(viewer);
     }
-    return [...groups.values()].map(sessionFromSamples).sort((left, right) => left.start.localeCompare(right.start));
+    return [...groups.values()].map(samples => {
+        const session = sessionFromSamples(samples);
+        if (offline.some(event => event.data.channel === session.channel && event.timestamp >= session.start && event.timestamp < samples[0].timestamp)) session.start = samples[0].timestamp;
+        return session;
+    }).sort((left, right) => left.start.localeCompare(right.start));
 }
 
-function stitchSessions(rawSessions) {
+function stitchSessions(rawSessions, offline = []) {
     const stitched = [];
     for (const session of rawSessions) {
         const previous = stitched.at(-1);
         const gap = previous ? new Date(session.start) - new Date(previous.lastSample) : Infinity;
-        if (previous && previous.channel === session.channel && previous.title === session.title && gap <= STITCH_LIMIT_MS) {
+        if (previous && previous.channel === session.channel && previous.title === session.title && gap <= STITCH_LIMIT_MS &&
+            !offline.some(event => event.data.channel === session.channel && event.timestamp >= previous.lastSample && event.timestamp <= session.start)) {
             previous.samples.push(...session.samples);
             previous.samples.sort((left, right) => left.timestamp.localeCompare(right.timestamp));
             previous.lastSample = session.lastSample;
@@ -110,7 +116,7 @@ function collapsePresenceFlaps(changes) {
 
 function buildGameSegments(events, selected) {
     const viewers = events
-        .filter(event => event.type === 'viewer_sample' && event.timestamp >= selected.start && event.timestamp <= selected.end)
+        .filter(event => event.type === 'viewer_sample' && event.data.online !== false && event.timestamp >= selected.start && event.timestamp <= selected.end)
         .sort((left, right) => left.timestamp.localeCompare(right.timestamp));
     const firstGame = viewers[0]?.data.game || 'Unknown';
     const changes = collapsePresenceFlaps(events
@@ -171,11 +177,23 @@ function buildSessions(events, options = {}) {
         return { selected, excluded: [], gaps: [], gameSegments: buildGameSegments(events, selected) };
     }
 
-    const viewers = events.filter(event => event.type === 'viewer_sample' && event.timestamp);
+    const viewers = events.filter(event => event.type === 'viewer_sample' && event.data.online !== false && event.timestamp);
     if (!viewers.length) throw new Error('No live stream session detected; provide --start and --end');
 
     const gameChanges = events.filter(event => event.type === 'game_change' && event.timestamp);
-    const sessions = stitchSessions(detectRawSessions(viewers)).map(session => applyTerminalStop(session, gameChanges));
+    const offline = events.filter(event => event.type === 'viewer_sample' && event.data.online === false)
+        .sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+    const raw = detectRawSessions(viewers, offline).map(session => {
+        const stop = offline.find(event => event.data.channel === session.channel && event.timestamp >= session.lastSample);
+        if (stop && stop.timestamp < session.end) session.end = stop.timestamp;
+        return session;
+    });
+    const sessions = stitchSessions(raw, offline).map(session => {
+        applyTerminalStop(session, gameChanges);
+        const stop = offline.find(event => event.data.channel === session.channel && event.timestamp >= session.lastSample);
+        if (stop && stop.timestamp < session.end) session.end = stop.timestamp;
+        return session;
+    });
     sessions.sort((left, right) => {
         const durationDifference = (new Date(right.end) - new Date(right.start)) -
             (new Date(left.end) - new Date(left.start));

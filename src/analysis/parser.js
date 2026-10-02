@@ -3,6 +3,7 @@ const STRUCTURED_TYPES = new Set([
     'chat_message',
     'game_change',
     'viewer_sample',
+    'voice_sample',
     'command',
     'service_error'
 ]);
@@ -52,6 +53,21 @@ function inferChatTimestamp(clock, anchor) {
 function parseStructuredEvent(timestamp, metadata, line, seenKeys, diagnostics) {
     if (metadata.eventVersion !== 1 || !STRUCTURED_TYPES.has(metadata.eventType)) return null;
 
+    if (metadata.eventType === 'voice_sample') {
+        const counts = ['humanCount', 'companionCount', 'botCount'];
+        const valid = counts.every(key => Number.isInteger(metadata[key]) && metadata[key] >= 0) &&
+            typeof metadata.streamerPresent === 'boolean' && typeof metadata.guildId === 'string' &&
+            (metadata.channelId === null || typeof metadata.channelId === 'string') &&
+            ['startup', 'periodic', 'change'].includes(metadata.trigger) &&
+            Number.isInteger(metadata.intervalSeconds) && metadata.intervalSeconds >= 15 && metadata.intervalSeconds <= 3600 &&
+            (metadata.streamerPresent
+                ? metadata.channelId !== null && metadata.humanCount === metadata.companionCount + 1
+                : metadata.channelId === null && counts.every(key => metadata[key] === 0));
+        if (!valid) {
+            diagnostics.malformedLines.push({ line, reason: 'invalid voice sample' });
+            return null;
+        }
+    }
     const data = { ...metadata };
     delete data.eventVersion;
     delete data.eventType;
@@ -109,6 +125,7 @@ function parseLog(text) {
         duplicateEvents: []
     };
     const seenKeys = new Set();
+    const voiceSamples = new Map();
     const statusLines = [];
     let anchor = null;
     let startupAt = null;
@@ -131,6 +148,17 @@ function parseLog(text) {
             if (metadata) {
                 const structured = parseStructuredEvent(timestamp, metadata, lineNumber, seenKeys, diagnostics);
                 if (structured) {
+                    if (structured.type === 'voice_sample') {
+                        const key = JSON.stringify([structured.timestamp, structured.data.guildId, structured.data.channelId,
+                            structured.data.humanCount, structured.data.companionCount, structured.data.botCount, structured.data.intervalSeconds]);
+                        const previous = voiceSamples.get(key);
+                        if (previous) {
+                            if (structured.data.trigger === 'periodic') previous.data.trigger = 'periodic';
+                            diagnostics.duplicateEvents.push({ line: lineNumber, key });
+                            return;
+                        }
+                        voiceSamples.set(key, structured);
+                    }
                     events.push(structured);
                     return;
                 }

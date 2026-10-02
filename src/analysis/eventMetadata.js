@@ -3,6 +3,7 @@ const EVENT_TYPES = new Set([
     'chat_message',
     'game_change',
     'viewer_sample',
+    'voice_sample',
     'command',
     'service_error'
 ]);

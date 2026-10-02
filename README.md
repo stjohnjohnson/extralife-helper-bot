@@ -277,3 +277,11 @@ The bot automatically manages Twitch access tokens when game update notification
 - **No Manual Intervention**: Once properly configured with refresh token, the bot handles all token management
 
 **Important**: The `TWITCH_REFRESH_TOKEN` must be obtained using the **broadcaster/streamer account**, not the bot account, as it needs `channel:manage:broadcast` permissions.
+
+### Viewer and voice participation analytics
+
+`TWITCH_VIEWER_SAMPLE_INTERVAL_SECONDS` and `DISCORD_VOICE_SAMPLE_INTERVAL_SECONDS` default to 60 seconds. Both accept integer values from 15 to 3600. Twitch records online and offline samples; API failures remain collection errors.
+
+Discord follows `DISCORD_GAME_UPDATE_USER_ID` in the guild containing `DISCORD_DONATION_CHANNEL`. The bot needs access to that guild and voice channels; its existing voice-state intent supplies participation data. Total humans include the streamer, companions exclude the streamer, and bots are separate. The new voice events retain counts and guild/channel identifiers without member names or user IDs. No audio or speaking activity is recorded.
+
+Voice samples occur at startup, on relevant count/channel changes, and periodically. Only periodic observations contribute to average, median, peak, start, and end summaries; all observations appear on the timeline. Reports show cadence, sample sizes, coverage, gaps, and service failures. Coverage is the union of successful periodic sampling intervals clipped to each window. Missing data is unavailable rather than zero; confirmed disconnection and offline Twitch samples are valid zero observations. Existing historical logs retain their original deterministic reports.

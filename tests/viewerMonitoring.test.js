@@ -85,12 +85,10 @@ describe('Viewer Monitoring Module', () => {
             expect(result).toBeNull();
         });
 
-        it('should return null when no data is returned', async () => {
+        it('should reject a malformed service response', async () => {
             makeTwitchApiRequest.mockResolvedValue({});
 
-            const result = await getStreamInfo('testchannel', 'client-id', 'access-token');
-
-            expect(result).toBeNull();
+            await expect(getStreamInfo('testchannel', 'client-id', 'access-token')).rejects.toThrow('Invalid Twitch stream response');
         });
 
         it('should throw error when API request fails', async () => {
@@ -129,6 +127,8 @@ describe('Viewer Monitoring Module', () => {
             expect(mockLogger.info).toHaveBeenCalledWith('Stream viewer count', {
                 eventVersion: 1,
                 eventType: 'viewer_sample',
+                online: true,
+                intervalSeconds: 60,
                 channel: 'testchannel',
                 viewerCount: 42,
                 game: 'Minecraft',
@@ -147,6 +147,8 @@ describe('Viewer Monitoring Module', () => {
             expect(mockLogger.error).toHaveBeenCalledWith('Error getting viewer count', {
                 eventVersion: 1,
                 eventType: 'service_error',
+                service: 'twitch_viewers',
+                intervalSeconds: 60,
                 channel: 'testchannel',
                 error: 'Token error'
             });
@@ -161,6 +163,8 @@ describe('Viewer Monitoring Module', () => {
             expect(mockLogger.error).toHaveBeenCalledWith('Error getting viewer count', {
                 eventVersion: 1,
                 eventType: 'service_error',
+                service: 'twitch_viewers',
+                intervalSeconds: 60,
                 channel: 'testchannel',
                 error: 'API Error'
             });
@@ -168,7 +172,7 @@ describe('Viewer Monitoring Module', () => {
     });
 
     describe('startViewerCountMonitoring', () => {
-        it('should start monitoring with default 5 minute interval', () => {
+        it('should start monitoring with default 60 second interval', () => {
             getValidAccessToken.mockResolvedValue('mock-access-token');
             makeTwitchApiRequest.mockResolvedValue({ data: [] });
 
@@ -176,14 +180,14 @@ describe('Viewer Monitoring Module', () => {
 
             expect(mockLogger.info).toHaveBeenCalledWith('Starting viewer count monitoring', {
                 channel: 'testchannel',
-                intervalMinutes: 5
+                intervalSeconds: 60
             });
 
             // Verify initial call is made
             expect(getValidAccessToken).toHaveBeenCalledWith(mockConfig, mockLogger);
 
             // Verify interval is set correctly (5 minutes = 300000ms)
-            expect(setInterval).toHaveBeenCalledWith(expect.any(Function), 300000);
+            expect(setInterval).toHaveBeenCalledWith(expect.any(Function), 60000);
             expect(interval).toBeDefined();
         });
 
@@ -191,18 +195,19 @@ describe('Viewer Monitoring Module', () => {
             getValidAccessToken.mockResolvedValue('mock-access-token');
             makeTwitchApiRequest.mockResolvedValue({ data: [] });
 
-            startViewerCountMonitoring(mockConfig, mockLogger, 10);
+            mockConfig.twitch.viewerSampleIntervalSeconds = 120;
+            startViewerCountMonitoring(mockConfig, mockLogger);
 
             expect(mockLogger.info).toHaveBeenCalledWith('Starting viewer count monitoring', {
                 channel: 'testchannel',
-                intervalMinutes: 10
+                intervalSeconds: 120
             });
 
             // Verify interval is set correctly (10 minutes = 600000ms)
-            expect(setInterval).toHaveBeenCalledWith(expect.any(Function), 600000);
+            expect(setInterval).toHaveBeenCalledWith(expect.any(Function), 120000);
         });
 
-        it('should call logViewerCount periodically', () => {
+        it('should call logViewerCount periodically', async () => {
             getValidAccessToken.mockResolvedValue('mock-access-token');
             makeTwitchApiRequest.mockResolvedValue({ data: [] });
 
@@ -213,7 +218,8 @@ describe('Viewer Monitoring Module', () => {
 
             // Verify the interval callback function works
             const intervalCallback = setInterval.mock.calls[0][0];
-            intervalCallback(); // Manually call the interval function
+            for (let index = 0; index < 8; index++) await Promise.resolve();
+            await intervalCallback(); // Manually call the interval function
 
             // Should have been called again
             expect(getValidAccessToken).toHaveBeenCalledTimes(2);
@@ -222,12 +228,12 @@ describe('Viewer Monitoring Module', () => {
 
     describe('stopViewerCountMonitoring', () => {
         it('should stop monitoring interval and log message', () => {
-            const mockInterval = 12345;
+            const mockInterval = { active: true, timer: 12345 };
             global.clearInterval = jest.fn();
 
             stopViewerCountMonitoring(mockInterval, mockLogger);
 
-            expect(clearInterval).toHaveBeenCalledWith(mockInterval);
+            expect(clearInterval).toHaveBeenCalledWith(mockInterval.timer);
             expect(mockLogger.info).toHaveBeenCalledWith('Stopped viewer count monitoring');
         });
 
@@ -261,7 +267,7 @@ describe('Viewer Monitoring Module', () => {
             // Verify initial setup
             expect(mockLogger.info).toHaveBeenCalledWith('Starting viewer count monitoring', {
                 channel: 'testchannel',
-                intervalMinutes: 1
+                intervalSeconds: 60
             });
 
             // Verify initial call was made
@@ -272,5 +278,33 @@ describe('Viewer Monitoring Module', () => {
 
             expect(mockLogger.info).toHaveBeenCalledWith('Stopped viewer count monitoring');
         });
+    });
+});
+describe('viewer lifecycle safety', () => {
+    let logger;
+    const config = { twitch: { channel: 'x', clientId: 'c', viewerSampleIntervalSeconds: 60 } };
+    beforeEach(() => {
+        jest.clearAllMocks();
+        jest.useFakeTimers();
+        logger = { info: jest.fn(), error: jest.fn() };
+    });
+    afterEach(() => jest.useRealTimers());
+    test('offline observations are valid zero samples', async () => {
+        getValidAccessToken.mockResolvedValue('token');
+        makeTwitchApiRequest.mockResolvedValue({ data: [] });
+        await logViewerCount(config, logger);
+        expect(logger.info).toHaveBeenCalledWith('Stream offline', expect.objectContaining({ online: false, viewerCount: 0, intervalSeconds: 60 }));
+    });
+    test('overlap is skipped and late shutdown results are suppressed', async () => {
+        let finish;
+        getValidAccessToken.mockImplementation(() => new Promise(resolve => { finish = resolve; }));
+        makeTwitchApiRequest.mockResolvedValue({ data: [] });
+        const monitor = startViewerCountMonitoring(config, logger);
+        await jest.advanceTimersByTimeAsync(180000);
+        expect(getValidAccessToken).toHaveBeenCalledTimes(1);
+        stopViewerCountMonitoring(monitor, logger);
+        finish('token');
+        for (let index = 0; index < 8; index++) await Promise.resolve();
+        expect(logger.info.mock.calls.filter(([message]) => message === 'Stream offline')).toHaveLength(0);
     });
 });

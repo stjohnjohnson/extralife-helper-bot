@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Extra Life Event Analysis</title><style>
+:root{color-scheme:dark;--bg:#101820;--panel:#182530;--ink:#f5f7fa;--muted:#9fb0bd;--accent:#56d6c9;--gold:#ffca5c}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,sans-serif}main{max-width:1180px;margin:auto;padding:32px}
+h1,h2{line-height:1.15}h2{margin-top:38px}.notice{padding:12px 16px;border-left:4px solid var(--gold);background:#332b1b}.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px}.card{background:var(--panel);padding:16px;border-radius:8px}.card span{display:block;color:var(--muted)}.card strong{font-size:1.5rem}
+.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;background:var(--panel)}th,td{padding:9px;border-bottom:1px solid #31404c;text-align:left;white-space:nowrap}th{cursor:pointer;color:var(--accent)}.filter{display:block;margin:0 0 12px}input{margin-left:8px;padding:7px;background:var(--panel);color:var(--ink);border:1px solid #526878}
+svg{width:100%;background:var(--panel);border-radius:8px}.axis{stroke:#526878}.grid-line{stroke:#31404c;stroke-width:1}.axis-label,.elapsed-label,.lane-label,.timeline-legend text{fill:var(--muted);font-size:12px}.elapsed-label{font-size:10px}.axis-title{fill:var(--ink);font-size:12px}.viewer-line{fill:none;stroke:var(--accent);stroke-width:3}.viewer-point{fill:var(--accent);stroke:var(--panel);stroke-width:1}.game-segment,.legend-game-segment{fill:#3d6680;stroke:#7ea7bc;stroke-width:1}.game-segment[data-band="1"]{fill:#365267}.game-label{fill:var(--ink);font-size:11px;pointer-events:none}.game-transition,.legend-game-transition{stroke:#f29d49;stroke-width:2;stroke-dasharray:5 4}.donation-lane{stroke:#526878}.donation-marker,.legend-donation-marker{fill:var(--gold);stroke:#101820;stroke-width:1}.timeline-legend{font-size:12px}ol{max-width:480px;padding:0;list-style-position:inside}li{display:flex;justify-content:space-between;padding:5px;border-bottom:1px solid #31404c}dl{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px}dl div{background:var(--panel);padding:10px}dt{color:var(--muted)}dd{margin:0;font-size:1.25rem}footer{margin-top:40px;color:var(--muted)}
+</style></head><body><main>
+<h1>Extra Life Event Analysis</h1><p class="notice"><strong>Private local report.</strong> It may contain donor names, chatter names, and message text. Do not publish it without review.</p>
+<p>Jan 1, 2026, 00:00 – Jan 1, 2026, 00:05 (UTC)</p>
+<section class="cards"><article class="card"><span>Duration</span><strong>5 min</strong></article><article class="card"><span>Average viewers</span><strong>2</strong></article><article class="card"><span>Peak viewers</span><strong>2</strong></article><article class="card"><span>Human chat</span><strong>0</strong></article><article class="card"><span>Unique chatters</span><strong>0</strong></article><article class="card"><span>Live donations</span><strong>0</strong></article><article class="card"><span>Raised live</span><strong>$0.00</strong></article></section>
+<h2>Viewer timeline</h2><svg viewBox="0 0 1000 450" role="img" aria-label="Average viewers, game transitions, and donations over the event">
+        <desc>Viewer averages by 15-minute interval with 1 game segments and 0 confirmed live donations.</desc>
+        <g class="viewer-axis"><g><line x1="72" y1="260.0" x2="976" y2="260.0" class="grid-line"></line><text x="62" y="260.0" class="axis-label" text-anchor="end" dominant-baseline="middle">0</text></g><g><line x1="72" y1="216.0" x2="976" y2="216.0" class="grid-line"></line><text x="62" y="216.0" class="axis-label" text-anchor="end" dominant-baseline="middle">1</text></g><g><line x1="72" y1="172.0" x2="976" y2="172.0" class="grid-line"></line><text x="62" y="172.0" class="axis-label" text-anchor="end" dominant-baseline="middle">2</text></g><g><line x1="72" y1="128.0" x2="976" y2="128.0" class="grid-line"></line><text x="62" y="128.0" class="axis-label" text-anchor="end" dominant-baseline="middle">3</text></g><g><line x1="72" y1="84.0" x2="976" y2="84.0" class="grid-line"></line><text x="62" y="84.0" class="axis-label" text-anchor="end" dominant-baseline="middle">4</text></g><g><line x1="72" y1="40.0" x2="976" y2="40.0" class="grid-line"></line><text x="62" y="40.0" class="axis-label" text-anchor="end" dominant-baseline="middle">5</text></g><line x1="72" y1="40" x2="72" y2="260" class="axis"></line><text x="18" y="150" class="axis-title" text-anchor="middle" transform="rotate(-90 18 150)">Viewers</text></g>
+        <g class="time-axis"><line x1="72" y1="260" x2="976" y2="260" class="axis"></line><g><line x1="72.0" y1="260" x2="72.0" y2="267" class="axis"></line><text x="72.0" y="282" class="axis-label" text-anchor="middle">00:00</text><text x="72.0" y="298" class="elapsed-label" text-anchor="middle">+0h</text></g><g><line x1="976.0" y1="260" x2="976.0" y2="267" class="axis"></line><text x="976.0" y="282" class="axis-label" text-anchor="middle">00:05</text><text x="976.0" y="298" class="elapsed-label" text-anchor="middle">+0.1h</text></g></g>
+        <polyline points="524.0,172.0" class="viewer-line"><title>Viewer average by 15-minute interval</title></polyline>
+        <circle cx="524.0" cy="172.0" r="2.5" class="viewer-point"><title>2 average viewers at 00:02</title></circle>
+        
+        <text x="62" y="327" class="lane-label" text-anchor="end">Games</text><clipPath id="timeline-game-0"><rect x="72.0" y="306" width="904.0" height="32"></rect></clipPath><rect x="72.0" y="306" width="904.0" height="32" class="game-segment" data-band="0"><title>Game segment: G — 00:00 to 00:05</title></rect><text x="78.0" y="327" clip-path="url(#timeline-game-0)" class="game-label">G</text>
+        <line x1="72" y1="374" x2="976" y2="374" class="donation-lane"></line>
+        <text x="62" y="378" class="lane-label" text-anchor="end">Gifts</text>
+        <g class="timeline-legend" transform="translate(72 428)"><line x1="0" y1="0" x2="24" y2="0" class="viewer-line"></line><text x="32" y="4">Viewer average</text><rect x="170" y="-8" width="22" height="12" class="legend-game-segment"></rect><text x="200" y="4">Game segment</text><line x1="330" y1="-10" x2="330" y2="8" class="legend-game-transition"></line><text x="340" y="4">Game transition</text><polygon points="490,-8 496,-2 490,4 484,-2" class="legend-donation-marker"></polygon><text x="504" y="4">Donation</text></g>
+    </svg>
+<h2>Games and schedule</h2><label class="filter">Filter games <input id="game-filter" type="search" autocomplete="off"></label>
+    <div class="table-wrap"><table id="games"><thead><tr>
+        <th>Game</th><th>Minutes</th><th>Avg viewers</th><th>Peak</th><th>Retention</th>
+        <th>Trend/hour</th><th>Volatility</th><th>Chats/hour</th><th>Unique/hour</th><th>Donations</th><th>Ranked</th>
+    </tr></thead><tbody><tr>
+        <td>G</td><td data-value="5">5</td>
+        <td data-value="2">2</td><td>2</td>
+        <td>100%</td><td>0</td><td>0</td><td>0</td>
+        <td>0</td><td>$0.00</td>
+        <td>No</td>
+    </tr></tbody></table></div>
+<h2>Game rankings</h2><table><thead><tr><th>Measure</th><th>Ranked games</th></tr></thead><tbody><tr><td>Average viewers</td><td>No eligible games</td></tr><tr><td>Viewer retention</td><td>No eligible games</td></tr><tr><td>Chat rate</td><td>No eligible games</td></tr><tr><td>Unique chatter rate</td><td>No eligible games</td></tr><tr><td>Donation rate</td><td>No eligible games</td></tr></tbody></table>
+<h2>Transition impact</h2><p>No game transitions in the selected event.</p>
+<h2>Chat patterns</h2><div class="cards"><article class="card"><span>Human messages</span><strong>0</strong></article><article class="card"><span>Unique chatters</span><strong>0</strong></article><article class="card"><span>Bot messages</span><strong>0</strong></article><article class="card"><span>Commands</span><strong>0</strong></article><article class="card"><span>Links</span><strong>0</strong></article><article class="card"><span>Human emotes</span><strong>0</strong></article><article class="card"><span>Bot emotes</span><strong>0</strong></article><article class="card"><span>Cross-game chatters</span><strong>0</strong></article></div>
+<h3>Top chatters</h3><p>No human chat messages.</p><h3>Top emotes</h3><p>No recognized emotes.</p>
+<h2>Donation patterns</h2><p><strong>0</strong> live donations totaling <strong>$0.00</strong>; median $0.00, largest $0.00. 0 startup and 0 ambiguous records were excluded.</p><p>No confirmed live donations.</p>
+<h2>Data quality</h2><dl><div><dt>Input lines</dt><dd>1</dd></div><div><dt>Unknown lines</dt><dd>0</dd></div><div><dt>Malformed lines</dt><dd>0</dd></div><div><dt>Ambiguous timestamps</dt><dd>0</dd></div><div><dt>Duplicate events</dt><dd>0</dd></div><div><dt>Coverage gaps</dt><dd>0</dd></div><div><dt>Excluded sessions</dt><dd>0</dd></div></dl>
+<footer>Generated deterministically from legacy. Correlations are descriptive, not causal.</footer>
+<script type="application/json" id="report-data">{
+  "diagnostics": {
+    "ambiguousTimestamps": [],
+    "duplicateEvents": [],
+    "malformedLines": [],
+    "unknownLines": []
+  },
+  "metrics": {
+    "chat": {
+      "botEmoteCount": 0,
+      "botMessages": 0,
+      "burstIntensity": 0,
+      "commandCount": 0,
+      "crossGameChatters": 0,
+      "emoteCount": 0,
+      "humanMessages": 0,
+      "linkCount": 0,
+      "longestQuietGapMinutes": 0,
+      "messagesPerChatter": 0,
+      "newChatters": 0,
+      "participationConcentrationPercent": 0,
+      "returningChatters": 0,
+      "topBigrams": [],
+      "topChatters": [],
+      "topEmotes": [],
+      "topWords": [],
+      "uniqueChatters": 0
+    },
+    "diagnostics": {
+      "coverageGaps": [],
+      "excludedSessions": []
+    },
+    "donations": {
+      "ambiguousCount": 0,
+      "anonymousCount": 0,
+      "average": 0,
+      "count": 0,
+      "items": [],
+      "largest": 0,
+      "median": 0,
+      "messageCount": 0,
+      "namedCount": 0,
+      "repeatDonors": [],
+      "startupCount": 0,
+      "total": 0
+    },
+    "eventWindow": {
+      "durationMs": 300000,
+      "end": "2026-01-01T00:05:00.000Z",
+      "source": "detected",
+      "start": "2026-01-01T00:00:00.000Z"
+    },
+    "games": [
+      {
+        "chat": {
+          "messages": 0,
+          "messagesPerHour": 0,
+          "uniqueChatters": 0,
+          "uniqueChattersPerHour": 0
+        },
+        "coverage": 1,
+        "donations": {
+          "count": 0,
+          "countPerHour": 0,
+          "dollarsPerHour": 0,
+          "total": 0
+        },
+        "durationMinutes": 5,
+        "eligibleForRanking": false,
+        "game": "G",
+        "segments": 1,
+        "viewer": {
+          "average": 2,
+          "end": 2,
+          "median": 2,
+          "minimum": 2,
+          "netChange": 0,
+          "peak": 2,
+          "retentionPercent": 100,
+          "rollingMedian": [
+            {
+              "timestamp": "2026-01-01T00:00:00.000Z",
+              "value": 2
+            }
+          ],
+          "samples": 1,
+          "start": 2,
+          "trendPerHour": 0,
+          "volatility": 0
+        }
+      }
+    ],
+    "overview": {
+      "averageViewers": 2,
+      "donationCount": 0,
+      "donationTotal": 0,
+      "durationMinutes": 5,
+      "humanChatMessages": 0,
+      "peakViewers": 2,
+      "uniqueChatters": 0,
+      "viewerSamples": 1
+    },
+    "rankings": {
+      "averageViewers": [],
+      "chatRate": [],
+      "donationRate": [],
+      "uniqueChatRate": [],
+      "viewerRetention": []
+    },
+    "schemaVersion": 1,
+    "timeline": [
+      {
+        "averageViewers": 2,
+        "chatMessages": 0,
+        "donationCount": 0,
+        "donationTotal": 0,
+        "end": "2026-01-01T00:05:00.000Z",
+        "start": "2026-01-01T00:00:00.000Z",
+        "uniqueChatters": 0,
+        "viewerSamples": 1
+      }
+    ],
+    "transitions": [],
+    "viewer": {
+      "average": 2,
+      "end": 2,
+      "median": 2,
+      "minimum": 2,
+      "netChange": 0,
+      "peak": 2,
+      "retentionPercent": 100,
+      "rollingMedian": [
+        {
+          "timestamp": "2026-01-01T00:00:00.000Z",
+          "value": 2
+        }
+      ],
+      "samples": 1,
+      "start": 2,
+      "trendPerHour": 0,
+      "volatility": 0
+    }
+  },
+  "sessions": {
+    "excluded": [],
+    "gameSegments": [
+      {
+        "durationMs": 300000,
+        "end": "2026-01-01T00:05:00.000Z",
+        "game": "G",
+        "start": "2026-01-01T00:00:00.000Z"
+      }
+    ],
+    "gaps": [],
+    "selected": {
+      "cadenceMs": 300000,
+      "channel": "x",
+      "durationMs": 300000,
+      "end": "2026-01-01T00:05:00.000Z",
+      "lastSample": "2026-01-01T00:00:00.000Z",
+      "samples": [
+        {
+          "data": {
+            "channel": "x",
+            "game": "G",
+            "startedAt": "2026-01-01T00:00:00.000Z",
+            "title": "s",
+            "viewerCount": 2
+          },
+          "timestamp": "2026-01-01T00:00:00.000Z",
+          "type": "viewer_sample"
+        }
+      ],
+      "source": "detected",
+      "start": "2026-01-01T00:00:00.000Z",
+      "stitchedSessionCount": 1,
+      "title": "s",
+      "viewerSampleCount": 1
+    }
+  },
+  "source": {
+    "lineCount": 1,
+    "name": "legacy"
+  }
+}
+</script><script>
+document.getElementById('game-filter').addEventListener('input',event=>{const q=event.target.value.toLowerCase();document.querySelectorAll('#games tbody tr').forEach(row=>{row.hidden=!row.cells[0].textContent.toLowerCase().includes(q)})});
+document.querySelectorAll('#games th').forEach((th,index)=>th.addEventListener('click',()=>{const body=th.closest('table').tBodies[0];const rows=[...body.rows];rows.sort((a,b)=>{const av=Number(a.cells[index].dataset.value??a.cells[index].textContent);const bv=Number(b.cells[index].dataset.value??b.cells[index].textContent);return Number.isNaN(av)||Number.isNaN(bv)?a.cells[index].textContent.localeCompare(b.cells[index].textContent):av-bv});rows.forEach(row=>body.appendChild(row))}));
+</script></main></body></html>

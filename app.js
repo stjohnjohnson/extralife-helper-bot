@@ -6,6 +6,7 @@ const { parseConfiguration } = require('./src/config.js');
 const { handleCommand } = require('./src/commands.js');
 const { handlePresenceUpdate } = require('./src/gameUpdates.js');
 const { startViewerCountMonitoring, stopViewerCountMonitoring } = require('./src/viewerMonitoring.js');
+const { startVoiceMonitoring, stopVoiceMonitoring } = require('./src/voiceMonitoring.js');
 const { HueController } = require('./src/hueControl.js');
 const { eventMetadata } = require('./src/analysis/eventMetadata.js');
 const { taggedEmotes } = require('./src/analysis/emotes.js');
@@ -159,6 +160,7 @@ function start({ config = parseConfiguration() } = {}) {
             return;
         }
         discordLog.info(`Found Discord Summary Channel: ${state.summaryChannel.id}`);
+        state.voiceMonitor = startVoiceMonitoring(state.discordClient, state.donationChannel.guild, config, discordLog);
         void updateDiscordSummary(state);
         resolveReady();
     });
@@ -238,7 +240,7 @@ function start({ config = parseConfiguration() } = {}) {
     twitchLog.info('Twitch Bot connecting...');
     state.donationInterval = setInterval(() => void getLatestDonation(state), 30000);
     void getLatestDonation(state, true);
-    state.viewerCountInterval = startViewerCountMonitoring(config, twitchLog, 5);
+    state.viewerCountInterval = startViewerCountMonitoring(config, twitchLog);
 
     return Promise.all([discordLogin, readyPromise])
         .then(() => undefined)
@@ -259,6 +261,7 @@ async function stop() {
         if (state.donationInterval) clearInterval(state.donationInterval);
         state.summaryTimeouts.forEach(timeout => clearTimeout(timeout));
         state.summaryTimeouts.clear();
+        stopVoiceMonitoring(state.voiceMonitor);
         if (state.viewerCountInterval) stopViewerCountMonitoring(state.viewerCountInterval, twitchLog);
 
         if (state.twitchClient) {
