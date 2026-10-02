@@ -106,6 +106,16 @@ async function flushPromises() {
     await Promise.resolve();
 }
 
+function deferred() {
+    let resolve;
+    let reject;
+    const promise = new Promise((resolvePromise, rejectPromise) => {
+        resolve = resolvePromise;
+        reject = rejectPromise;
+    });
+    return { promise, resolve, reject };
+}
+
 describe('application lifecycle', () => {
     beforeAll(() => {
         jest.useFakeTimers();
@@ -118,6 +128,8 @@ describe('application lifecycle', () => {
         getUserDonations.mockResolvedValue({ donations: [] });
         getUserInfo.mockResolvedValue({ sumDonations: 500, fundraisingGoal: 1000 });
         mockDiscordClient.login.mockResolvedValue();
+        mockDiscordClient.destroy.mockResolvedValue();
+        mockTwitchClient.connect = jest.fn().mockResolvedValue();
         mockTwitchClient.connect.mockResolvedValue();
         mockTwitchClient.disconnect.mockResolvedValue();
         mockHueController.initialize.mockResolvedValue(true);
@@ -154,6 +166,7 @@ describe('application lifecycle', () => {
     });
 
     test('starts each service once and rejects a duplicate start', async () => {
+        const connect = mockTwitchClient.connect;
         application.start();
         await flushPromises();
 
@@ -161,7 +174,7 @@ describe('application lifecycle', () => {
         expect(DiscordClient).toHaveBeenCalledTimes(1);
         expect(mockDiscordClient.login).toHaveBeenCalledWith('discord-token');
         expect(tmi.Client).toHaveBeenCalledTimes(1);
-        expect(mockTwitchClient.connect).toHaveBeenCalledTimes(1);
+        expect(connect).toHaveBeenCalledTimes(1);
         expect(HueController).toHaveBeenCalledWith(validConfig, mockLogger);
         expect(startViewerCountMonitoring).toHaveBeenCalledWith(validConfig, mockLogger, 5);
         expect(getUserDonations).toHaveBeenCalledWith('participant-1');
@@ -181,12 +194,14 @@ describe('application lifecycle', () => {
         expect(summaryChannel.setName).toHaveBeenCalledWith('$500.00 (50%) Raised');
     });
 
-    test('logs missing Discord channels without throwing from the ready handler', () => {
+    test('rejects startup and cleans up when required Discord channels are missing', async () => {
         mockDiscordClient.channels.cache.get.mockReturnValue(undefined);
-        application.start({ config: validConfig });
+        const startup = application.start({ config: validConfig });
 
         expect(() => registeredHandler(mockDiscordClient.once, 'ready')()).not.toThrow();
-        expect(mockLogger.error).toHaveBeenCalledWith('Unable to find donation channel with id donations');
+        await expect(startup).rejects.toThrow('Unable to find donation channel with id donations');
+        expect(mockDiscordClient.destroy).toHaveBeenCalled();
+        expect(mockTwitchClient.disconnect).toHaveBeenCalled();
     });
 
     test('routes Discord and Twitch commands and ignores non-command messages', async () => {
@@ -250,24 +265,17 @@ describe('application lifecycle', () => {
         expect(donationChannel.send).toHaveBeenCalledTimes(1);
     });
 
-    test('contains service connection and command errors', async () => {
+    test('rejects startup on Discord login failure and contains Twitch connection errors', async () => {
         const discordError = new Error('Discord unavailable');
         const twitchError = new Error('Twitch unavailable');
         mockDiscordClient.login.mockRejectedValueOnce(discordError);
         mockTwitchClient.connect.mockRejectedValueOnce(twitchError);
-        handleCommand.mockRejectedValueOnce(new Error('Command failed'));
 
-        application.start({ config: validConfig });
-        await registeredHandler(mockDiscordClient.on, 'messageCreate')({
-            author: { bot: false, id: 'user-1', username: 'User' },
-            content: '!goal',
-            reply: jest.fn()
-        });
+        const startup = application.start({ config: validConfig });
         await flushPromises();
 
-        expect(mockLogger.error).toHaveBeenCalledWith('Error connecting to Discord', { err: discordError });
+        await expect(startup).rejects.toThrow('Discord login failed: Discord unavailable');
         expect(mockLogger.error).toHaveBeenCalledWith('Error connecting to Twitch', { err: twitchError });
-        expect(mockLogger.error).toHaveBeenCalledWith('Error handling Discord command', { err: expect.any(Error) });
     });
 
     test('stops timers and clients once even when stop is repeated', async () => {
@@ -281,5 +289,52 @@ describe('application lifecycle', () => {
         expect(mockDiscordClient.destroy).toHaveBeenCalledTimes(1);
         expect(mockTwitchClient.disconnect).toHaveBeenCalledTimes(1);
         expect(jest.getTimerCount()).toBe(0);
+    });
+
+    test('waits for both client teardowns and blocks restart while stopping', async () => {
+        const discordDestroy = deferred();
+        const twitchDisconnect = deferred();
+        mockDiscordClient.destroy.mockReturnValueOnce(discordDestroy.promise);
+        mockTwitchClient.disconnect.mockReturnValueOnce(twitchDisconnect.promise);
+        application.start({ config: validConfig });
+
+        let stopped = false;
+        const firstStop = application.stop().then(() => {
+            stopped = true;
+        });
+        const secondStop = application.stop();
+        await flushPromises();
+
+        expect(stopped).toBe(false);
+        expect(() => application.start({ config: validConfig })).toThrow('Application already started');
+        discordDestroy.resolve();
+        await flushPromises();
+        expect(stopped).toBe(false);
+        twitchDisconnect.resolve();
+        await Promise.all([firstStop, secondStop]);
+        expect(stopped).toBe(true);
+    });
+
+    test('fences reconnect callbacks and in-flight command replies after shutdown', async () => {
+        const command = deferred();
+        const reply = jest.fn().mockResolvedValue();
+        handleCommand.mockReturnValueOnce(command.promise);
+        const connect = mockTwitchClient.connect;
+        application.start({ config: validConfig });
+        const reconnectCallback = mockTwitchClient.connect;
+        await flushPromises();
+        const commandPromise = registeredHandler(mockDiscordClient.on, 'messageCreate')({
+            author: { bot: false, id: 'user-1', username: 'User' },
+            content: '!goal',
+            reply
+        });
+
+        await application.stop();
+        await reconnectCallback();
+        command.resolve('late response');
+        await commandPromise;
+
+        expect(connect).toHaveBeenCalledTimes(1);
+        expect(reply).not.toHaveBeenCalled();
     });
 });

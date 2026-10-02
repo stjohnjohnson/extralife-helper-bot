@@ -11,8 +11,8 @@ This file applies to the entire repository. Create additional `AGENTS.md` files 
 - Reference relevant files or command output with citations.
 
 ## Development environment
-- Requires Node.js 24 or later.
-- Install dependencies with `npm install`.
+- Requires Node.js 24.x.
+- Install dependencies with `npm ci`.
 - Use `.env` based on `env.example` for local runs. Never commit secrets.
 
 ## Testing and linting

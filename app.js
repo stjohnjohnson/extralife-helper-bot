@@ -16,6 +16,7 @@ const hueLog = getLogger('hue');
 const moneyFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 
 let runtime = null;
+let stoppingPromise = null;
 
 function updateDiscordSummary(state) {
     if (!state.active || !state.summaryChannel) return Promise.resolve();
@@ -69,7 +70,7 @@ async function getLatestDonation(state, silent = false) {
 }
 
 function start({ config = parseConfiguration() } = {}) {
-    if (runtime) throw new Error('Application already started');
+    if (runtime || stoppingPromise) throw new Error('Application already started');
     if (!config.isValid) throw new Error(`Invalid configuration:\n${config.errors.join('\n')}`);
 
     const state = {
@@ -83,7 +84,8 @@ function start({ config = parseConfiguration() } = {}) {
         donationInterval: null,
         viewerCountInterval: null,
         summaryTimeouts: new Set(),
-        seenDonationIDs: new Set()
+        seenDonationIDs: new Set(),
+        resolveReady: null
     };
     runtime = state;
 
@@ -114,26 +116,45 @@ function start({ config = parseConfiguration() } = {}) {
         identity: { username: config.twitch.username, password: config.twitch.chatOauth },
         channels: [config.twitch.channel]
     });
+    const connectTwitch = state.twitchClient.connect.bind(state.twitchClient);
+    state.twitchClient.connect = (...args) => {
+        if (!state.active) return Promise.resolve();
+        return connectTwitch(...args);
+    };
+
+    let resolveReady;
+    let rejectReady;
+    const readyPromise = new Promise((resolve, reject) => {
+        resolveReady = resolve;
+        rejectReady = reject;
+    });
+    state.resolveReady = resolveReady;
 
     state.discordClient.once('ready', () => {
+        if (!state.active) return;
         discordLog.info('Discord Bot Online');
         state.donationChannel = state.discordClient.channels.cache.get(config.discord.donationChannel);
         if (!state.donationChannel) {
-            discordLog.error(`Unable to find donation channel with id ${config.discord.donationChannel}`);
+            const error = new Error(`Unable to find donation channel with id ${config.discord.donationChannel}`);
+            discordLog.error(error.message);
+            rejectReady(error);
             return;
         }
         discordLog.info(`Found Discord Donation Channel: ${state.donationChannel.id}`);
         state.summaryChannel = state.discordClient.channels.cache.get(config.discord.summaryChannel);
         if (!state.summaryChannel) {
-            discordLog.error(`Unable to find summary channel with id ${config.discord.summaryChannel}`);
+            const error = new Error(`Unable to find summary channel with id ${config.discord.summaryChannel}`);
+            discordLog.error(error.message);
+            rejectReady(error);
             return;
         }
         discordLog.info(`Found Discord Summary Channel: ${state.summaryChannel.id}`);
         void updateDiscordSummary(state);
+        resolveReady();
     });
 
     state.discordClient.on('messageCreate', async message => {
-        if (message.author.bot || !message.content.startsWith('!')) return;
+        if (!state.active || message.author.bot || !message.content.startsWith('!')) return;
         try {
             const response = await handleCommand(
                 message.content.slice(1).toLowerCase(),
@@ -144,7 +165,7 @@ function start({ config = parseConfiguration() } = {}) {
                 discordLog,
                 state.hueController
             );
-            if (response) await message.reply(response);
+            if (state.active && response) await message.reply(response);
         } catch (err) {
             discordLog.error('Error handling Discord command', { err });
         }
@@ -152,6 +173,7 @@ function start({ config = parseConfiguration() } = {}) {
 
     if (config.gameUpdates.userId) {
         state.discordClient.on('presenceUpdate', async (oldPresence, newPresence) => {
+            if (!state.active) return;
             try {
                 await handlePresenceUpdate(oldPresence, newPresence, config, state.twitchClient, discordLog);
             } catch (err) {
@@ -161,11 +183,14 @@ function start({ config = parseConfiguration() } = {}) {
         discordLog.info(`Game update monitoring enabled for user ${config.gameUpdates.userId}`);
     }
 
-    Promise.resolve(state.discordClient.login(config.discord.token))
-        .catch(err => discordLog.error('Error connecting to Discord', { err }));
+    const discordLogin = Promise.resolve()
+        .then(() => state.discordClient.login(config.discord.token))
+        .catch(err => {
+            throw new Error(`Discord login failed: ${err.message}`);
+        });
 
     state.twitchClient.on('message', async (channel, tags, message, self) => {
-        if (self || !message.startsWith('!')) return;
+        if (!state.active || self || !message.startsWith('!')) return;
         try {
             const response = await handleCommand(
                 message.slice(1).toLowerCase(),
@@ -181,39 +206,68 @@ function start({ config = parseConfiguration() } = {}) {
                 twitchLog,
                 state.hueController
             );
-            if (response) await state.twitchClient.say(channel, response);
+            if (state.active && response) await state.twitchClient.say(channel, response);
         } catch (err) {
             twitchLog.error('Error handling Twitch command', { err });
         }
     });
 
-    state.twitchClient.connect().catch(err => twitchLog.error('Error connecting to Twitch', { err }));
+    Promise.resolve()
+        .then(() => state.twitchClient.connect())
+        .catch(err => twitchLog.error('Error connecting to Twitch', { err }));
     twitchLog.info('Twitch Bot connecting...');
     state.donationInterval = setInterval(() => void getLatestDonation(state), 30000);
     void getLatestDonation(state, true);
     state.viewerCountInterval = startViewerCountMonitoring(config, twitchLog, 5);
+
+    return Promise.all([discordLogin, readyPromise])
+        .then(() => undefined)
+        .catch(async err => {
+            await stop();
+            throw err;
+        });
 }
 
 async function stop() {
+    if (stoppingPromise) return stoppingPromise;
     if (!runtime) return;
     const state = runtime;
-    runtime = null;
     state.active = false;
-    if (state.donationInterval) clearInterval(state.donationInterval);
-    state.summaryTimeouts.forEach(timeout => clearTimeout(timeout));
-    state.summaryTimeouts.clear();
-    if (state.viewerCountInterval) stopViewerCountMonitoring(state.viewerCountInterval, twitchLog);
-    if (state.discordClient) state.discordClient.destroy();
-    if (state.twitchClient) {
-        try {
-            await state.twitchClient.disconnect();
-        } catch (err) {
-            twitchLog.error('Error disconnecting from Twitch', { err });
+    state.resolveReady();
+
+    stoppingPromise = (async () => {
+        if (state.donationInterval) clearInterval(state.donationInterval);
+        state.summaryTimeouts.forEach(timeout => clearTimeout(timeout));
+        state.summaryTimeouts.clear();
+        if (state.viewerCountInterval) stopViewerCountMonitoring(state.viewerCountInterval, twitchLog);
+
+        if (state.twitchClient) {
+            state.twitchClient.reconnect = false;
+            state.twitchClient.reconnecting = false;
         }
-    }
-    state.donationChannel = null;
-    state.summaryChannel = null;
-    state.seenDonationIDs.clear();
+
+        const cleanupTasks = [];
+        if (state.discordClient) {
+            cleanupTasks.push(Promise.resolve()
+                .then(() => state.discordClient.destroy())
+                .catch(err => discordLog.error('Error disconnecting from Discord', { err })));
+        }
+        if (state.twitchClient) {
+            cleanupTasks.push(Promise.resolve()
+                .then(() => state.twitchClient.disconnect())
+                .catch(err => twitchLog.error('Error disconnecting from Twitch', { err })));
+        }
+        await Promise.all(cleanupTasks);
+
+        state.donationChannel = null;
+        state.summaryChannel = null;
+        state.seenDonationIDs.clear();
+    })().finally(() => {
+        if (runtime === state) runtime = null;
+        stoppingPromise = null;
+    });
+
+    return stoppingPromise;
 }
 
 if (require.main === module) {
@@ -224,12 +278,16 @@ if (require.main === module) {
     };
     process.once('SIGTERM', () => void shutdown('SIGTERM'));
     process.once('SIGINT', () => void shutdown('SIGINT'));
-    try {
-        start();
-    } catch (err) {
-        log.error(err.message);
-        process.exitCode = 1;
-    }
+    const run = async () => {
+        try {
+            await start();
+        } catch (err) {
+            log.error(err.message);
+            await stop();
+            process.exitCode = 1;
+        }
+    };
+    void run();
 }
 
 module.exports = { start, stop };
