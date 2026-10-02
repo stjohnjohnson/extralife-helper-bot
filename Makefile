@@ -6,7 +6,7 @@ help: ## Show available commands
 	@awk 'BEGIN {FS = ":.*##"} /^[a-zA-Z_-]+:.*##/ { printf "  %-15s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 
 install: ## Install dependencies
-	npm install
+	npm ci
 
 test: ## Run tests
 	npm test

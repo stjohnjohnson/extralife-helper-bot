@@ -81,9 +81,12 @@ docker run --rm -it --env-file .env ghcr.io/stjohnjohnson/extralife-helper-bot:l
 
 ### Local Development
 
+Node.js 24 is required. If you use `nvm`, run `nvm use` to select the
+version declared in `.nvmrc`.
+
 ```bash
-# Install dependencies
-npm install
+# Install the locked dependencies
+npm ci
 
 # Create .env file with your configuration
 cp env.example .env
