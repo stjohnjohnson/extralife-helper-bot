@@ -1,3 +1,10 @@
+# [4.5.0](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v4.4.0...v4.5.0) (2026-10-02)
+
+
+### Features
+
+* add granular viewer and voice participation analytics ([1d3847b](https://github.com/stjohnjohnson/extralife-helper-bot/commit/1d3847bbf963efa28335b1e02979c5c5b8d55575))
+
 # [4.4.0](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v4.3.1...v4.4.0) (2026-10-02)
 
 
