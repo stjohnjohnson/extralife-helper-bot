@@ -16,7 +16,7 @@ This file applies to the entire repository. Create additional `AGENTS.md` files 
 - Preserve unrelated changes in other checkouts and worktrees; never discard or include them in task commits.
 
 ## Development environment
-- Requires Node.js 24.x.
+- Requires Node.js 24.x (24.15.0 or newer).
 - Install dependencies with `npm ci`.
 - Use `.env` based on `env.example` for local runs. Never commit secrets.
 
