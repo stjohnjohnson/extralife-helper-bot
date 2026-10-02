@@ -101,6 +101,38 @@ npm test
 npm run lint
 ```
 
+## Analyze Event Logs
+
+The repository includes an offline analyzer for helper-bot logs. It selects the longest live event, stitches brief Twitch reconnects, and generates a self-contained HTML planning report plus inspectable JSON data.
+
+```bash
+npm run analyze -- /path/to/extralife.log
+```
+
+Reports are written to `reports/<log-name>.html` and `reports/<log-name>.json` by default. The generated files are ignored by Git.
+
+Available options:
+
+- `--output-dir <path>` changes the report destination.
+- `--timezone <iana-name>` controls displayed local times; the default is `America/Los_Angeles`.
+- `--bot-user <name>` excludes a bot from human chat metrics. Repeat the option for multiple bots.
+- `--start <iso-time> --end <iso-time>` supplies a manual event window when the log has no usable Twitch viewer samples.
+
+Example:
+
+```bash
+npm run analyze -- extralife.log \
+  --bot-user stjohnbot \
+  --bot-user streamelements \
+  --timezone America/Los_Angeles
+```
+
+The report covers game durations and transitions, viewer levels and retention, chat participation and lexical trends, donation timing and amounts, and data-quality warnings. Games with less than 30 minutes of coverage are shown but excluded from rankings. Comparisons are descriptive correlations, not evidence that a game caused a viewer or donation change.
+
+Legacy mixed-text logs have two important limitations: Twitch chat dates are inferred from surrounding timestamped records, and donation records are counted as live only when the associated chat notification and status update confirm them. Ambiguous records remain visible in diagnostics but are excluded from totals requiring certainty. New bot logs add structured metadata, donation IDs, and full chat timestamps automatically.
+
+> **Privacy:** Reports can contain donor names, chatter names, donation messages, and chat text. They are intended for private local use; review them before sharing.
+
 ## Setup Instructions
 
 ### Discord Bot Setup
