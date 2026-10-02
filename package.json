@@ -8,6 +8,7 @@
     "test": "jest --config jest.config.json",
     "test:watch": "npm test -- --watch",
     "test:coverage": "npm test -- --coverage",
+    "audit:prod": "npm audit --omit=dev --audit-level=high",
     "start": "node app.js",
     "semantic-release": "semantic-release"
   },
@@ -25,9 +26,7 @@
   },
   "homepage": "https://github.com/stjohnjohnson/extralife-helper-bot#readme",
   "dependencies": {
-    "@discordjs/rest": "^2.4.0",
-    "discord-api-types": "^0.38.22",
-    "discord.js": "^14.5.0",
+    "discord.js": "^14.27.0",
     "dotenv": "^17.2.2",
     "extra-life-api": "^8.0.0",
     "node-hue-api": "^5.0.0-beta.16",

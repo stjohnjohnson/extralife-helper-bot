@@ -16,6 +16,7 @@ jobs:
           node-version: '24'
           cache: 'npm'
       - run: npm ci
+      - run: npm run audit:prod
       - run: npm run lint
       - run: npm test
       - name: Set up Docker Buildx
