@@ -4,11 +4,20 @@ describe('analysis report rendering', () => {
     const report = {
         schemaVersion: 1,
         source: { name: 'event.log', lineCount: 3 },
+        sessions: {
+            gameSegments: [
+                { game: 'PEAK', start: '2025-11-01T10:00:00.000Z', end: '2025-11-01T10:30:00.000Z', durationMs: 1_800_000 },
+                { game: 'Minecraft & Friends', start: '2025-11-01T10:30:00.000Z', end: '2025-11-01T11:00:00.000Z', durationMs: 1_800_000 }
+            ]
+        },
         metrics: {
             eventWindow: { start: '2025-11-01T10:00:00.000Z', end: '2025-11-01T11:00:00.000Z' },
             overview: { durationMinutes: 60, averageViewers: 10, peakViewers: 20, humanChatMessages: 2, uniqueChatters: 1, donationCount: 1, donationTotal: 25 },
             games: [{ game: '</script><img src=x onerror=alert(1)>', durationMinutes: 60, eligibleForRanking: true, viewer: { average: 10, peak: 20, retentionPercent: 80 }, chat: { messagesPerHour: 2, uniqueChattersPerHour: 1 }, donations: { total: 25, dollarsPerHour: 25 } }],
-            timeline: [{ start: '2025-11-01T10:00:00.000Z', end: '2025-11-01T10:15:00.000Z', averageViewers: 10 }],
+            timeline: [
+                { start: '2025-11-01T10:00:00.000Z', end: '2025-11-01T10:15:00.000Z', averageViewers: 10 },
+                { start: '2025-11-01T10:45:00.000Z', end: '2025-11-01T11:00:00.000Z', averageViewers: 20 }
+            ],
             transitions: [{ from: 'PEAK', to: 'Minecraft', timestamp: '2025-11-01T10:30:00.000Z', included: true, reason: null, before: { medianViewers: 10, chatMessages: 2, uniqueChatters: 1 }, after: { medianViewers: 12, chatMessages: 3, uniqueChatters: 2 } }],
             rankings: { averageViewers: ['PEAK'], viewerRetention: ['PEAK'], chatRate: ['PEAK'], uniqueChatRate: ['PEAK'], donationRate: ['PEAK'] },
             chat: { humanMessages: 2, botMessages: 0, uniqueChatters: 1, topChatters: [], topWords: [], topBigrams: [] },
@@ -37,5 +46,46 @@ describe('analysis report rendering', () => {
         expect(html).toContain('Transition impact');
         expect(html).toContain('Alice');
         expect(html).toContain('&lt;strong&gt;Go!&lt;/strong&gt;');
+    });
+
+    test('renders quantitative axes with local and elapsed time labels', () => {
+        const html = renderHtml(report, 'America/Los_Angeles');
+
+        expect(html).toContain('class="viewer-axis"');
+        expect(html).toContain('class="time-axis"');
+        expect(html).toContain('Viewers');
+        expect(html).toContain('03:00');
+        expect(html).toContain('+0h');
+        expect(html).toContain('+1h');
+    });
+
+    test('renders timestamp-aligned game transitions and donation markers', () => {
+        const hostileReport = structuredClone(report);
+        hostileReport.metrics.donations.items[0].displayName = 'Alice <admin>';
+        hostileReport.metrics.donations.items[0].message = '</title><script>alert(1)</script>';
+        const html = renderHtml(hostileReport, 'America/Los_Angeles');
+
+        expect(html.match(/class="game-segment"/g)).toHaveLength(2);
+        expect(html.match(/class="game-transition"/g)).toHaveLength(1);
+        expect(html.match(/class="donation-marker"/g)).toHaveLength(1);
+        expect(html).toContain('Viewer average');
+        expect(html).toContain('Game segment');
+        expect(html).toContain('Game transition');
+        expect(html).toContain('Donation');
+        expect(html).toContain('PEAK → Minecraft &amp; Friends');
+        expect(html).toContain('Alice &lt;admin&gt;');
+        expect(html).toContain('&lt;/title&gt;&lt;script&gt;alert(1)&lt;/script&gt;');
+        expect(html).not.toContain('</title><script>');
+    });
+
+    test('omits optional annotation markers when games and donations are absent', () => {
+        const sparseReport = structuredClone(report);
+        sparseReport.sessions.gameSegments = [];
+        sparseReport.metrics.donations.items = [];
+        const html = renderHtml(sparseReport, 'America/Los_Angeles');
+
+        expect(html).toContain('class="viewer-axis"');
+        expect(html).not.toContain('class="game-transition"');
+        expect(html).not.toContain('class="donation-marker"');
     });
 });
