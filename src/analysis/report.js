@@ -14,7 +14,7 @@ function stableStringify(value) {
 }
 
 function escapeHtml(value) {
-    return String(value)
+    return String(value === null ? 'Unavailable' : value)
         .replaceAll('&', '&amp;')
         .replaceAll('<', '&lt;')
         .replaceAll('>', '&gt;')
@@ -65,8 +65,8 @@ function chatCards(chat) {
 function gameTable(games) {
     const rows = games.map(game => `<tr>
         <td>${escapeHtml(game.game)}</td><td data-value="${game.durationMinutes}">${game.durationMinutes}</td>
-        <td data-value="${game.viewer.average}">${game.viewer.average}</td><td>${game.viewer.peak}</td>
-        <td>${game.viewer.retentionPercent}%</td><td>${game.viewer.trendPerHour ?? 0}</td><td>${game.viewer.volatility ?? 0}</td><td>${game.chat.messagesPerHour}</td>
+        <td data-value="${game.viewer.average}">${escapeHtml(game.viewer.average)}</td><td>${escapeHtml(game.viewer.peak)}</td>
+        <td>${game.viewer.retentionPercent === null ? 'Unavailable' : `${game.viewer.retentionPercent}%`}</td><td>${escapeHtml(game.viewer.trendPerHour === null ? null : game.viewer.trendPerHour ?? 0)}</td><td>${escapeHtml(game.viewer.volatility === null ? null : game.viewer.volatility ?? 0)}</td><td>${game.chat.messagesPerHour}</td>
         <td>${game.chat.uniqueChattersPerHour}</td><td>${formatMoney(game.donations.total)}</td>
         <td>${game.eligibleForRanking ? 'Yes' : 'No'}</td>
     </tr>`).join('');
@@ -148,11 +148,25 @@ function timelineSvg({ timeline, eventWindow, gameSegments, donations, timezone 
         return `<g><line x1="${position}" y1="${plotBottom}" x2="${position}" y2="${plotBottom + 7}" class="axis"></line><text x="${position}" y="${plotBottom + 22}" class="axis-label" text-anchor="middle">${escapeHtml(formatClock(timestamp, timezone))}</text><text x="${position}" y="${plotBottom + 38}" class="elapsed-label" text-anchor="middle">${formatElapsed(timestamp - start)}</text></g>`;
     }).join('');
 
-    const points = timeline.map(bin => {
+    const modern = timeline.some(bin => bin.voice);
+    const series = [];
+    let current = [];
+    for (const bin of timeline) {
+        if (modern && bin.averageViewers === null) {
+            if (current.length) series.push(current);
+            current = [];
+        } else current.push(bin);
+    }
+    if (current.length) series.push(current);
+    const pointsFor = bins => bins.map(bin => {
         const midpoint = (new Date(bin.start).getTime() + new Date(bin.end).getTime()) / 2;
         return `${x(midpoint).toFixed(1)},${y(bin.averageViewers).toFixed(1)}`;
     }).join(' ');
-    const viewerPointsMarkup = timeline.map(bin => {
+    const points = pointsFor(timeline);
+    const viewerLineMarkup = modern
+        ? series.map(bins => `<polyline points="${pointsFor(bins)}" class="viewer-line"><title>Viewer average by 15-minute interval</title></polyline>`).join('')
+        : `<polyline points="${points}" class="viewer-line"><title>Viewer average by 15-minute interval</title></polyline>`;
+    const viewerPointsMarkup = timeline.filter(bin => !modern || bin.averageViewers !== null).map(bin => {
         const midpoint = (new Date(bin.start).getTime() + new Date(bin.end).getTime()) / 2;
         return `<circle cx="${x(midpoint).toFixed(1)}" cy="${y(bin.averageViewers).toFixed(1)}" r="2.5" class="viewer-point"><title>${bin.averageViewers} average viewers at ${escapeHtml(formatClock(midpoint, timezone))}</title></circle>`;
     }).join('');
@@ -198,7 +212,7 @@ function timelineSvg({ timeline, eventWindow, gameSegments, donations, timezone 
         <desc>Viewer averages by 15-minute interval with ${visibleSegments.length} game segments and ${visibleDonations.length} confirmed live donations.</desc>
         <g class="viewer-axis">${yMarkup}<line x1="${left}" y1="${plotTop}" x2="${left}" y2="${plotBottom}" class="axis"></line><text x="18" y="${(plotTop + plotBottom) / 2}" class="axis-title" text-anchor="middle" transform="rotate(-90 18 ${(plotTop + plotBottom) / 2})">Viewers</text></g>
         <g class="time-axis"><line x1="${left}" y1="${plotBottom}" x2="${width - right}" y2="${plotBottom}" class="axis"></line>${xMarkup}</g>
-        <polyline points="${points}" class="viewer-line"><title>Viewer average by 15-minute interval</title></polyline>
+        ${viewerLineMarkup}
         ${viewerPointsMarkup}
         ${transitionMarkup}
         <text x="${left - 10}" y="${gameTop + 21}" class="lane-label" text-anchor="end">Games</text>${gameMarkup}
@@ -261,6 +275,33 @@ function donationTable(items) {
     ).join('')}</tbody></table></div>`;
 }
 
+function participationReport(metrics) {
+    if (!metrics.voice) return '';
+    const voice = metrics.voice;
+    const value = input => input === null ? 'Unavailable' : escapeHtml(input);
+    const summaryRows = (name, summary) => ['companions', 'humans', 'bots'].map(key => {
+        const counts = summary[key];
+        return `<tr><td>${escapeHtml(name)}</td><td>${key}</td><td>${value(counts.average)}</td><td>${value(counts.median)}</td><td>${value(counts.peak)}</td><td>${value(counts.start)}</td><td>${value(counts.end)}</td><td>${summary.periodicSamples}</td><td>${summary.coverage.percent}%</td><td>${summary.coverage.missingObservations}</td></tr>`;
+    }).join('');
+    const start = new Date(metrics.eventWindow.start).getTime();
+    const duration = Math.max(1, new Date(metrics.eventWindow.end) - start);
+    const peak = Math.max(1, ...voice.observations.map(sample => sample.companionCount));
+    const points = voice.observations.map(sample => {
+        const x = 60 + (new Date(sample.timestamp) - start) / duration * 880;
+        const y = 190 - sample.companionCount / peak * 150;
+        return `<circle cx="${x.toFixed(2)}" cy="${y.toFixed(2)}" r="4" fill="#56d6c9"><title>${escapeHtml(sample.timestamp)}: ${sample.companionCount} companions (${escapeHtml(sample.trigger)}), channel ${escapeHtml(sample.channelId ?? 'Disconnected')}</title></circle>`;
+    }).join('');
+    const observations = voice.observations.map(sample => `<tr><td>${escapeHtml(sample.timestamp)}</td><td>${escapeHtml(sample.trigger)}</td><td>${escapeHtml(sample.channelId ?? 'Disconnected')}</td><td>${sample.humanCount}</td><td>${sample.companionCount}</td><td>${sample.botCount}</td></tr>`).join('');
+    const viewer = metrics.viewer.coverage;
+    return `<h2>Voice companions</h2><p>Companions are humans sharing the streamer's voice channel, excluding the streamer. Total humans include the streamer; bots are separate. Voice analytics retain counts and channel identifiers, without member names or user IDs.</p>
+<p>Periodic samples determine every summary statistic. Startup and change observations appear only on the timeline. Missing observations are unavailable, not zero; a disconnected streamer has zero companions. Relationships are descriptive, not causal.</p>
+<p>Voice cadence: ${escapeHtml(voice.coverage.cadenceSeconds.join(', ') || 'Unavailable')} seconds. Periodic samples: ${voice.periodicSamples}. Coverage: ${voice.coverage.percent}%. Missing observations: ${voice.coverage.missingObservations}. Gaps: ${voice.coverage.gaps.length}. Collection failures: ${voice.serviceFailures}.</p>
+<svg viewBox="0 0 1000 240" role="img" aria-label="Voice companion observations across the selected event"><text x="60" y="25" fill="#f5f7fa">Companions (0–${peak})</text><line x1="60" y1="190" x2="940" y2="190" stroke="#526878"></line>${points}<text x="60" y="220" fill="#f5f7fa">${escapeHtml(metrics.eventWindow.start)}</text><text x="940" y="220" text-anchor="end" fill="#f5f7fa">${escapeHtml(metrics.eventWindow.end)}</text></svg>
+<div class="table-wrap"><table><thead><tr><th>Window</th><th>Count</th><th>Average</th><th>Median</th><th>Peak</th><th>Start</th><th>End</th><th>Periodic samples</th><th>Coverage</th><th>Missing</th></tr></thead><tbody>${summaryRows('Event', voice)}${metrics.games.map(game => summaryRows(game.game, game.voice)).join('')}</tbody></table></div>
+<details><summary>Voice timeline observations</summary><div class="table-wrap"><table><thead><tr><th>Timestamp</th><th>Trigger</th><th>Channel</th><th>Humans</th><th>Companions</th><th>Bots</th></tr></thead><tbody>${observations}</tbody></table></div></details>
+<p>Twitch cadence: ${escapeHtml(viewer.cadenceSeconds.join(', ') || 'Unavailable')} seconds. Coverage: ${viewer.percent}%. Missing observations: ${viewer.missingObservations}. Gaps: ${viewer.gaps.length}. Collection failures: ${metrics.viewer.serviceFailures}. Offline samples represent zero viewers; service failures represent missing data.</p>`;
+}
+
 function renderHtml(report, timezone) {
     const metrics = report.metrics;
     const embedded = stableStringify(report).replaceAll('<', '\\u003c').replaceAll('>', '\\u003e');
@@ -277,7 +318,7 @@ svg{width:100%;background:var(--panel);border-radius:8px}.axis{stroke:#526878}.g
 <p>${escapeHtml(formatDate(metrics.eventWindow.start, timezone))} – ${escapeHtml(formatDate(metrics.eventWindow.end, timezone))} (${escapeHtml(timezone)})</p>
 <section class="cards">${cards(metrics.overview)}</section>
 <h2>Viewer timeline</h2>${timelineSvg({ timeline: metrics.timeline, eventWindow: metrics.eventWindow, gameSegments: report.sessions?.gameSegments || [], donations: metrics.donations.items, timezone })}
-<h2>Games and schedule</h2>${gameTable(metrics.games)}
+${participationReport(metrics)}<h2>Games and schedule</h2>${gameTable(metrics.games)}
 <h2>Game rankings</h2>${rankingTable(metrics.rankings)}
 <h2>Transition impact</h2>${transitionTable(metrics.transitions)}
 <h2>Chat patterns</h2><div class="cards">${chatCards(metrics.chat)}</div>

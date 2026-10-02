@@ -1,0 +1,185 @@
+{
+  "diagnostics": {
+    "ambiguousTimestamps": [],
+    "duplicateEvents": [],
+    "malformedLines": [],
+    "unknownLines": []
+  },
+  "metrics": {
+    "chat": {
+      "botEmoteCount": 0,
+      "botMessages": 0,
+      "burstIntensity": 0,
+      "commandCount": 0,
+      "crossGameChatters": 0,
+      "emoteCount": 0,
+      "humanMessages": 0,
+      "linkCount": 0,
+      "longestQuietGapMinutes": 0,
+      "messagesPerChatter": 0,
+      "newChatters": 0,
+      "participationConcentrationPercent": 0,
+      "returningChatters": 0,
+      "topBigrams": [],
+      "topChatters": [],
+      "topEmotes": [],
+      "topWords": [],
+      "uniqueChatters": 0
+    },
+    "diagnostics": {
+      "coverageGaps": [],
+      "excludedSessions": []
+    },
+    "donations": {
+      "ambiguousCount": 0,
+      "anonymousCount": 0,
+      "average": 0,
+      "count": 0,
+      "items": [],
+      "largest": 0,
+      "median": 0,
+      "messageCount": 0,
+      "namedCount": 0,
+      "repeatDonors": [],
+      "startupCount": 0,
+      "total": 0
+    },
+    "eventWindow": {
+      "durationMs": 300000,
+      "end": "2026-01-01T00:05:00.000Z",
+      "source": "detected",
+      "start": "2026-01-01T00:00:00.000Z"
+    },
+    "games": [
+      {
+        "chat": {
+          "messages": 0,
+          "messagesPerHour": 0,
+          "uniqueChatters": 0,
+          "uniqueChattersPerHour": 0
+        },
+        "coverage": 1,
+        "donations": {
+          "count": 0,
+          "countPerHour": 0,
+          "dollarsPerHour": 0,
+          "total": 0
+        },
+        "durationMinutes": 5,
+        "eligibleForRanking": false,
+        "game": "G",
+        "segments": 1,
+        "viewer": {
+          "average": 2,
+          "end": 2,
+          "median": 2,
+          "minimum": 2,
+          "netChange": 0,
+          "peak": 2,
+          "retentionPercent": 100,
+          "rollingMedian": [
+            {
+              "timestamp": "2026-01-01T00:00:00.000Z",
+              "value": 2
+            }
+          ],
+          "samples": 1,
+          "start": 2,
+          "trendPerHour": 0,
+          "volatility": 0
+        }
+      }
+    ],
+    "overview": {
+      "averageViewers": 2,
+      "donationCount": 0,
+      "donationTotal": 0,
+      "durationMinutes": 5,
+      "humanChatMessages": 0,
+      "peakViewers": 2,
+      "uniqueChatters": 0,
+      "viewerSamples": 1
+    },
+    "rankings": {
+      "averageViewers": [],
+      "chatRate": [],
+      "donationRate": [],
+      "uniqueChatRate": [],
+      "viewerRetention": []
+    },
+    "schemaVersion": 1,
+    "timeline": [
+      {
+        "averageViewers": 2,
+        "chatMessages": 0,
+        "donationCount": 0,
+        "donationTotal": 0,
+        "end": "2026-01-01T00:05:00.000Z",
+        "start": "2026-01-01T00:00:00.000Z",
+        "uniqueChatters": 0,
+        "viewerSamples": 1
+      }
+    ],
+    "transitions": [],
+    "viewer": {
+      "average": 2,
+      "end": 2,
+      "median": 2,
+      "minimum": 2,
+      "netChange": 0,
+      "peak": 2,
+      "retentionPercent": 100,
+      "rollingMedian": [
+        {
+          "timestamp": "2026-01-01T00:00:00.000Z",
+          "value": 2
+        }
+      ],
+      "samples": 1,
+      "start": 2,
+      "trendPerHour": 0,
+      "volatility": 0
+    }
+  },
+  "sessions": {
+    "excluded": [],
+    "gameSegments": [
+      {
+        "durationMs": 300000,
+        "end": "2026-01-01T00:05:00.000Z",
+        "game": "G",
+        "start": "2026-01-01T00:00:00.000Z"
+      }
+    ],
+    "gaps": [],
+    "selected": {
+      "cadenceMs": 300000,
+      "channel": "x",
+      "durationMs": 300000,
+      "end": "2026-01-01T00:05:00.000Z",
+      "lastSample": "2026-01-01T00:00:00.000Z",
+      "samples": [
+        {
+          "data": {
+            "channel": "x",
+            "game": "G",
+            "startedAt": "2026-01-01T00:00:00.000Z",
+            "title": "s",
+            "viewerCount": 2
+          },
+          "timestamp": "2026-01-01T00:00:00.000Z",
+          "type": "viewer_sample"
+        }
+      ],
+      "source": "detected",
+      "start": "2026-01-01T00:00:00.000Z",
+      "stitchedSessionCount": 1,
+      "title": "s",
+      "viewerSampleCount": 1
+    }
+  },
+  "source": {
+    "lineCount": 1,
+    "name": "legacy"
+  }
+}

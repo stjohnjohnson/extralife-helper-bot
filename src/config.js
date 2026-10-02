@@ -46,11 +46,22 @@ function parseConfiguration() {
     const { customResponses, customResponseErrors } = parseCustomResponses(process.env.CUSTOM_RESPONSES);
     configErrors.push(...customResponseErrors);
 
+    const interval = key => {
+        const raw = process.env[key];
+        const value = raw === undefined ? 60 : Number(raw);
+        if (!Number.isInteger(value) || value < 15 || value > 3600) {
+            configErrors.push(`${key} must be an integer between 15 and 3600 seconds`);
+        }
+        return value;
+    };
+    const viewerSampleIntervalSeconds = interval('TWITCH_VIEWER_SAMPLE_INTERVAL_SECONDS');
+    const voiceSampleIntervalSeconds = interval('DISCORD_VOICE_SAMPLE_INTERVAL_SECONDS');
     return {
         isValid: configErrors.length === 0,
         errors: configErrors,
         participantId: process.env.EXTRALIFE_PARTICIPANT_ID,
         discord: {
+            voiceSampleIntervalSeconds,
             token: process.env.DISCORD_TOKEN,
             donationChannel: process.env.DISCORD_DONATION_CHANNEL,
             summaryChannel: process.env.DISCORD_SUMMARY_CHANNEL,
@@ -59,6 +70,7 @@ function parseConfiguration() {
             admins: discordAdmins
         },
         twitch: {
+            viewerSampleIntervalSeconds,
             username: process.env.TWITCH_USERNAME,
             chatOauth: process.env.TWITCH_CHAT_OAUTH,
             apiOauth: process.env.TWITCH_API_OAUTH,

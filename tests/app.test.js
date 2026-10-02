@@ -63,6 +63,11 @@ jest.mock('../src/viewerMonitoring.js', () => ({
     stopViewerCountMonitoring: jest.fn()
 }));
 
+jest.mock('../src/voiceMonitoring.js', () => ({
+    startVoiceMonitoring: jest.fn(() => ({ voiceTimer: true })),
+    stopVoiceMonitoring: jest.fn()
+}));
+
 jest.mock('../src/hueControl.js', () => ({
     HueController: jest.fn(() => mockHueController)
 }));
@@ -75,6 +80,7 @@ const { handleCommand } = require('../src/commands.js');
 const { handlePresenceUpdate } = require('../src/gameUpdates.js');
 const { startViewerCountMonitoring, stopViewerCountMonitoring } = require('../src/viewerMonitoring.js');
 const { HueController } = require('../src/hueControl.js');
+const { startVoiceMonitoring, stopVoiceMonitoring } = require('../src/voiceMonitoring.js');
 const application = require('../app.js');
 
 const validConfig = {
@@ -176,13 +182,13 @@ describe('application lifecycle', () => {
         expect(tmi.Client).toHaveBeenCalledTimes(1);
         expect(connect).toHaveBeenCalledTimes(1);
         expect(HueController).toHaveBeenCalledWith(validConfig, mockLogger);
-        expect(startViewerCountMonitoring).toHaveBeenCalledWith(validConfig, mockLogger, 5);
+        expect(startViewerCountMonitoring).toHaveBeenCalledWith(validConfig, mockLogger);
         expect(getUserDonations).toHaveBeenCalledWith('participant-1');
         expect(() => application.start({ config: validConfig })).toThrow('Application already started');
     });
 
     test('discovers Discord channels and updates the fundraising summary', async () => {
-        const donationChannel = { id: 'donations', send: jest.fn() };
+        const donationChannel = { id: 'donations', guild: { id: 'guild' }, send: jest.fn() };
         const summaryChannel = { id: 'summary', setName: jest.fn().mockResolvedValue() };
         mockDiscordClient.channels.cache.get.mockImplementation(id => ({ donations: donationChannel, summary: summaryChannel })[id]);
 
@@ -192,6 +198,9 @@ describe('application lifecycle', () => {
 
         expect(getUserInfo).toHaveBeenCalledWith('participant-1');
         expect(summaryChannel.setName).toHaveBeenCalledWith('$500.00 (50%) Raised');
+        expect(startVoiceMonitoring).toHaveBeenCalledWith(mockDiscordClient, donationChannel.guild, validConfig, mockLogger);
+        await application.stop();
+        expect(stopVoiceMonitoring).toHaveBeenCalledWith({ voiceTimer: true });
     });
 
     test('rejects startup and cleans up when required Discord channels are missing', async () => {
@@ -239,7 +248,7 @@ describe('application lifecycle', () => {
     });
 
     test('announces new donations once and schedules a summary refresh', async () => {
-        const donationChannel = { id: 'donations', send: jest.fn() };
+        const donationChannel = { id: 'donations', guild: { id: 'guild' }, send: jest.fn() };
         const summaryChannel = { id: 'summary', setName: jest.fn().mockResolvedValue() };
         mockDiscordClient.channels.cache.get.mockImplementation(id => ({ donations: donationChannel, summary: summaryChannel })[id]);
         getUserDonations

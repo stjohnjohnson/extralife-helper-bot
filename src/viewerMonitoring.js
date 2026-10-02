@@ -16,7 +16,8 @@ const { eventMetadata } = require('./analysis/eventMetadata.js');
 async function getStreamInfo(channelName, clientId, accessToken) {
     const response = await makeTwitchApiRequest(`/streams?user_login=${channelName}`, {}, clientId, accessToken);
 
-    if (!response.data || response.data.length === 0) {
+    if (!Array.isArray(response?.data)) throw new Error('Invalid Twitch stream response');
+    if (response.data.length === 0) {
         return null; // Stream is offline
     }
 
@@ -29,7 +30,7 @@ async function getStreamInfo(channelName, clientId, accessToken) {
  * @param {Object} logger - Logger instance
  * @returns {Promise<void>}
  */
-async function logViewerCount(config, logger) {
+async function logViewerCount(config, logger, isActive = () => true) {
     try {
         // Get a valid access token
         const accessToken = await getValidAccessToken(config, logger);
@@ -41,8 +42,12 @@ async function logViewerCount(config, logger) {
             accessToken
         );
 
+        if (!isActive()) return;
+        const intervalSeconds = config.twitch.viewerSampleIntervalSeconds || 60;
         if (streamInfo) {
             logger.info('Stream viewer count', eventMetadata('viewer_sample', {
+                online: true,
+                intervalSeconds,
                 channel: config.twitch.channel,
                 viewerCount: streamInfo.viewer_count,
                 game: streamInfo.game_name,
@@ -50,10 +55,17 @@ async function logViewerCount(config, logger) {
                 language: streamInfo.language,
                 startedAt: streamInfo.started_at
             }));
+        } else {
+            logger.info('Stream offline', eventMetadata('viewer_sample', {
+                channel: config.twitch.channel, online: false, viewerCount: 0, intervalSeconds
+            }));
         }
     } catch (err) {
+        if (!isActive()) return;
         logger.error('Error getting viewer count', eventMetadata('service_error', {
             channel: config.twitch.channel,
+            service: 'twitch_viewers',
+            intervalSeconds: config.twitch.viewerSampleIntervalSeconds || 60,
             error: err.message
         }));
     }
@@ -63,34 +75,31 @@ async function logViewerCount(config, logger) {
  * Starts periodic viewer count monitoring
  * @param {Object} config - Configuration object
  * @param {Object} logger - Logger instance
- * @param {number} intervalMinutes - How often to check (default: 5 minutes)
- * @returns {NodeJS.Timer} Interval timer (can be used to stop monitoring)
+ * Uses the configured interval in seconds (default: 60).
+ * @returns {Object} Monitor handle for shutdown
  */
-function startViewerCountMonitoring(config, logger, intervalMinutes = 5) {
-    const intervalMs = intervalMinutes * 60 * 1000; // Convert minutes to milliseconds
-
-    logger.info('Starting viewer count monitoring', {
-        channel: config.twitch.channel,
-        intervalMinutes
-    });
-
-    // Log immediately on start
-    logViewerCount(config, logger);
-
-    // Set up periodic logging
-    return setInterval(() => {
-        logViewerCount(config, logger);
-    }, intervalMs);
+function startViewerCountMonitoring(config, logger) {
+    const intervalSeconds = config.twitch.viewerSampleIntervalSeconds || 60;
+    const monitor = { active: true, busy: false, timer: null };
+    logger.info('Starting viewer count monitoring', { channel: config.twitch.channel, intervalSeconds });
+    const sample = async () => {
+        if (!monitor.active || monitor.busy) return;
+        monitor.busy = true;
+        try {
+            await logViewerCount(config, logger, () => monitor.active);
+        } finally {
+            monitor.busy = false;
+        }
+    };
+    void sample();
+    monitor.timer = setInterval(sample, intervalSeconds * 1000);
+    return monitor;
 }
 
-/**
- * Stops viewer count monitoring
- * @param {NodeJS.Timer} monitoringInterval - The interval timer to stop
- * @param {Object} logger - Logger instance
- */
-function stopViewerCountMonitoring(monitoringInterval, logger) {
-    if (monitoringInterval) {
-        clearInterval(monitoringInterval);
+function stopViewerCountMonitoring(monitor, logger) {
+    if (monitor) {
+        monitor.active = false;
+        clearInterval(monitor.timer);
         logger.info('Stopped viewer count monitoring');
     }
 }

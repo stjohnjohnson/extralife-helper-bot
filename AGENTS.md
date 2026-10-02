@@ -11,6 +11,8 @@ This file applies to the entire repository. Create additional `AGENTS.md` files 
 - Reference relevant files or command output with citations.
 
 ## Git worktree workflow
+- Before starting repository work, fetch `origin/main`. Fast-forward a clean primary `main` checkout with `git pull --ff-only origin main`; preserve local changes and report any divergence.
+- Create new task worktrees from the freshly fetched `origin/main`. Do not automatically merge or rebase `main` into existing task branches.
 - Perform all repository work in an isolated git worktree on a task-specific branch, using the `codex/` prefix. Never edit the primary checkout or work directly on `main`.
 - Reuse a suitable task worktree or create one from the latest `origin/main` before editing files. Prefer the native worktree tools when available.
 - Preserve unrelated changes in other checkouts and worktrees; never discard or include them in task commits.
