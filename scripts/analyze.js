@@ -1,14 +1,13 @@
 #!/usr/bin/env node
 
-const fs = require('fs');
 const { parseArguments } = require('../src/analysis/options.js');
-const { parseLog } = require('../src/analysis/parser.js');
+const { runAnalysis } = require('../src/analysis/run.js');
 
 function main() {
     try {
         const options = parseArguments(process.argv.slice(2));
-        const result = parseLog(fs.readFileSync(options.inputPath, 'utf8'));
-        process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+        const result = runAnalysis(options);
+        process.stdout.write(`HTML report: ${result.htmlPath}\nJSON data: ${result.jsonPath}\n`);
     } catch (error) {
         process.stderr.write(`${error.message}\n`);
         process.exitCode = 1;
