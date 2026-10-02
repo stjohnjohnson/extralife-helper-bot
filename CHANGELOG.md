@@ -1,3 +1,22 @@
+# [4.4.0](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v4.3.1...v4.4.0) (2026-10-02)
+
+
+### Bug Fixes
+
+* prevent analysis double counting ([8cb174a](https://github.com/stjohnjohnson/extralife-helper-bot/commit/8cb174aa2f08e14569f1d1c2ee4eb9c9bd5ec6ca))
+* show isolated viewer samples ([cee4be1](https://github.com/stjohnjohnson/extralife-helper-bot/commit/cee4be1ceccd45c1fecb48e80e8b05a385f00bb8))
+
+
+### Features
+
+* add deterministic log parser ([d31d50d](https://github.com/stjohnjohnson/extralife-helper-bot/commit/d31d50d6a7b70f5007afd9a8f680625fd3a608a8))
+* annotate report timeline ([60d5f1a](https://github.com/stjohnjohnson/extralife-helper-bot/commit/60d5f1a7a509b3113a099eec3112ebdbe2692101))
+* calculate event engagement metrics ([d79fe30](https://github.com/stjohnjohnson/extralife-helper-bot/commit/d79fe30260790329d0af4973e71ce51c46e1988f))
+* clarify chat engagement signals ([d35f0de](https://github.com/stjohnjohnson/extralife-helper-bot/commit/d35f0de0b0c83075c867ca1967d27f05f427e528))
+* detect event sessions and game timelines ([9c166e4](https://github.com/stjohnjohnson/extralife-helper-bot/commit/9c166e44a73d40f58c0378a5bdd69f199352c59d))
+* emit structured analysis events ([3c9da3e](https://github.com/stjohnjohnson/extralife-helper-bot/commit/3c9da3ea65b3d281a1a77820fc3bec0d3f2bf34a))
+* generate deterministic analysis reports ([aefcd98](https://github.com/stjohnjohnson/extralife-helper-bot/commit/aefcd98b5f875d92706ef6019d7bc06eb01dc5dd))
+
 ## [4.3.1](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v4.3.0...v4.3.1) (2026-10-02)
 
 
