@@ -18,7 +18,7 @@
   "author": "St. John Johnson <st.john.johnson@gmail.com>",
   "license": "MIT",
   "engines": {
-    "node": ">=24"
+    "node": ">=24 <25"
   },
   "bugs": {
     "url": "https://github.com/stjohnjohnson/extralife-helper-bot/issues"

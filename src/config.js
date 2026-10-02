@@ -1,15 +1,15 @@
 const dotenv = require('dotenv');
 
-// Only load .env file if not in test environment
-if (process.env.NODE_ENV !== 'test') {
-    dotenv.config();
-}
-
 /**
  * Validates and parses environment configuration
  * @returns {Object} Configuration object with validation results
  */
 function parseConfiguration() {
+    // Loading the module is side-effect free; environment hydration belongs to startup.
+    if (process.env.NODE_ENV !== 'test') {
+        dotenv.config();
+    }
+
     const requiredEnvVars = [
         'EXTRALIFE_PARTICIPANT_ID',
         // Discord required vars

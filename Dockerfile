@@ -11,11 +11,11 @@ USER node
 # Copy package files
 COPY --chown=node:node package*.json ./
 
-# Set NODE_ENV to production to skip devDependencies
+# Set NODE_ENV for the production runtime
 ENV NODE_ENV=production
 
-# Install dependencies
-RUN npm install
+# Install exactly the locked production dependencies
+RUN npm ci --omit=dev
 
 # Copy application code
 COPY --chown=node:node *.js .
