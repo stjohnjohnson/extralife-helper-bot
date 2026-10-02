@@ -127,6 +127,8 @@ describe('Viewer Monitoring Module', () => {
                 'mock-access-token'
             );
             expect(mockLogger.info).toHaveBeenCalledWith('Stream viewer count', {
+                eventVersion: 1,
+                eventType: 'viewer_sample',
                 channel: 'testchannel',
                 viewerCount: 42,
                 game: 'Minecraft',
@@ -143,6 +145,8 @@ describe('Viewer Monitoring Module', () => {
             await logViewerCount(mockConfig, mockLogger);
 
             expect(mockLogger.error).toHaveBeenCalledWith('Error getting viewer count', {
+                eventVersion: 1,
+                eventType: 'service_error',
                 channel: 'testchannel',
                 error: 'Token error'
             });
@@ -155,6 +159,8 @@ describe('Viewer Monitoring Module', () => {
             await logViewerCount(mockConfig, mockLogger);
 
             expect(mockLogger.error).toHaveBeenCalledWith('Error getting viewer count', {
+                eventVersion: 1,
+                eventType: 'service_error',
                 channel: 'testchannel',
                 error: 'API Error'
             });

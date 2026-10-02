@@ -4,6 +4,7 @@
  */
 
 const https = require('https');
+const { eventMetadata } = require('./analysis/eventMetadata.js');
 
 // In-memory token cache (no disk persistence needed)
 let cachedTokenData = {
@@ -344,11 +345,11 @@ async function handlePresenceUpdate(oldPresence, newPresence, config, twitchClie
         }
 
         // Log the game change
-        logger.info('Game change detected', {
+        logger.info('Game change detected', eventMetadata('game_change', {
             userId: newPresence.userId,
             oldGame: oldGame || 'none',
             newGame: newGame || 'none'
-        });
+        }));
 
         // Send notification for game changes (including stopping game -> Just Chatting)
         if (newGame || oldGame) {

@@ -49,7 +49,13 @@ async function getLatestDonation(state, silent = false) {
                 discord: `${displayName} just donated ${amount}${donorMessage}!`,
                 twitch: `ExtraLife ExtraLife ${displayName} just donated ${amount}${donorMessage}! ExtraLife ExtraLife`
             });
-            extralifeLog.info(`Donation: ${displayName} / ${amount}${donorMessage}`);
+            extralifeLog.info(`Donation: ${displayName} / ${amount}${donorMessage}`, eventMetadata('donation', {
+                donationId: donation.donationID,
+                amount: Number(donation.amount),
+                displayName,
+                message: donation.message || '',
+                silent
+            }));
         });
 
         if (messages.length === 0 || silent) return;
@@ -65,7 +71,9 @@ async function getLatestDonation(state, silent = false) {
         }, 5000);
         state.summaryTimeouts.add(timeout);
     } catch (err) {
-        extralifeLog.error('Error getting Donations', { err });
+        extralifeLog.error('Error getting Donations', eventMetadata('service_error', {
+            error: err.message
+        }));
     }
 }
 
@@ -190,7 +198,16 @@ function start({ config = parseConfiguration() } = {}) {
         });
 
     state.twitchClient.on('message', async (channel, tags, message, self) => {
-        if (!state.active || self || !message.startsWith('!')) return;
+        if (!state.active || self) return;
+        twitchLog.info('Chat message', eventMetadata('chat_message', {
+            channel,
+            userId: tags['user-id'] || tags.username,
+            username: tags.username,
+            displayName: tags['display-name'] || tags.username,
+            text: message,
+            self: false
+        }));
+        if (!message.startsWith('!')) return;
         try {
             const response = await handleCommand(
                 message.slice(1).toLowerCase(),
