@@ -4,6 +4,7 @@
  */
 
 const { makeTwitchApiRequest, getValidAccessToken } = require('./gameUpdates.js');
+const { eventMetadata } = require('./analysis/eventMetadata.js');
 
 /**
  * Gets current stream information including viewer count
@@ -41,20 +42,20 @@ async function logViewerCount(config, logger) {
         );
 
         if (streamInfo) {
-            logger.info('Stream viewer count', {
+            logger.info('Stream viewer count', eventMetadata('viewer_sample', {
                 channel: config.twitch.channel,
                 viewerCount: streamInfo.viewer_count,
                 game: streamInfo.game_name,
                 title: streamInfo.title,
                 language: streamInfo.language,
                 startedAt: streamInfo.started_at
-            });
+            }));
         }
     } catch (err) {
-        logger.error('Error getting viewer count', {
+        logger.error('Error getting viewer count', eventMetadata('service_error', {
             channel: config.twitch.channel,
             error: err.message
-        });
+        }));
     }
 }
 

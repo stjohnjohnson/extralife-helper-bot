@@ -1,4 +1,5 @@
 const { getUserInfo } = require('extra-life-api');
+const { eventMetadata } = require('./analysis/eventMetadata.js');
 const { isAdmin } = require('./config.js');
 
 /**
@@ -39,11 +40,11 @@ async function handleCommand(command, platform, context, config, clients, logger
     // Check for custom responses
     if (config.customResponses && config.customResponses.has(normalizedCommand)) {
         const response = config.customResponses.get(normalizedCommand);
-        logger.info('Custom command executed', {
+        logger.info('Custom command executed', eventMetadata('command', {
             command: normalizedCommand,
             platform,
             username: context.username
-        });
+        }));
         return response;
     }
 
@@ -65,7 +66,7 @@ async function handleGoalCommand(participantId, logger) {
         const percentComplete = Math.round(data.sumDonations / data.fundraisingGoal * 100);
 
         const message = `${data.displayName} has raised ${sumDonations} out of ${fundraisingGoal} (${percentComplete}%)`;
-        logger.info('Goal command executed', { message });
+        logger.info('Goal command executed', eventMetadata('command', { message }));
         return message;
     } catch (err) {
         logger.error('Error getting goal info', { error: err.message });
@@ -118,12 +119,12 @@ async function handlePromoteCommand(platform, context, config, clients, logger) 
         }
 
         const message = `Promoted ${promoted} member(s) to live chat!`;
-        logger.info('Promote command executed', {
+        logger.info('Promote command executed', eventMetadata('command', {
             platform,
             promoted,
             totalInRoom: members.size,
             executedBy: context.username
-        });
+        }));
         return message;
     } catch (err) {
         logger.error('Error executing promote command', { error: err.message });
@@ -160,10 +161,10 @@ async function handleTestLightsCommand(platform, context, config, hueController,
         // Simulate a donation by triggering celebration lights
         await hueController.celebrateDonation();
 
-        logger.info('Test lights command executed', {
+        logger.info('Test lights command executed', eventMetadata('command', {
             platform,
             executedBy: context.username
-        });
+        }));
 
         return '🎉 Testing Hue lights! Simulating a donation celebration...';
     } catch (err) {

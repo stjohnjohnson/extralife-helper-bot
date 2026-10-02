@@ -92,6 +92,8 @@ describe('Game Updates Module', () => {
 
             expect(result).toBe(true);
             expect(mockLogger.info).toHaveBeenCalledWith('Game change detected', {
+                eventVersion: 1,
+                eventType: 'game_change',
                 userId: '123456789',
                 oldGame: 'none',
                 newGame: 'Minecraft'
@@ -114,6 +116,8 @@ describe('Game Updates Module', () => {
 
             expect(result).toBe(true);
             expect(mockLogger.info).toHaveBeenCalledWith('Game change detected', {
+                eventVersion: 1,
+                eventType: 'game_change',
                 userId: '123456789',
                 oldGame: 'Minecraft',
                 newGame: 'none'
@@ -544,6 +548,8 @@ describe('Game Updates Module', () => {
 
             expect(result).toBe(true);
             expect(mockLogger.info).toHaveBeenCalledWith('Game change detected', {
+                eventVersion: 1,
+                eventType: 'game_change',
                 userId: '123456789',
                 oldGame: 'none',
                 newGame: 'Minecraft'
@@ -564,6 +570,8 @@ describe('Game Updates Module', () => {
 
             expect(result).toBe(true);
             expect(mockLogger.info).toHaveBeenCalledWith('Game change detected', {
+                eventVersion: 1,
+                eventType: 'game_change',
                 userId: '123456789',
                 oldGame: 'Minecraft',
                 newGame: 'none'

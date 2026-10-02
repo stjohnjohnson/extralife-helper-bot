@@ -30,6 +30,8 @@ describe('Commands Module', () => {
             expect(result).toBe('Test User has raised $1,250.50 out of $10,000.00 (13%)');
             expect(getUserInfo).toHaveBeenCalledWith('12345');
             expect(mockLogger.info).toHaveBeenCalledWith('Goal command executed', {
+                eventVersion: 1,
+                eventType: 'command',
                 message: 'Test User has raised $1,250.50 out of $10,000.00 (13%)'
             });
         });
@@ -168,6 +170,8 @@ describe('Commands Module', () => {
             expect(mockMember1.voice.setChannel).toHaveBeenCalledWith(mockLiveRoom);
             expect(mockMember2.voice.setChannel).toHaveBeenCalledWith(mockLiveRoom);
             expect(mockLogger.info).toHaveBeenCalledWith('Promote command executed', {
+                eventVersion: 1,
+                eventType: 'command',
                 platform: 'discord',
                 promoted: 2,
                 totalInRoom: 2,
@@ -210,6 +214,8 @@ describe('Commands Module', () => {
 
             expect(result).toBe('Check out my donation link!');
             expect(mockLogger.info).toHaveBeenCalledWith('Custom command executed', {
+                eventVersion: 1,
+                eventType: 'command',
                 command: 'donate',
                 platform: 'discord',
                 username: 'testuser'
@@ -230,6 +236,8 @@ describe('Commands Module', () => {
 
             expect(result).toBe('Check out my donation link!');
             expect(mockLogger.info).toHaveBeenCalledWith('Custom command executed', {
+                eventVersion: 1,
+                eventType: 'command',
                 command: 'donate',
                 platform: 'twitch',
                 username: 'testuser'
@@ -256,6 +264,8 @@ describe('Commands Module', () => {
             expect(result).toBe('Test User has raised $500.00 out of $1,000.00 (50%)');
             // Should not log custom command execution
             expect(mockLogger.info).toHaveBeenCalledWith('Goal command executed', {
+                eventVersion: 1,
+                eventType: 'command',
                 message: 'Test User has raised $500.00 out of $1,000.00 (50%)'
             });
         });
@@ -328,6 +338,8 @@ describe('Commands Module', () => {
             expect(result).toBe('🎉 Testing Hue lights! Simulating a donation celebration...');
             expect(mockHueController.celebrateDonation).toHaveBeenCalled();
             expect(mockLogger.info).toHaveBeenCalledWith('Test lights command executed', {
+                eventVersion: 1,
+                eventType: 'command',
                 platform: 'discord',
                 executedBy: 'admin_user'
             });
