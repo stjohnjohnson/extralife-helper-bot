@@ -81,8 +81,8 @@ docker run --rm -it --env-file .env ghcr.io/stjohnjohnson/extralife-helper-bot:l
 
 ### Local Development
 
-Node.js 24 is required. If you use `nvm`, run `nvm use` to select the
-version declared in `.nvmrc`.
+Node.js 24.x (24.15.0 or newer) is required. If you use `nvm`, run `nvm install`
+and `nvm use` to select the version declared in `.nvmrc`.
 
 ```bash
 # Install the locked dependencies
@@ -100,6 +100,11 @@ npm test
 # Lint code
 npm run lint
 ```
+
+Dependabot checks npm dependencies and GitHub Actions weekly. All version
+updates, including major upgrades, are grouped into one PR per ecosystem.
+Security updates use separate groups per ecosystem and are not delayed by the
+weekly version-update schedule. Review grouped upgrades and run CI before merging.
 
 ## Analyze Event Logs
 
