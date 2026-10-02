@@ -109,6 +109,31 @@ describe('event metrics', () => {
         expect(result.chat).toMatchObject({ humanMessages: 0, botMessages: 1 });
     });
 
+    test('separates and ranks repeated legacy and structured emotes', () => {
+        const sessions = {
+            selected: { start, end: at(30), durationMs: 1_800_000, viewerSampleCount: 1 },
+            excluded: [], gaps: [],
+            gameSegments: [{ game: 'PEAK', start, end: at(30), durationMs: 1_800_000 }]
+        };
+        const events = [
+            event('viewer_sample', 0, { viewerCount: 5, game: 'PEAK' }),
+            event('chat_message', 5, { username: 'alice', text: 'PogChamp PogChamp ExtraLife' }),
+            event('chat_message', 10, { username: 'helperbot', text: 'PogChamp ExtraLife', emotes: ['PogChamp', 'ExtraLife'] }),
+            event('chat_message', 15, { username: 'bob', text: 'PogChamp', emotes: [] }),
+            event('chat_message', 20, { username: 'alice', text: 'LUL', emotes: ['LUL'] })
+        ];
+
+        const result = calculateMetrics(events, sessions, { botUsers: ['helperbot'] });
+
+        expect(result.chat.emoteCount).toBe(4);
+        expect(result.chat.botEmoteCount).toBe(2);
+        expect(result.chat.topEmotes).toEqual([
+            { value: 'PogChamp', total: 3, human: 2, bot: 1 },
+            { value: 'ExtraLife', total: 2, human: 1, bot: 1 },
+            { value: 'LUL', total: 1, human: 1, bot: 0 }
+        ]);
+    });
+
     test('excludes short games and outage transitions from rankings', () => {
         const sessions = {
             selected: { start, end: at(45), durationMs: 2_700_000, viewerSampleCount: 4 },

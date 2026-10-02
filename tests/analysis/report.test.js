@@ -20,7 +20,17 @@ describe('analysis report rendering', () => {
             ],
             transitions: [{ from: 'PEAK', to: 'Minecraft', timestamp: '2025-11-01T10:30:00.000Z', included: true, reason: null, before: { medianViewers: 10, chatMessages: 2, uniqueChatters: 1 }, after: { medianViewers: 12, chatMessages: 3, uniqueChatters: 2 } }],
             rankings: { averageViewers: ['PEAK'], viewerRetention: ['PEAK'], chatRate: ['PEAK'], uniqueChatRate: ['PEAK'], donationRate: ['PEAK'] },
-            chat: { humanMessages: 2, botMessages: 0, uniqueChatters: 1, topChatters: [], topWords: [], topBigrams: [] },
+            chat: {
+                humanMessages: 2,
+                botMessages: 1,
+                uniqueChatters: 1,
+                emoteCount: 1,
+                botEmoteCount: 2,
+                topEmotes: [{ value: 'PogChamp <unsafe>', total: 3, human: 1, bot: 2 }],
+                topChatters: [],
+                topWords: [{ value: 'unused', count: 2 }],
+                topBigrams: [{ value: 'unused phrase', count: 2 }]
+            },
             donations: { count: 1, total: 25, average: 25, median: 25, largest: 25, startupCount: 0, ambiguousCount: 0, items: [{ timestamp: '2025-11-01T10:10:00.000Z', displayName: 'Alice', amount: 25, message: '<strong>Go!</strong>' }] },
             diagnostics: { coverageGaps: [], excludedSessions: [] }
         },
@@ -101,5 +111,18 @@ describe('analysis report rendering', () => {
         expect(svg).not.toContain('>0.2</text>');
         expect(svg).not.toContain('NaN');
         expect(svg).not.toContain('Infinity');
+    });
+
+    test('shows human and bot emotes without low-signal lexical or coverage columns', () => {
+        const html = renderHtml(report, 'America/Los_Angeles');
+
+        expect(html).toContain('Human emotes');
+        expect(html).toContain('Bot emotes');
+        expect(html).toContain('PogChamp &lt;unsafe&gt;');
+        expect(html).toContain('<td data-value="60">60</td>');
+        expect(html).toContain('<td data-value="10">10</td>');
+        expect(html).not.toContain('<h3>Top words</h3>');
+        expect(html).not.toContain('<h3>Top phrases</h3>');
+        expect(html).not.toContain('<th>Coverage samples</th>');
     });
 });

@@ -55,7 +55,8 @@ function chatCards(chat) {
         ['Bot messages', chat.botMessages],
         ['Commands', chat.commandCount || 0],
         ['Links', chat.linkCount || 0],
-        ['Emotes', chat.emoteCount || 0],
+        ['Human emotes', chat.emoteCount || 0],
+        ['Bot emotes', chat.botEmoteCount || 0],
         ['Cross-game chatters', chat.crossGameChatters || 0]
     ];
     return values.map(([label, value]) => `<article class="card"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></article>`).join('');
@@ -64,14 +65,14 @@ function chatCards(chat) {
 function gameTable(games) {
     const rows = games.map(game => `<tr>
         <td>${escapeHtml(game.game)}</td><td data-value="${game.durationMinutes}">${game.durationMinutes}</td>
-        <td>${game.viewer.samples ?? game.coverage ?? 0}</td><td data-value="${game.viewer.average}">${game.viewer.average}</td><td>${game.viewer.peak}</td>
+        <td data-value="${game.viewer.average}">${game.viewer.average}</td><td>${game.viewer.peak}</td>
         <td>${game.viewer.retentionPercent}%</td><td>${game.viewer.trendPerHour ?? 0}</td><td>${game.viewer.volatility ?? 0}</td><td>${game.chat.messagesPerHour}</td>
         <td>${game.chat.uniqueChattersPerHour}</td><td>${formatMoney(game.donations.total)}</td>
         <td>${game.eligibleForRanking ? 'Yes' : 'No'}</td>
     </tr>`).join('');
     return `<label class="filter">Filter games <input id="game-filter" type="search" autocomplete="off"></label>
     <div class="table-wrap"><table id="games"><thead><tr>
-        <th>Game</th><th>Minutes</th><th>Coverage samples</th><th>Avg viewers</th><th>Peak</th><th>Retention</th>
+        <th>Game</th><th>Minutes</th><th>Avg viewers</th><th>Peak</th><th>Retention</th>
         <th>Trend/hour</th><th>Volatility</th><th>Chats/hour</th><th>Unique/hour</th><th>Donations</th><th>Ranked</th>
     </tr></thead><tbody>${rows}</tbody></table></div>`;
 }
@@ -212,6 +213,12 @@ function topList(items, empty) {
     return `<ol>${items.slice(0, 15).map(item => `<li><span>${escapeHtml(item.value)}</span><strong>${item.count}</strong></li>`).join('')}</ol>`;
 }
 
+function emoteTable(items) {
+    if (!items?.length) return '<p>No recognized emotes.</p>';
+    const rows = items.slice(0, 15).map(item => `<tr><td>${escapeHtml(item.value)}</td><td>${item.total}</td><td>${item.human}</td><td>${item.bot}</td></tr>`).join('');
+    return `<div class="table-wrap"><table><thead><tr><th>Emote</th><th>Total uses</th><th>Human</th><th>Bot</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
 function diagnosticList(report) {
     const parser = report.diagnostics;
     const metrics = report.metrics.diagnostics;
@@ -274,7 +281,7 @@ svg{width:100%;background:var(--panel);border-radius:8px}.axis{stroke:#526878}.g
 <h2>Game rankings</h2>${rankingTable(metrics.rankings)}
 <h2>Transition impact</h2>${transitionTable(metrics.transitions)}
 <h2>Chat patterns</h2><div class="cards">${chatCards(metrics.chat)}</div>
-<h3>Top chatters</h3>${topList(metrics.chat.topChatters, 'No human chat messages.')}<h3>Top words</h3>${topList(metrics.chat.topWords, 'No lexical data.')}<h3>Top phrases</h3>${topList(metrics.chat.topBigrams, 'No phrase data.')}
+<h3>Top chatters</h3>${topList(metrics.chat.topChatters, 'No human chat messages.')}<h3>Top emotes</h3>${emoteTable(metrics.chat.topEmotes)}
 <h2>Donation patterns</h2><p><strong>${metrics.donations.count}</strong> live donations totaling <strong>${formatMoney(metrics.donations.total)}</strong>; median ${formatMoney(metrics.donations.median)}, largest ${formatMoney(metrics.donations.largest)}. ${metrics.donations.startupCount} startup and ${metrics.donations.ambiguousCount} ambiguous records were excluded.</p>${donationTable(metrics.donations.items)}
 <h2>Data quality</h2>${diagnosticList(report)}
 <footer>Generated deterministically from ${escapeHtml(report.source.name)}. Correlations are descriptive, not causal.</footer>

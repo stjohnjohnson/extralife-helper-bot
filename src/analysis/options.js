@@ -1,4 +1,5 @@
 const DEFAULT_TIMEZONE = 'America/Los_Angeles';
+const DEFAULT_BOT_USERS = ['stjohnbot', 'streamelements'];
 
 function assertTimezone(timezone) {
     try {
@@ -25,7 +26,7 @@ function parseArguments(args) {
         inputPath: args[0],
         outputDir: 'reports',
         timezone: DEFAULT_TIMEZONE,
-        botUsers: [],
+        botUsers: [...DEFAULT_BOT_USERS],
         start: null,
         end: null
     };
@@ -61,4 +62,4 @@ function parseArguments(args) {
     return result;
 }
 
-module.exports = { parseArguments };
+module.exports = { DEFAULT_BOT_USERS, parseArguments };

@@ -1,4 +1,5 @@
 const stopwords = require('./stopwords.js');
+const { legacyEmotes } = require('./emotes.js');
 
 const BIN_MS = 15 * 60 * 1000;
 const TRANSITION_MS = 30 * 60 * 1000;
@@ -189,6 +190,21 @@ function buildChat(events, segments, botUsers, timeline) {
     const topCount = Math.max(1, Math.ceil(counts.length * 0.1));
     const topMessages = counts.slice(0, topCount).reduce((sum, item) => sum + item.count, 0);
     const nonzeroBins = timeline.filter(bin => bin.chatMessages > 0);
+    const emotes = new Map();
+    for (const message of all) {
+        const names = Array.isArray(message.data.emotes)
+            ? message.data.emotes
+            : legacyEmotes(message.data.text);
+        const source = isBotMessage(message, botUsers) ? 'bot' : 'human';
+        for (const name of names.filter(value => typeof value === 'string' && value)) {
+            if (!emotes.has(name)) emotes.set(name, { value: name, total: 0, human: 0, bot: 0 });
+            const row = emotes.get(name);
+            row.total += 1;
+            row[source] += 1;
+        }
+    }
+    const topEmotes = [...emotes.values()]
+        .sort((left, right) => right.total - left.total || left.value.localeCompare(right.value));
 
     return {
         humanMessages: humans.length,
@@ -204,7 +220,9 @@ function buildChat(events, segments, botUsers, timeline) {
         crossGameChatters: [...byUserGames.values()].filter(games => games.size > 1).length,
         commandCount: humans.filter(event => event.data.text.trim().startsWith('!')).length,
         linkCount: humans.reduce((sum, event) => sum + (event.data.text.match(/https?:\/\/\S+/gu) || []).length, 0),
-        emoteCount: humans.reduce((sum, event) => sum + (event.data.text.match(/:[\p{L}\p{N}_-]+:/gu) || []).length, 0),
+        emoteCount: topEmotes.reduce((sum, item) => sum + item.human, 0),
+        botEmoteCount: topEmotes.reduce((sum, item) => sum + item.bot, 0),
+        topEmotes,
         topChatters: counts,
         topWords: countValues(words),
         topBigrams: countValues(bigrams)

@@ -115,21 +115,20 @@ Available options:
 
 - `--output-dir <path>` changes the report destination.
 - `--timezone <iana-name>` controls displayed local times; the default is `America/Los_Angeles`.
-- `--bot-user <name>` excludes a bot from human chat metrics. Repeat the option for multiple bots.
+- `--bot-user <name>` adds another bot to the default `stjohnbot` and `streamelements` exclusions. Repeat the option for multiple bots.
 - `--start <iso-time> --end <iso-time>` supplies a manual event window when the log has no usable Twitch viewer samples.
 
 Example:
 
 ```bash
 npm run analyze -- extralife.log \
-  --bot-user stjohnbot \
-  --bot-user streamelements \
+  --bot-user anotherhelperbot \
   --timezone America/Los_Angeles
 ```
 
-The report covers game durations and transitions, viewer levels and retention, chat participation and lexical trends, donation timing and amounts, and data-quality warnings. Games with less than 30 minutes of coverage are shown but excluded from rankings. Comparisons are descriptive correlations, not evidence that a game caused a viewer or donation change.
+The report covers game durations and transitions, viewer levels and retention, chat participation and human-versus-bot emote use, donation timing and amounts, and data-quality warnings. Games with less than 30 minutes of coverage are shown but excluded from rankings. Comparisons are descriptive correlations, not evidence that a game caused a viewer or donation change.
 
-Legacy mixed-text logs have two important limitations: Twitch chat dates are inferred from surrounding timestamped records, and donation records are counted as live only when the associated chat notification and status update confirm them. Ambiguous records remain visible in diagnostics but are excluded from totals requiring certainty. New bot logs add structured metadata, donation IDs, and full chat timestamps automatically.
+Legacy mixed-text logs have three important limitations: Twitch chat dates are inferred from surrounding timestamped records, donation records are counted as live only when the associated chat notification and status update confirm them, and emotes are recognized from a checked-in exact-name catalog because Twitch tags were not retained. Ambiguous records remain visible in diagnostics but are excluded from totals requiring certainty. New bot logs add structured metadata, donation IDs, full chat timestamps, and authoritative Twitch emote tags automatically.
 
 > **Privacy:** Reports can contain donor names, chatter names, donation messages, and chat text. They are intended for private local use; review them before sharing.
 

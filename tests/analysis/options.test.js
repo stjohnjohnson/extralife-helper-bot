@@ -1,12 +1,16 @@
 const { parseArguments } = require('../../src/analysis/options.js');
 
 describe('analysis CLI options', () => {
-    test('applies deterministic defaults and preserves repeated bot users', () => {
+    test('applies repository bot defaults when no bot options are supplied', () => {
+        expect(parseArguments(['event.log']).botUsers).toEqual(['stjohnbot', 'streamelements']);
+    });
+
+    test('merges custom bot users with deterministic repository defaults', () => {
         expect(parseArguments(['event.log', '--bot-user', 'helper', '--bot-user', 'StreamElements'])).toEqual({
             inputPath: 'event.log',
             outputDir: 'reports',
             timezone: 'America/Los_Angeles',
-            botUsers: ['helper', 'streamelements'],
+            botUsers: ['helper', 'stjohnbot', 'streamelements'],
             start: null,
             end: null
         });

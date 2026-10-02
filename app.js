@@ -7,6 +7,8 @@ const { handleCommand } = require('./src/commands.js');
 const { handlePresenceUpdate } = require('./src/gameUpdates.js');
 const { startViewerCountMonitoring, stopViewerCountMonitoring } = require('./src/viewerMonitoring.js');
 const { HueController } = require('./src/hueControl.js');
+const { eventMetadata } = require('./src/analysis/eventMetadata.js');
+const { taggedEmotes } = require('./src/analysis/emotes.js');
 
 const log = getLogger('app');
 const discordLog = getLogger('discord');
@@ -205,6 +207,7 @@ function start({ config = parseConfiguration() } = {}) {
             username: tags.username,
             displayName: tags['display-name'] || tags.username,
             text: message,
+            emotes: taggedEmotes(message, tags.emotes),
             self: false
         }));
         if (!message.startsWith('!')) return;
