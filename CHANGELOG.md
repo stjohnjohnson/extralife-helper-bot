@@ -1,3 +1,10 @@
+## [4.3.1](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v4.3.0...v4.3.1) (2026-10-02)
+
+
+### Bug Fixes
+
+* make bot lifecycle shutdown-safe ([60d4de4](https://github.com/stjohnjohnson/extralife-helper-bot/commit/60d4de45efad52af7eacfbbe870fef4a14b3288f))
+
 # [4.3.0](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v4.2.2...v4.3.0) (2025-11-10)
 
 
