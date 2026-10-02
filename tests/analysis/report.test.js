@@ -88,4 +88,18 @@ describe('analysis report rendering', () => {
         expect(html).not.toContain('class="game-transition"');
         expect(html).not.toContain('class="donation-marker"');
     });
+
+    test('renders a single zero-viewer sample as a finite visible point', () => {
+        const singleSampleReport = structuredClone(report);
+        singleSampleReport.metrics.timeline = [
+            { start: '2025-11-01T10:15:00.000Z', end: '2025-11-01T10:30:00.000Z', averageViewers: 0 }
+        ];
+        const html = renderHtml(singleSampleReport, 'America/Los_Angeles');
+        const svg = html.slice(html.indexOf('<svg'), html.indexOf('</svg>'));
+
+        expect(svg.match(/class="viewer-point"/g)).toHaveLength(1);
+        expect(svg).not.toContain('>0.2</text>');
+        expect(svg).not.toContain('NaN');
+        expect(svg).not.toContain('Infinity');
+    });
 });

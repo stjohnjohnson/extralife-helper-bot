@@ -129,7 +129,7 @@ function timelineSvg({ timeline, eventWindow, gameSegments, donations, timezone 
     const x = timestamp => left + (Math.min(end, Math.max(start, new Date(timestamp).getTime())) - start) / duration * plotWidth;
 
     const viewerMax = Math.max(0, ...timeline.map(bin => Number(bin.averageViewers) || 0));
-    const yStep = niceStep(Math.max(1, viewerMax) / 5);
+    const yStep = niceStep(Math.max(5, viewerMax) / 5);
     const yMax = yStep * 5;
     const y = value => plotBottom - (Number(value) || 0) / yMax * plotHeight;
     const yTicks = Array.from({ length: 6 }, (_, index) => index * yStep);
@@ -151,6 +151,10 @@ function timelineSvg({ timeline, eventWindow, gameSegments, donations, timezone 
         const midpoint = (new Date(bin.start).getTime() + new Date(bin.end).getTime()) / 2;
         return `${x(midpoint).toFixed(1)},${y(bin.averageViewers).toFixed(1)}`;
     }).join(' ');
+    const viewerPointsMarkup = timeline.map(bin => {
+        const midpoint = (new Date(bin.start).getTime() + new Date(bin.end).getTime()) / 2;
+        return `<circle cx="${x(midpoint).toFixed(1)}" cy="${y(bin.averageViewers).toFixed(1)}" r="2.5" class="viewer-point"><title>${bin.averageViewers} average viewers at ${escapeHtml(formatClock(midpoint, timezone))}</title></circle>`;
+    }).join('');
 
     const visibleSegments = (gameSegments || []).filter(segment =>
         new Date(segment.end).getTime() > start && new Date(segment.start).getTime() < end
@@ -194,6 +198,7 @@ function timelineSvg({ timeline, eventWindow, gameSegments, donations, timezone 
         <g class="viewer-axis">${yMarkup}<line x1="${left}" y1="${plotTop}" x2="${left}" y2="${plotBottom}" class="axis"></line><text x="18" y="${(plotTop + plotBottom) / 2}" class="axis-title" text-anchor="middle" transform="rotate(-90 18 ${(plotTop + plotBottom) / 2})">Viewers</text></g>
         <g class="time-axis"><line x1="${left}" y1="${plotBottom}" x2="${width - right}" y2="${plotBottom}" class="axis"></line>${xMarkup}</g>
         <polyline points="${points}" class="viewer-line"><title>Viewer average by 15-minute interval</title></polyline>
+        ${viewerPointsMarkup}
         ${transitionMarkup}
         <text x="${left - 10}" y="${gameTop + 21}" class="lane-label" text-anchor="end">Games</text>${gameMarkup}
         <line x1="${left}" y1="${donationY}" x2="${width - right}" y2="${donationY}" class="donation-lane"></line>
@@ -259,7 +264,7 @@ function renderHtml(report, timezone) {
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,sans-serif}main{max-width:1180px;margin:auto;padding:32px}
 h1,h2{line-height:1.15}h2{margin-top:38px}.notice{padding:12px 16px;border-left:4px solid var(--gold);background:#332b1b}.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px}.card{background:var(--panel);padding:16px;border-radius:8px}.card span{display:block;color:var(--muted)}.card strong{font-size:1.5rem}
 .table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;background:var(--panel)}th,td{padding:9px;border-bottom:1px solid #31404c;text-align:left;white-space:nowrap}th{cursor:pointer;color:var(--accent)}.filter{display:block;margin:0 0 12px}input{margin-left:8px;padding:7px;background:var(--panel);color:var(--ink);border:1px solid #526878}
-svg{width:100%;background:var(--panel);border-radius:8px}.axis{stroke:#526878}.grid-line{stroke:#31404c;stroke-width:1}.axis-label,.elapsed-label,.lane-label,.timeline-legend text{fill:var(--muted);font-size:12px}.elapsed-label{font-size:10px}.axis-title{fill:var(--ink);font-size:12px}.viewer-line{fill:none;stroke:var(--accent);stroke-width:3}.game-segment,.legend-game-segment{fill:#3d6680;stroke:#7ea7bc;stroke-width:1}.game-segment[data-band="1"]{fill:#365267}.game-label{fill:var(--ink);font-size:11px;pointer-events:none}.game-transition,.legend-game-transition{stroke:#f29d49;stroke-width:2;stroke-dasharray:5 4}.donation-lane{stroke:#526878}.donation-marker,.legend-donation-marker{fill:var(--gold);stroke:#101820;stroke-width:1}.timeline-legend{font-size:12px}ol{max-width:480px;padding:0;list-style-position:inside}li{display:flex;justify-content:space-between;padding:5px;border-bottom:1px solid #31404c}dl{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px}dl div{background:var(--panel);padding:10px}dt{color:var(--muted)}dd{margin:0;font-size:1.25rem}footer{margin-top:40px;color:var(--muted)}
+svg{width:100%;background:var(--panel);border-radius:8px}.axis{stroke:#526878}.grid-line{stroke:#31404c;stroke-width:1}.axis-label,.elapsed-label,.lane-label,.timeline-legend text{fill:var(--muted);font-size:12px}.elapsed-label{font-size:10px}.axis-title{fill:var(--ink);font-size:12px}.viewer-line{fill:none;stroke:var(--accent);stroke-width:3}.viewer-point{fill:var(--accent);stroke:var(--panel);stroke-width:1}.game-segment,.legend-game-segment{fill:#3d6680;stroke:#7ea7bc;stroke-width:1}.game-segment[data-band="1"]{fill:#365267}.game-label{fill:var(--ink);font-size:11px;pointer-events:none}.game-transition,.legend-game-transition{stroke:#f29d49;stroke-width:2;stroke-dasharray:5 4}.donation-lane{stroke:#526878}.donation-marker,.legend-donation-marker{fill:var(--gold);stroke:#101820;stroke-width:1}.timeline-legend{font-size:12px}ol{max-width:480px;padding:0;list-style-position:inside}li{display:flex;justify-content:space-between;padding:5px;border-bottom:1px solid #31404c}dl{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px}dl div{background:var(--panel);padding:10px}dt{color:var(--muted)}dd{margin:0;font-size:1.25rem}footer{margin-top:40px;color:var(--muted)}
 </style></head><body><main>
 <h1>Extra Life Event Analysis</h1><p class="notice"><strong>Private local report.</strong> It may contain donor names, chatter names, and message text. Do not publish it without review.</p>
 <p>${escapeHtml(formatDate(metrics.eventWindow.start, timezone))} – ${escapeHtml(formatDate(metrics.eventWindow.end, timezone))} (${escapeHtml(timezone)})</p>
