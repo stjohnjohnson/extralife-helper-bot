@@ -66,7 +66,47 @@ describe('event metrics', () => {
         ]);
         expect(result.donations).toMatchObject({ count: 1, total: 25, startupCount: 1, messageCount: 1 });
         expect(result.timeline).toHaveLength(4);
+        expect(result.timeline.reduce((sum, bin) => sum + bin.viewerSamples, 0)).toBe(6);
+        expect(result.games.reduce((sum, game) => sum + game.viewer.samples, 0)).toBe(6);
         expect(result.rankings.averageViewers[0]).toBe('PEAK');
+    });
+
+    test('attributes a boundary donation to only the game beginning at that timestamp', () => {
+        const sessions = {
+            selected: { start, end: at(60), durationMs: 3_600_000, viewerSampleCount: 2 },
+            excluded: [], gaps: [],
+            gameSegments: [
+                { game: 'First', start, end: at(30), durationMs: 1_800_000 },
+                { game: 'Second', start: at(30), end: at(60), durationMs: 1_800_000 }
+            ]
+        };
+        const events = [
+            event('viewer_sample', 0, { viewerCount: 5, game: 'First' }),
+            event('viewer_sample', 30, { viewerCount: 5, game: 'Second' }),
+            event('donation', 30, { displayName: 'Donor', amount: 10, message: '', classification: 'live' })
+        ];
+
+        const result = calculateMetrics(events, sessions);
+
+        expect(result.games.map(game => [game.game, game.donations.total])).toEqual([
+            ['First', 0], ['Second', 10]
+        ]);
+    });
+
+    test('infers recognizable announcement messages as bot traffic', () => {
+        const sessions = {
+            selected: { start, end: at(30), durationMs: 1_800_000, viewerSampleCount: 1 },
+            excluded: [], gaps: [],
+            gameSegments: [{ game: 'PEAK', start, end: at(30), durationMs: 1_800_000 }]
+        };
+        const events = [
+            event('viewer_sample', 0, { viewerCount: 5, game: 'PEAK' }),
+            event('chat_message', 5, { username: 'unknownbot', text: 'ExtraLife ExtraLife Donor just donated $5.00! ExtraLife ExtraLife' })
+        ];
+
+        const result = calculateMetrics(events, sessions);
+
+        expect(result.chat).toMatchObject({ humanMessages: 0, botMessages: 1 });
     });
 
     test('excludes short games and outage transitions from rankings', () => {

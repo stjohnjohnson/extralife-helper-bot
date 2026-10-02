@@ -60,6 +60,13 @@ function countValues(values) {
         .sort((left, right) => right.count - left.count || left.value.localeCompare(right.value));
 }
 
+function isBotMessage(event, botUsers) {
+    const username = event.data.username?.toLowerCase();
+    const text = event.data.text || '';
+    return event.data.self || botUsers.has(username) || text.includes('ExtraLife ExtraLife') ||
+        /^Now playing .+!$/u.test(text);
+}
+
 function lexicalTokens(text) {
     return text
         .normalize('NFKC')
@@ -102,9 +109,10 @@ function buildTimeline(events, selected, botUsers) {
         const binEnd = Math.min(binStart + BIN_MS, endMs);
         const start = new Date(binStart).toISOString();
         const end = new Date(binEnd).toISOString();
-        const viewers = events.filter(event => event.type === 'viewer_sample' && eventInRange(event, start, end, true));
+        const viewers = events.filter(event => event.type === 'viewer_sample' &&
+            eventInRange(event, start, end, binEnd === endMs));
         const chats = events.filter(event => event.type === 'chat_message' && eventInRange(event, start, end) &&
-            !botUsers.has(event.data.username?.toLowerCase()) && !event.data.self);
+            !isBotMessage(event, botUsers));
         const donations = events.filter(event => event.type === 'donation' && eventInRange(event, start, end) &&
             event.data.classification === 'live');
         bins.push({
@@ -130,10 +138,10 @@ function buildGames(events, segments, botUsers) {
 
     return [...grouped.entries()].sort(([left], [right]) => left.localeCompare(right)).map(([game, gameSegments]) => {
         const durationMs = gameSegments.reduce((sum, segment) => sum + segment.durationMs, 0);
-        const belongs = event => gameSegments.some(segment => eventInRange(event, segment.start, segment.end, true));
+        const belongs = event => segmentFor(event.timestamp, segments)?.game === game;
         const viewers = events.filter(event => event.type === 'viewer_sample' && belongs(event));
         const chats = events.filter(event => event.type === 'chat_message' && belongs(event) &&
-            !botUsers.has(event.data.username?.toLowerCase()) && !event.data.self);
+            !isBotMessage(event, botUsers));
         const donations = events.filter(event => event.type === 'donation' && belongs(event) &&
             event.data.classification === 'live');
         const hours = durationMs / 3_600_000;
@@ -162,7 +170,7 @@ function buildGames(events, segments, botUsers) {
 
 function buildChat(events, segments, botUsers, timeline) {
     const all = events.filter(event => event.type === 'chat_message');
-    const humans = all.filter(event => !botUsers.has(event.data.username?.toLowerCase()) && !event.data.self);
+    const humans = all.filter(event => !isBotMessage(event, botUsers));
     const names = humans.map(event => event.data.username.toLowerCase());
     const counts = countValues(names);
     const words = humans.flatMap(event => lexicalTokens(event.data.text));
@@ -233,7 +241,7 @@ function buildTransitions(events, segments, gaps, botUsers) {
         const summarize = (start, end) => {
             const viewers = events.filter(event => event.type === 'viewer_sample' && eventInRange(event, start, end));
             const chats = events.filter(event => event.type === 'chat_message' && eventInRange(event, start, end) &&
-                !botUsers.has(event.data.username?.toLowerCase()) && !event.data.self);
+                !isBotMessage(event, botUsers));
             return {
                 medianViewers: round(median(viewers.map(event => event.data.viewerCount))),
                 viewerSamples: viewers.length,

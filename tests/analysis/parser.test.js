@@ -61,6 +61,17 @@ describe('log parser', () => {
         expect(result.diagnostics.unknownLines).toEqual([{ line: 4, text: 'unrecognized line' }]);
     });
 
+    test('promotes a startup-period donation when its live notification is confirmed', () => {
+        const result = parseLog([
+            '2025-11-01T09:00:00.000Z [app] INFO: ExtraLife Helper Bot starting for participant 1',
+            '2025-11-01T09:00:30.000Z [extralife] INFO: Donation: Fast Donor / $25.00',
+            '[09:00] info: [#example] <helperbot>: ExtraLife ExtraLife Fast Donor just donated $25.00! ExtraLife ExtraLife',
+            '2025-11-01T09:00:35.000Z [discord] INFO: Updating Discord status: "$25.00 (10%) Raised"'
+        ].join('\n'));
+
+        expect(result.events.find(event => event.type === 'donation').data.classification).toBe('live');
+    });
+
     test('marks chat without a dated anchor as ambiguous', () => {
         const result = parseLog('[12:34] info: [#example] <alice>: hi');
 

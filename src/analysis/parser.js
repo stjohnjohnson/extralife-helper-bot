@@ -78,7 +78,7 @@ function parseStructuredEvent(timestamp, metadata, line, seenKeys, diagnostics) 
 
 function confirmLegacyDonations(events, statusLines) {
     const chats = events.filter(event => event.type === 'chat_message');
-    for (const donation of events.filter(event => event.type === 'donation' && event.data.classification === 'ambiguous')) {
+    for (const donation of events.filter(event => event.type === 'donation' && event.data.classification !== 'live')) {
         const amount = `$${donation.data.amount.toLocaleString('en-US', {
             minimumFractionDigits: 2,
             maximumFractionDigits: 2

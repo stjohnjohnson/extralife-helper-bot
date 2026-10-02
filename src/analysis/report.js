@@ -64,15 +64,15 @@ function chatCards(chat) {
 function gameTable(games) {
     const rows = games.map(game => `<tr>
         <td>${escapeHtml(game.game)}</td><td data-value="${game.durationMinutes}">${game.durationMinutes}</td>
-        <td data-value="${game.viewer.average}">${game.viewer.average}</td><td>${game.viewer.peak}</td>
-        <td>${game.viewer.retentionPercent}%</td><td>${game.chat.messagesPerHour}</td>
+        <td>${game.viewer.samples ?? game.coverage ?? 0}</td><td data-value="${game.viewer.average}">${game.viewer.average}</td><td>${game.viewer.peak}</td>
+        <td>${game.viewer.retentionPercent}%</td><td>${game.viewer.trendPerHour ?? 0}</td><td>${game.viewer.volatility ?? 0}</td><td>${game.chat.messagesPerHour}</td>
         <td>${game.chat.uniqueChattersPerHour}</td><td>${formatMoney(game.donations.total)}</td>
         <td>${game.eligibleForRanking ? 'Yes' : 'No'}</td>
     </tr>`).join('');
     return `<label class="filter">Filter games <input id="game-filter" type="search" autocomplete="off"></label>
     <div class="table-wrap"><table id="games"><thead><tr>
-        <th>Game</th><th>Minutes</th><th>Avg viewers</th><th>Peak</th><th>Retention</th>
-        <th>Chats/hour</th><th>Unique/hour</th><th>Donations</th><th>Ranked</th>
+        <th>Game</th><th>Minutes</th><th>Coverage samples</th><th>Avg viewers</th><th>Peak</th><th>Retention</th>
+        <th>Trend/hour</th><th>Volatility</th><th>Chats/hour</th><th>Unique/hour</th><th>Donations</th><th>Ranked</th>
     </tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
@@ -112,6 +112,33 @@ function diagnosticList(report) {
     return `<dl>${values.map(([label, value]) => `<div><dt>${escapeHtml(label)}</dt><dd>${value}</dd></div>`).join('')}</dl>`;
 }
 
+function rankingTable(rankings) {
+    const labels = {
+        averageViewers: 'Average viewers',
+        viewerRetention: 'Viewer retention',
+        chatRate: 'Chat rate',
+        uniqueChatRate: 'Unique chatter rate',
+        donationRate: 'Donation rate'
+    };
+    return `<table><thead><tr><th>Measure</th><th>Ranked games</th></tr></thead><tbody>${Object.entries(labels).map(([key, label]) =>
+        `<tr><td>${escapeHtml(label)}</td><td>${escapeHtml((rankings[key] || []).join(' → ') || 'No eligible games')}</td></tr>`
+    ).join('')}</tbody></table>`;
+}
+
+function transitionTable(transitions) {
+    if (!transitions.length) return '<p>No game transitions in the selected event.</p>';
+    return `<div class="table-wrap"><table><thead><tr><th>Transition</th><th>Status</th><th>Viewers before → after</th><th>Chat before → after</th></tr></thead><tbody>${transitions.map(transition =>
+        `<tr><td>${escapeHtml(transition.from)} → ${escapeHtml(transition.to)}</td><td>${transition.included ? 'Included' : escapeHtml(transition.reason)}</td><td>${transition.before.medianViewers} → ${transition.after.medianViewers}</td><td>${transition.before.chatMessages} → ${transition.after.chatMessages}</td></tr>`
+    ).join('')}</tbody></table></div>`;
+}
+
+function donationTable(items) {
+    if (!items.length) return '<p>No confirmed live donations.</p>';
+    return `<div class="table-wrap"><table><thead><tr><th>Time</th><th>Donor</th><th>Amount</th><th>Message</th></tr></thead><tbody>${items.map(item =>
+        `<tr><td>${escapeHtml(item.timestamp)}</td><td>${escapeHtml(item.displayName)}</td><td>${formatMoney(item.amount)}</td><td>${escapeHtml(item.message || '')}</td></tr>`
+    ).join('')}</tbody></table></div>`;
+}
+
 function renderHtml(report, timezone) {
     const metrics = report.metrics;
     const embedded = stableStringify(report).replaceAll('<', '\\u003c').replaceAll('>', '\\u003e');
@@ -129,9 +156,11 @@ svg{width:100%;background:var(--panel);border-radius:8px}.axis{stroke:#526878}.v
 <section class="cards">${cards(metrics.overview)}</section>
 <h2>Viewer timeline</h2>${timelineSvg(metrics.timeline)}
 <h2>Games and schedule</h2>${gameTable(metrics.games)}
+<h2>Game rankings</h2>${rankingTable(metrics.rankings)}
+<h2>Transition impact</h2>${transitionTable(metrics.transitions)}
 <h2>Chat patterns</h2><div class="cards">${chatCards(metrics.chat)}</div>
 <h3>Top chatters</h3>${topList(metrics.chat.topChatters, 'No human chat messages.')}<h3>Top words</h3>${topList(metrics.chat.topWords, 'No lexical data.')}<h3>Top phrases</h3>${topList(metrics.chat.topBigrams, 'No phrase data.')}
-<h2>Donation patterns</h2><p><strong>${metrics.donations.count}</strong> live donations totaling <strong>${formatMoney(metrics.donations.total)}</strong>; median ${formatMoney(metrics.donations.median)}, largest ${formatMoney(metrics.donations.largest)}. ${metrics.donations.startupCount} startup and ${metrics.donations.ambiguousCount} ambiguous records were excluded.</p>
+<h2>Donation patterns</h2><p><strong>${metrics.donations.count}</strong> live donations totaling <strong>${formatMoney(metrics.donations.total)}</strong>; median ${formatMoney(metrics.donations.median)}, largest ${formatMoney(metrics.donations.largest)}. ${metrics.donations.startupCount} startup and ${metrics.donations.ambiguousCount} ambiguous records were excluded.</p>${donationTable(metrics.donations.items)}
 <h2>Data quality</h2>${diagnosticList(report)}
 <footer>Generated deterministically from ${escapeHtml(report.source.name)}. Correlations are descriptive, not causal.</footer>
 <script type="application/json" id="report-data">${embedded}</script><script>
