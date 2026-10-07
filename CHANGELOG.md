@@ -1,3 +1,19 @@
+# [4.7.0](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v4.6.0...v4.7.0) (2026-10-07)
+
+
+### Bug Fixes
+
+* preserve pending intentional voice departures ([1ddd6ec](https://github.com/stjohnjohnson/extralife-helper-bot/commit/1ddd6ec5a880772589a3e18a8b16a98f5cad9f31))
+* refresh Hue group membership before effects ([e6bab45](https://github.com/stjohnjohnson/extralife-helper-bot/commit/e6bab457014bbf22d93dd807121e971ab821bf54))
+
+
+### Features
+
+* coordinate Hue parties and donation celebrations ([6eeb25c](https://github.com/stjohnjohnson/extralife-helper-bot/commit/6eeb25c7199ab60e565e7b04d2e78666f384e2f1))
+* enable opt-in Hue commands across Twitch and Discord ([4c2151d](https://github.com/stjohnjohnson/extralife-helper-bot/commit/4c2151d53d610c90656a7928faba2681cf8abaff))
+* gate voice overlay connections on streamer presence ([874ec40](https://github.com/stjohnjohnson/extralife-helper-bot/commit/874ec40395271abe8a93e3389a4a45a4be60fe50))
+* parse Hue chat colors ([d5fbe39](https://github.com/stjohnjohnson/extralife-helper-bot/commit/d5fbe39456520090d290f6c84828cee6a30e85a9))
+
 # [4.6.0](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v4.5.0...v4.6.0) (2026-10-07)
 
 
