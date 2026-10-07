@@ -80,6 +80,8 @@ class HueController {
             throw new Error('Hue Bridge not connected');
         }
 
+        // The bridge applies group writes to its current membership, not our startup cache.
+        this.group = await this.api.groups.getGroup(parseInt(this.config.hue.groupId));
         // Get detailed light information
         const lights = [];
         for (const lightId of this.group.lights) {

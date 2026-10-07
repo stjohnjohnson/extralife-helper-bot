@@ -46,7 +46,7 @@ describe('HueController', () => {
         mockApi = {
             groups: {
                 getAll: jest.fn(),
-                getGroup: jest.fn(),
+                getGroup: jest.fn(async () => hueController.group),
                 getGroupByName: jest.fn()
             },
             lights: {

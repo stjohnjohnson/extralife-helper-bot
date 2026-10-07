@@ -29,6 +29,7 @@ describe('coordinated Hue chat effects', () => {
         api = {
             groups: {
                 getAll: jest.fn().mockResolvedValue([{ id: 1, name: 'Stream', lights: ['1', '2', '3'] }]),
+                getGroup: jest.fn(async () => ({ id: 1, name: 'Stream', lights: lights.map(light => light.id) })),
                 setGroupState: jest.fn(async (id, state) => {
                     const payload = state.getPayload();
                     writes.push({ group: id, payload });
@@ -140,6 +141,24 @@ describe('coordinated Hue chat effects', () => {
         await jest.advanceTimersByTimeAsync(10000);
         expect(writes).toHaveLength(completedWrites);
         expect(await controller.requestColor('blue')).toEqual({ status: 'applied' });
+    });
+
+    test('snapshots lights added to the group after startup before a party changes them', async () => {
+        lights.push({ id: '4', state: { on: false, bri: 42, colormode: 'ct', ct: 400 } });
+        expect(await controller.requestColor('party')).toEqual({ status: 'party' });
+        const stop = controller.stop();
+        await jest.advanceTimersByTimeAsync(400);
+        await stop;
+        expect(writes.filter(write => write.light)).toHaveLength(4);
+        expect(writes.at(-1)).toEqual({ light: '4', payload: { on: false, bri: 42, ct: 400 } });
+        expect(lights[3].state).toMatchObject({ on: false, bri: 42, colormode: 'ct', ct: 400 });
+    });
+
+    test('refuses a party when current group membership cannot be read', async () => {
+        api.groups.getGroup.mockRejectedValueOnce(new Error('group unavailable'));
+        expect(await controller.requestColor('party')).toEqual({ status: 'unavailable' });
+        expect(writes).toHaveLength(0);
+        expect(await controller.requestColor('party')).toEqual({ status: 'party' });
     });
 
     test('shares one-minute party admission independently of steady colors', async () => {
