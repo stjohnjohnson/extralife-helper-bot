@@ -332,3 +332,52 @@ test('unavailable guild startup waits for availability even when the streamer is
     expect(voice.joinVoiceChannel).toHaveBeenCalledTimes(1);
     await s.controller.stop(); s.state.stop();
 });
+
+test('pending initial join acknowledgments do not turn an intentional leave into a moderation pause', async () => {
+    voice.entersState.mockImplementationOnce((connection, status, signal) => new Promise((resolve, reject) => {
+        signal.addEventListener('abort', () => reject(new Error('aborted')), { once: true });
+    }));
+    const s = setup();
+    // The first join is still in flight: Discord has not cached the helper yet.
+    moveStreamer(s, null);
+    const next = replacementConnection(); next.state = { status: 'connecting' };
+    voice.joinVoiceChannel.mockReturnValue(next);
+    let finish;
+    voice.entersState.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    moveStreamer(s, 'live');
+    const helperUpdate = (before, after) => {
+        const oldState = { id: 'helper', guild: s.channel.guild, channelId: before };
+        const nextState = { id: 'helper', guild: s.channel.guild, channelId: after };
+        s.channel.guild.voiceStates.cache.set('helper', nextState);
+        s.client.emit('voiceStateUpdate', oldState, nextState);
+    };
+    helperUpdate(null, 'live'); // original join ACK
+    helperUpdate('live', null); // our intentional departure ACK
+    helperUpdate(null, 'live'); // replacement join ACK
+    expect(next.destroy).not.toHaveBeenCalled();
+    expect(s.logger.warn).not.toHaveBeenCalled();
+    next.state = { status: 'ready' };
+    next.emit('stateChange', { status: 'connecting' }, next.state);
+    finish(); await s.controller.ready; await jest.advanceTimersByTimeAsync(0);
+    expect(s.state.getSnapshot().ready).toBe(true);
+    helperUpdate('live', null); // a subsequent genuine moderation disconnect
+    expect(next.destroy).toHaveBeenCalledTimes(1);
+    expect(s.state.getSnapshot().ready).toBe(false);
+    moveStreamer(s, null); moveStreamer(s, 'live');
+    await jest.advanceTimersByTimeAsync(60000);
+    expect(voice.joinVoiceChannel).toHaveBeenCalledTimes(2);
+    await s.controller.stop(); s.state.stop();
+});
+
+test('readiness retires coalesced departure acknowledgments so moderation still pauses', async () => {
+    const s = setup(); await s.controller.ready;
+    moveStreamer(s, null);
+    const next = replacementConnection(); voice.joinVoiceChannel.mockReturnValue(next); voice.entersState.mockResolvedValue(next);
+    moveStreamer(s, 'live'); await jest.advanceTimersByTimeAsync(0);
+    next.emit('stateChange', { status: 'connecting' }, next.state);
+    s.client.emit('voiceStateUpdate', { id: 'helper', guild: s.channel.guild, channelId: 'live' },
+        { id: 'helper', guild: s.channel.guild, channelId: null });
+    expect(next.destroy).toHaveBeenCalledTimes(1);
+    expect(s.state.getSnapshot().ready).toBe(false);
+    await s.controller.stop(); s.state.stop();
+});

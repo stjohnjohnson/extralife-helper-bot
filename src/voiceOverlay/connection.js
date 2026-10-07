@@ -7,7 +7,7 @@ function startOverlayConnection({ client, channel, state, logger, streamerUserId
     let guildUnavailable = channel.guild.available === false;
     const streamerInRoom = guild => (guild.voiceStates?.cache || channel.guild.voiceStates.cache).get(streamerUserId)?.channelId === channel.id;
     let streamerPresent = streamerInRoom(channel.guild);
-    let expectedDeparture = false;
+    let expectedDepartures = 0;
     let connection;
     let retryTimer;
     let recoveryTimer;
@@ -68,8 +68,9 @@ function startOverlayConnection({ client, channel, state, logger, streamerUserId
         const previous = connection;
         connection = undefined;
         if (previous && previous.state.status !== VoiceConnectionStatus.Destroyed) {
-            // The gateway may confirm our deliberate departure after a new join starts.
-            expectedDeparture = channel.guild.voiceStates.cache.get(client.user.id)?.channelId === channel.id;
+            // A pending join can be acknowledged before this leave, even if the bot
+            // is not cached yet. Keep each expected leave across those join updates.
+            expectedDepartures++;
             previous.destroy();
         }
         deafened = false;
@@ -83,6 +84,8 @@ function startOverlayConnection({ client, channel, state, logger, streamerUserId
     const onChange = (oldState, next) => {
         if (!canConnect()) return;
         if (next.status === VoiceConnectionStatus.Ready) {
+            // Ready confirms the replacement handshake has passed older gateway updates.
+            expectedDepartures = 0;
             attempts = 0; clearTimeout(retryTimer); retryTimer = null;
             clearTimeout(recoveryTimer); recoveryTimer = null; available();
         } else {
@@ -126,13 +129,13 @@ function startOverlayConnection({ client, channel, state, logger, streamerUserId
             return;
         }
         if (next.id !== client.user.id || paused) return;
-        if (expectedDeparture && oldState.channelId === channel.id && next.channelId === null) {
-            expectedDeparture = false;
+        if (expectedDepartures > 0 && next.channelId === null) {
+            expectedDepartures--;
             return;
         }
         if (!connection) return;
         if (oldState.channelId === channel.id && next.channelId !== channel.id) { pause(); return; }
-        if (next.channelId === channel.id) { expectedDeparture = false; deafened = Boolean(next.serverDeaf || next.selfDeaf); available(); }
+        if (next.channelId === channel.id) { deafened = Boolean(next.serverDeaf || next.selfDeaf); available(); }
     };
     const onUnavailable = guild => {
         if (!active || guild.id !== channel.guild.id) return;
