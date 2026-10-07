@@ -33,7 +33,7 @@ async function startVoiceOverlay({ client, config, logger, signal }) {
         server = await startOverlayServer({ config: config.voiceOverlay, state, logger });
         // If shutdown raced the listen operation, explicitly close this late server.
         if (signal?.aborted) { await server.stop(); checkAbort(); }
-        connection = startOverlayConnection({ client, channel, state, logger });
+        connection = startOverlayConnection({ client, channel, state, logger, streamerUserId: config.gameUpdates.userId });
         await connection.ready;
         checkAbort();
         logger.info(`Voice overlay ready on port ${server.address.port} at /voice`);

@@ -20,9 +20,11 @@ test('disabled feature creates no connection or channel access', async () => {
 });
 test('enabled service resolves fixed room and owns idempotent shutdown', async () => {
     const s = setup(); const service = await startVoiceOverlay(s);
-    expect(s.client.channels.fetch).toHaveBeenCalledWith('live');
-    expect(startOverlayConnection).toHaveBeenCalledWith(expect.objectContaining({ channel: s.channel }));
-    await service.stop(); await service.stop();
+    try {
+        expect(s.client.channels.fetch).toHaveBeenCalledWith('live');
+        expect(startOverlayConnection).toHaveBeenCalledWith(expect.objectContaining({ channel: s.channel, streamerUserId: 'target' }));
+    } finally { await service.stop(); }
+    await service.stop();
     expect(s.controller.stop).toHaveBeenCalledTimes(1); expect(s.client.listenerCount('voiceStateUpdate')).toBe(0);
 });
 test.each(['channel', 'permissions', 'voice'])('failed %s startup cleans up', async type => {
