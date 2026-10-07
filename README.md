@@ -289,3 +289,21 @@ Voice samples occur at startup, on relevant count/channel changes, and periodica
 ### OBS voice overlay
 
 The optional voice overlay uses the configured live room and excludes the game-update target and helper bot. Enable it with `VOICE_OVERLAY_ENABLED=true`; `VOICE_OVERLAY_HOST` defaults to `0.0.0.0` for LAN access and `VOICE_OVERLAY_PORT` to `3000`. The helper joins self-muted to observe speaking activity without recording audio. The helper is excluded from voice participation counts.
+
+Add a Browser Source in OBS using `http://<bot-lan-ip>:3000/voice`. Set its dimensions to **460 × 64** for the compact camera scenes, or **540 × 64** below the right-side camera. Use independent source instances for different dimensions rather than scaling a larger browser canvas down. The avatars stay centered inside the source, grow no larger than 48 pixels, and shrink to fit larger groups. Idle avatars fade to 60%; speaking avatars get a cyan ring.
+
+For the large-camera scene, place the 460 × 64 source inside the camera's lower-left corner with a small inset. For the other scenes, place it directly below the camera. Keep donation displays and the bottom Stream Avatars area clear.
+
+Use `http://<bot-lan-ip>:3000/voice?preview=5` (or `preview=1` / `preview=10`) to see sample avatars and simulated speaking without displaying live participants. Remove the preview query when ready to use the real room. The real overlay is blank when nobody eligible is present or voice is unavailable; errors are reported in the bot log.
+
+The bot needs **View Channel** and **Connect** in the live voice room. It joins self-muted and must remain undeafened to detect speaking. Explicitly moving or disconnecting it pauses automatic return until restart. Other transient failures reconnect automatically. Stats still follow the streamer and exclude only the helper itself; the overlay always uses the fixed live room and hides both the helper and `DISCORD_GAME_UPDATE_USER_ID`.
+
+For Docker, publish the overlay port:
+
+```bash
+docker run --rm -it --env-file .env \
+  -e VOICE_OVERLAY_ENABLED=true -p 3000:3000 \
+  ghcr.io/stjohnjohnson/extralife-helper-bot:latest
+```
+
+Allow the OBS computer to reach that port on your internal network. The existing full-bot configuration requirements still apply. No audio is recorded or decoded, and member identities/speaking activity are not added to analytics logs.
