@@ -15,7 +15,8 @@ function startVoiceMonitoring(client, guild, config, logger) {
             if (channelId) {
                 const channel = guild.channels.cache.get(channelId);
                 if (!channel?.members || !channel.members.has(userId)) throw new Error('Voice channel unavailable');
-                for (const member of channel.members.values()) {
+                for (const [id, member] of channel.members) {
+                    if (id === client.user?.id) continue;
                     if (!member.user || typeof member.user.bot !== 'boolean') throw new Error('Voice member classification unavailable');
                     if (member.user.bot) botCount++;
                     else humanCount++;

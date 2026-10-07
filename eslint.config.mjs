@@ -21,6 +21,10 @@ export default [
         }
     },
     {
+        files: ['src/voiceOverlay/browser.js'],
+        languageOptions: { globals: { ...globals.node, ...globals.browser } }
+    },
+    {
         files: ['tests/**/*.test.js'],
         languageOptions: {
             globals: {

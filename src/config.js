@@ -56,7 +56,20 @@ function parseConfiguration() {
     };
     const viewerSampleIntervalSeconds = interval('TWITCH_VIEWER_SAMPLE_INTERVAL_SECONDS');
     const voiceSampleIntervalSeconds = interval('DISCORD_VOICE_SAMPLE_INTERVAL_SECONDS');
+    const overlayFlag = process.env.VOICE_OVERLAY_ENABLED;
+    if (overlayFlag !== undefined && !['true', 'false'].includes(overlayFlag)) {
+        configErrors.push('VOICE_OVERLAY_ENABLED must be true or false');
+    }
+    const enabled = overlayFlag === 'true';
+    const host = process.env.VOICE_OVERLAY_HOST ?? '0.0.0.0';
+    const rawPort = process.env.VOICE_OVERLAY_PORT ?? '3000';
+    const port = Number(rawPort);
+    if (enabled && (!/^\d+$/.test(rawPort) || !Number.isInteger(port) || port < 1 || port > 65535)) {
+        configErrors.push('VOICE_OVERLAY_PORT must be an integer between 1 and 65535');
+    }
+    if (enabled && !host.trim()) configErrors.push('VOICE_OVERLAY_HOST must not be empty');
     return {
+        voiceOverlay: { enabled, host, port },
         isValid: configErrors.length === 0,
         errors: configErrors,
         participantId: process.env.EXTRALIFE_PARTICIPANT_ID,

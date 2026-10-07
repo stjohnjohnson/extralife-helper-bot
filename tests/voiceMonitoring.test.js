@@ -72,3 +72,40 @@ test('shutdown suppresses a queued voice sample', async () => {
     await Promise.resolve();
     expect(s.logger.info).not.toHaveBeenCalled();
 });
+
+test('excludes helper from bot counts while retaining other bots and streamer semantics', async () => {
+    const s = setup();
+    s.client.user = { id: 'helper' };
+    s.guild.channels.cache.get('voice').members.set('helper', { user: { bot: true } });
+    const monitor = startVoiceMonitoring(s.client, s.guild, s.config, s.logger);
+    await Promise.resolve();
+    expect(s.logger.info.mock.calls[0][1]).toMatchObject({ humanCount: 2, companionCount: 1, botCount: 1 });
+    stopVoiceMonitoring(monitor);
+});
+test('helper joins and leaves do not create count changes but periodic samples continue', async () => {
+    const s = setup();
+    s.client.user = { id: 'helper' };
+    const monitor = startVoiceMonitoring(s.client, s.guild, s.config, s.logger);
+    await Promise.resolve();
+    jest.advanceTimersByTime(1);
+    const members = s.guild.channels.cache.get('voice').members;
+    members.set('helper', { user: { bot: true } });
+    s.client.emit('voiceStateUpdate', { guild: s.guild, id: 'helper', channelId: null }, { guild: s.guild, id: 'helper', channelId: 'voice' });
+    await Promise.resolve();
+    expect(s.logger.info).toHaveBeenCalledTimes(1);
+    members.delete('helper');
+    s.client.emit('voiceStateUpdate', { guild: s.guild, id: 'helper', channelId: 'voice' }, { guild: s.guild, id: 'helper', channelId: null });
+    await Promise.resolve();
+    expect(s.logger.info).toHaveBeenCalledTimes(1);
+    jest.advanceTimersByTime(60000);
+    await Promise.resolve();
+    expect(s.logger.info.mock.calls.at(-1)[1]).toMatchObject({ trigger: 'periodic', botCount: 1 });
+    stopVoiceMonitoring(monitor);
+});
+test('classification still works when helper identity is not yet available', async () => {
+    const s = setup(); s.client.user = null;
+    const monitor = startVoiceMonitoring(s.client, s.guild, s.config, s.logger);
+    await Promise.resolve();
+    expect(s.logger.info.mock.calls[0][1].botCount).toBe(1);
+    stopVoiceMonitoring(monitor);
+});
