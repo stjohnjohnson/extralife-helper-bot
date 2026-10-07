@@ -181,6 +181,57 @@ describe('Commands Module', () => {
     });
 
     describe('handleCommand', () => {
+        test.each(['discord', 'twitch'])('routes color arguments for non-admins on %s', async platform => {
+            const controller = { requestColor: jest.fn().mockResolvedValue({ status: 'applied' }) };
+            const config = { hue: { chatControlEnabled: true }, discord: { admins: [] }, twitch: { admins: [] } };
+            for (const input of ['LIGHTBLUE', '#112233', 'random']) {
+                expect(await handleCommand(`COLOR   ${input}`, platform, { username: 'viewer' }, config, {}, mockLogger, controller)).toBeNull();
+                expect(controller.requestColor).toHaveBeenLastCalledWith(input.toLowerCase());
+            }
+        });
+
+        test('describes busy, cooldown, unavailable, invalid, and party results', async () => {
+            const config = { hue: { chatControlEnabled: true } };
+            const controller = { requestColor: jest.fn() };
+            const run = () => handleCommand('color party', 'twitch', { username: 'viewer' }, config, {}, mockLogger, controller);
+            controller.requestColor.mockResolvedValueOnce({ status: 'busy' });
+            expect(await run()).toMatch(/busy/i);
+            controller.requestColor.mockResolvedValueOnce({ status: 'cooldown', retryAfterMs: 1501 });
+            expect(await run()).toMatch(/2 seconds/i);
+            controller.requestColor.mockResolvedValueOnce({ status: 'unavailable' });
+            expect(await run()).toMatch(/unavailable/i);
+            controller.requestColor.mockResolvedValueOnce({ status: 'invalid' });
+            expect(await run()).toContain('!color');
+            controller.requestColor.mockResolvedValueOnce({ status: 'party' });
+            expect(await run()).toMatch(/party started/i);
+        });
+
+        test('reports disabled control without requesting a light change', async () => {
+            const controller = { requestColor: jest.fn() };
+            const result = await handleCommand('color red', 'discord', {}, { hue: { chatControlEnabled: false } }, {}, mockLogger, controller);
+            expect(result).toMatch(/disabled/i);
+            expect(controller.requestColor).not.toHaveBeenCalled();
+        });
+
+        test('reports missing controller and unexpected bridge errors', async () => {
+            const config = { hue: { chatControlEnabled: true } };
+            expect(await handleCommand('color red', 'discord', {}, config, {}, mockLogger)).toMatch(/unavailable/i);
+            const controller = { requestColor: jest.fn().mockRejectedValue(new Error('bridge failed')) };
+            expect(await handleCommand('color red', 'twitch', {}, config, {}, mockLogger, controller)).toMatch(/unavailable/i);
+        });
+
+        test('routes missing and extra color arguments without changing legacy matching', async () => {
+            const controller = { requestColor: jest.fn().mockResolvedValue({ status: 'invalid' }) };
+            const config = { hue: { chatControlEnabled: true }, customResponses: new Map([['donate', 'donation link']]) };
+            expect(await handleCommand('color', 'discord', {}, config, {}, mockLogger, controller)).toContain('!color');
+            expect(controller.requestColor).toHaveBeenLastCalledWith('');
+            expect(await handleCommand('color red blue', 'twitch', {}, config, {}, mockLogger, controller)).toContain('!color');
+            expect(controller.requestColor).toHaveBeenLastCalledWith('red blue');
+            expect(await handleCommand('colorful red', 'twitch', {}, config, {}, mockLogger, controller)).toBeNull();
+            expect(await handleCommand('goal extra', 'discord', {}, config, {}, mockLogger, controller)).toBeNull();
+            expect(await handleCommand('donate extra', 'discord', {}, config, {}, mockLogger, controller)).toBeNull();
+            expect(await handleCommand('donate', 'discord', {}, config, {}, mockLogger, controller)).toBe('donation link');
+        });
         test('should route goal command correctly', async () => {
             getUserInfo.mockResolvedValue({
                 displayName: 'Test User',

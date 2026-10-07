@@ -91,6 +91,7 @@ function start({ config = parseConfiguration() } = {}) {
         discordClient: null,
         twitchClient: null,
         hueController: null,
+        hueInitialization: null,
         donationChannel: null,
         summaryChannel: null,
         donationInterval: null,
@@ -109,8 +110,9 @@ function start({ config = parseConfiguration() } = {}) {
     log.info(`Admin users: Discord=${config.discord.admins.length}, Twitch=${config.twitch.admins.length}`);
 
     state.hueController = new HueController(config, hueLog);
-    state.hueController.initialize()
+    state.hueInitialization = state.hueController.initialize()
         .then(success => {
+            if (!state.active) return;
             if (success) log.info('Hue Bridge connected and ready for celebrations');
             else log.warn('Hue Bridge connection failed - light celebrations will be skipped');
         })
@@ -274,11 +276,15 @@ async function stop() {
         if (state.donationInterval) clearInterval(state.donationInterval);
         state.summaryTimeouts.forEach(timeout => clearTimeout(timeout));
         state.summaryTimeouts.clear();
+        const hueCleanup = Promise.resolve()
+            .then(() => state.hueController?.stop())
+            .catch(error => hueLog.error('Error stopping Hue controller', { error: error.message }));
         state.voiceOverlayAbort.abort();
         await state.voiceOverlayStartup;
         await state.voiceOverlay?.stop();
         stopVoiceMonitoring(state.voiceMonitor);
         if (state.viewerCountInterval) stopViewerCountMonitoring(state.viewerCountInterval, twitchLog);
+        await Promise.all([state.hueInitialization, hueCleanup]);
 
         if (state.twitchClient) {
             state.twitchClient.reconnect = false;

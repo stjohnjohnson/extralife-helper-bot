@@ -6,6 +6,7 @@ A unified helper bot for managing your ExtraLife 24 hour marathon stream, bridgi
 
 - Post donation notifications to Discord channels and Twitch chat
 - Flash your Hue lights in ExtraLife colors when donations are received
+- Optional Twitch and Discord chat control of Hue colors and temporary parties
 - Update Discord channel names with fundraising progress
 - Cross-platform commands that work on both Discord and Twitch (`!goal`, `!promote`)
 - Custom command responses that work across both platforms
@@ -49,13 +50,14 @@ The bot requires at least one service (Discord or Twitch) to be configured. Set 
   - Format: `command1:"response1",command2:"response2"`
   - Example: `donate:"Check out https://donate.example.com",discord:"Join our Discord: https://discord.gg/example"`
   - Commands must start with a letter and contain only lowercase letters and numbers
-  - Cannot conflict with built-in commands (`goal`, `promote`)
+  - Cannot conflict with built-in commands (`goal`, `promote`, `color`)
   - Commands are case-insensitive when used (e.g., `!DONATE` and `!donate` work the same)
 
 ### Philips Hue Light Celebration (required)
 - `HUE_USERNAME`: Your Hue bridge username/API key
 - `HUE_IPADDRESS`: IP address of your Hue bridge (e.g., `192.168.1.100`)
 - `HUE_GROUPID`: The Hue group ID containing lights for donation celebrations
+- `HUE_CHAT_CONTROL_ENABLED`: Optional `true` or `false` flag (default: `false`). Set to `true` to let all Twitch and Discord users control this same group with `!color`. Donation celebrations work independently of this flag.
 
 **Setting up Hue Integration:**
 1. Find your Hue bridge IP address (check your router admin panel or use the [Hue app](https://apps.apple.com/us/app/philips-hue/id1055281310))
@@ -196,6 +198,25 @@ Legacy mixed-text logs have three important limitations: Twitch chat dates are i
   Promoted 3 member(s) to live chat!
   ```
   *Note: This command requires Discord voice channel management to be configured and admin permissions*
+
+### Hue Chat Commands (optional, Twitch and Discord)
+
+Set `HUE_CHAT_CONTROL_ENABLED=true` to enable these commands for everyone on both platforms. They use the existing Hue bridge credentials and `HUE_GROUPID`.
+
+- **`!color lightblue`**: Apply a CSS named color (for example, `orange` or `rebeccapurple`).
+- **`!color #112233`**: Apply a six-digit hex color. Short hex values, alpha values, and CSS functions are unsupported.
+- **`!color random`**: Apply a random color.
+- **`!color party`**: Change the group's color every second for 15 seconds, then restore each light's previous on/off state, brightness, and color.
+
+Commands and colors are case-insensitive. Normal color changes remain until changed again and preserve each light's on/off state. Successful normal changes are quiet; starting a party gets a short acknowledgement.
+
+Twitch and Discord share one normal color change per second and one party per minute. These limits are independent and apply to the whole group, rather than to individual users. Extra requests receive a cooldown response. Requests during a party, donation celebration, restoration, or pending light change receive a brief busy response and are not queued.
+
+Donation celebrations cancel active parties permanently. After the celebration, the lights return to the original pre-party state. `!testlights` uses the same celebration priority and remains admin-only.
+
+Missing or invalid colors get usage guidance. Disabled controls and unavailable bridges get concise replies; bridge and restoration failures are logged. A party requires a saved state for every light in the group before it starts. Shutdown cancels active effects, waits for pending light writes, and attempts to restore the original state.
+
+The `color` command name is reserved even when chat light control is disabled; rename any existing custom response using that name before upgrading.
 
 ### Custom Commands
 You can create your own custom commands using the `CUSTOM_RESPONSES` environment variable. Custom commands:

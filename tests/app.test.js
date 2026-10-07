@@ -21,7 +21,8 @@ const mockTwitchClient = {
 
 const mockHueController = {
     initialize: jest.fn().mockResolvedValue(true),
-    celebrateDonation: jest.fn().mockResolvedValue()
+    celebrateDonation: jest.fn().mockResolvedValue(),
+    stop: jest.fn().mockResolvedValue()
 };
 
 jest.mock('extra-life-api', () => ({
@@ -141,6 +142,7 @@ describe('application lifecycle', () => {
         mockTwitchClient.connect.mockResolvedValue();
         mockTwitchClient.disconnect.mockResolvedValue();
         mockHueController.initialize.mockResolvedValue(true);
+        mockHueController.stop.mockResolvedValue();
         mockHueController.celebrateDonation.mockResolvedValue();
         startViewerCountMonitoring.mockReturnValue({ viewerTimer: true });
     });
@@ -299,7 +301,38 @@ describe('application lifecycle', () => {
         expect(stopViewerCountMonitoring).toHaveBeenCalledWith({ viewerTimer: true }, mockLogger);
         expect(mockDiscordClient.destroy).toHaveBeenCalledTimes(1);
         expect(mockTwitchClient.disconnect).toHaveBeenCalledTimes(1);
+        expect(mockHueController.stop).toHaveBeenCalledTimes(1);
         expect(jest.getTimerCount()).toBe(0);
+    });
+
+    test('waits for Hue initialization and cleanup before allowing restart', async () => {
+        const initialization = deferred();
+        const cleanup = deferred();
+        mockHueController.initialize.mockReturnValueOnce(initialization.promise);
+        mockHueController.stop.mockReturnValueOnce(cleanup.promise);
+        application.start({ config: validConfig });
+        let stopped = false;
+        const stopping = application.stop().then(() => { stopped = true; });
+        await flushPromises();
+        expect(mockHueController.stop).toHaveBeenCalledTimes(1);
+        expect(stopped).toBe(false);
+        expect(() => application.start({ config: validConfig })).toThrow('Application already started');
+        cleanup.resolve();
+        await flushPromises();
+        expect(stopped).toBe(false);
+        initialization.resolve(false);
+        await stopping;
+        expect(stopped).toBe(true);
+        expect(mockLogger.warn).not.toHaveBeenCalledWith('Hue Bridge connection failed - light celebrations will be skipped');
+    });
+
+    test('contains Hue cleanup failures while disconnecting chat clients', async () => {
+        mockHueController.stop.mockRejectedValueOnce(new Error('cleanup failed'));
+        application.start({ config: validConfig });
+        await application.stop();
+        expect(mockLogger.error).toHaveBeenCalledWith('Error stopping Hue controller', { error: 'cleanup failed' });
+        expect(mockDiscordClient.destroy).toHaveBeenCalled();
+        expect(mockTwitchClient.disconnect).toHaveBeenCalled();
     });
 
     test('waits for both client teardowns and blocks restart while stopping', async () => {

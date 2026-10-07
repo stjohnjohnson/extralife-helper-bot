@@ -1,5 +1,6 @@
 const { v3 } = require('node-hue-api');
 const { HueController } = require('../src/hueControl.js');
+const { handleCommand } = require('../src/commands.js');
 
 function deferred() {
     let resolve;
@@ -61,6 +62,27 @@ describe('coordinated Hue chat effects', () => {
         expect(await controller.requestColor('red')).toEqual({ status: 'applied' });
         expect(writes).toEqual([{ group: '1', payload: { hue: 0, sat: 254, bri: 254 } }]);
         expect(lights[1].state.on).toBe(false);
+    });
+
+    test('Twitch and Discord share steady-color admission through the real command handler', async () => {
+        const run = (platform, command) => handleCommand(command, platform, { userId: 'viewer', username: 'viewer' }, controller.config, {}, logger, controller);
+        expect(await run('twitch', 'color red')).toBeNull();
+        expect(await run('discord', 'color blue')).toMatch(/wait/i);
+        expect(writes).toHaveLength(1);
+        await jest.advanceTimersByTimeAsync(1000);
+        expect(await run('discord', 'color blue')).toBeNull();
+        expect(writes).toHaveLength(2);
+    });
+
+    test('Twitch and Discord share party limits and donation busy replies', async () => {
+        const run = (platform, command) => handleCommand(command, platform, { userId: 'viewer', username: 'viewer' }, controller.config, {}, logger, controller);
+        expect(await run('discord', 'color party')).toMatch(/party started/i);
+        expect(await run('twitch', 'color red')).toMatch(/busy/i);
+        await controller.celebrateDonation();
+        expect(await run('discord', 'color red')).toMatch(/busy/i);
+        await jest.advanceTimersByTimeAsync(5600);
+        expect(await run('twitch', 'color party')).toMatch(/wait/i);
+        expect(writes.filter(write => write.group)).toHaveLength(1);
     });
 
     test('admits one steady color every second', async () => {
