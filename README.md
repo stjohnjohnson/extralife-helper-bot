@@ -290,7 +290,7 @@ Voice samples occur at startup, on relevant count/channel changes, and periodica
 
 The optional voice overlay uses the configured live room and excludes the game-update target and helper bot. Enable it with `VOICE_OVERLAY_ENABLED=true`; `VOICE_OVERLAY_HOST` defaults to `0.0.0.0` for LAN access and `VOICE_OVERLAY_PORT` to `3000`. The helper joins self-muted to observe speaking activity without recording audio. The helper is excluded from voice participation counts.
 
-Add a Browser Source in OBS using `http://<bot-lan-ip>:3000/voice`. Set its dimensions to **460 × 64** for the compact camera scenes, or **540 × 64** below the right-side camera. Use independent source instances for different dimensions rather than scaling a larger browser canvas down. The avatars stay centered inside the source, grow no larger than 48 pixels, and shrink to fit larger groups. Idle avatars fade to 60%; speaking avatars get a cyan ring.
+Add a Browser Source in OBS using `http://<bot-lan-ip>:3000/voice`. Set its dimensions to **460 × 64** for the compact camera scenes, or **540 × 64** below the right-side camera. Use independent source instances for different dimensions rather than scaling a larger browser canvas down. The avatars stay centered inside the source, grow no larger than 48 pixels, and shrink to fit larger groups. Idle avatars fade to 60% and use a static image; animated avatars animate only while speaking, alongside the cyan ring. They return to the static image after the existing 180 ms speaking release delay.
 
 For the large-camera scene, place the 460 × 64 source inside the camera's lower-left corner with a small inset. For the other scenes, place it directly below the camera. Keep donation displays and the bottom Stream Avatars area clear.
 

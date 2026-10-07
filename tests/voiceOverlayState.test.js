@@ -67,3 +67,53 @@ test('snapshots are isolated and unsubscribed/stopped listeners receive no late 
     expect(s.client.listenerCount('voiceStateUpdate')).toBe(0);
     expect(jest.getTimerCount()).toBe(0);
 });
+
+function setupAvatar(avatar) {
+    const { Client, User } = require('discord.js');
+    const s = setup();
+    const discord = new Client({ intents: [] });
+    const user = new User(discord, { id: '123456789012345678', username: 'avatar-test', discriminator: '0', avatar });
+    s.channel.members.get('bot').displayAvatarURL = options => user.displayAvatarURL(options);
+    s.state.setReady(true);
+    return { ...s, discord, user, avatar: () => s.state.getSnapshot().members.find(member => member.id === 'bot') };
+}
+
+test('animated avatars are static idle and animate through speech with delayed release', async () => {
+    const s = setupAvatar('a_animation');
+    try {
+        expect(s.avatar().avatarUrl).toBe('https://cdn.discordapp.com/avatars/123456789012345678/a_animation.png?size=128');
+        s.state.setSpeaking('bot', true);
+        expect(s.avatar().avatarUrl).toBe('https://cdn.discordapp.com/avatars/123456789012345678/a_animation.gif?size=128');
+        expect(Object.keys(s.avatar()).sort()).toEqual(['avatarUrl', 'id', 'speaking']);
+        s.state.setSpeaking('bot', false); jest.advanceTimersByTime(179);
+        expect(s.avatar().avatarUrl).toContain('a_animation.gif');
+        s.state.setSpeaking('bot', true); jest.advanceTimersByTime(1);
+        expect(s.avatar().avatarUrl).toContain('a_animation.gif');
+        s.state.setSpeaking('bot', false); jest.advanceTimersByTime(180);
+        expect(s.avatar()).toMatchObject({ speaking: false, avatarUrl: 'https://cdn.discordapp.com/avatars/123456789012345678/a_animation.png?size=128' });
+    } finally { s.state.stop(); await s.discord.destroy(); }
+});
+
+test.each([
+    ['static_avatar', 'https://cdn.discordapp.com/avatars/123456789012345678/static_avatar.png?size=128'],
+    [null, 'https://cdn.discordapp.com/embed/avatars/0.png']
+])('nonanimated avatar %s keeps the same PNG while speaking', async (avatar, url) => {
+    const s = setupAvatar(avatar);
+    try {
+        expect(s.avatar().avatarUrl).toBe(url);
+        s.state.setSpeaking('bot', true);
+        expect(s.avatar()).toMatchObject({ speaking: true, avatarUrl: url });
+    } finally { s.state.stop(); await s.discord.destroy(); }
+});
+
+test('avatar changes refresh both assets and muting returns the latest static image', async () => {
+    const s = setupAvatar('a_animation');
+    try {
+        s.state.setSpeaking('bot', true);
+        s.user.avatar = 'a_replacement';
+        s.client.emit('guildMemberUpdate', null, { id: 'bot', guild: s.channel.guild });
+        expect(s.avatar().avatarUrl).toBe('https://cdn.discordapp.com/avatars/123456789012345678/a_replacement.gif?size=128');
+        s.channel.guild.voiceStates.cache.set('bot', { mute: true }); s.change('bot');
+        expect(s.avatar()).toMatchObject({ speaking: false, avatarUrl: 'https://cdn.discordapp.com/avatars/123456789012345678/a_replacement.png?size=128' });
+    } finally { s.state.stop(); await s.discord.destroy(); }
+});

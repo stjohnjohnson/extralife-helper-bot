@@ -7,7 +7,8 @@ function createOverlayState({ client, channel, excludedUserId, releaseDelayMs = 
     let revision = 0;
     let previous = '';
     const muted = id => Boolean(channel.guild.voiceStates.cache.get(id)?.mute);
-    const getSnapshot = () => ({ ready, revision, members: ready ? [...members.values()].map(member => ({ ...member })) : [] });
+    const getSnapshot = () => ({ ready, revision, members: ready ? [...members.values()].map(member => ({ id: member.id, speaking: member.speaking,
+        avatarUrl: member.speaking ? member.animatedAvatarUrl : member.staticAvatarUrl })) : [] });
     function publish() {
         const snapshot = getSnapshot();
         const key = JSON.stringify({ ready: snapshot.ready, members: snapshot.members });
@@ -28,8 +29,9 @@ function createOverlayState({ client, channel, excludedUserId, releaseDelayMs = 
         for (const [id, member] of channel.members) {
             if (id === excludedUserId || id === client.user?.id) continue;
             const existing = members.get(id);
-            const avatarUrl = member.displayAvatarURL({ extension: 'png', size: 128 });
-            members.set(id, { id, avatarUrl, speaking: Boolean(existing?.speaking && !muted(id)) });
+            const staticAvatarUrl = member.displayAvatarURL({ extension: 'png', size: 128, forceStatic: true });
+            const animatedAvatarUrl = member.displayAvatarURL({ extension: 'png', size: 128 });
+            members.set(id, { id, staticAvatarUrl, animatedAvatarUrl, speaking: Boolean(existing?.speaking && !muted(id)) });
             if (muted(id)) cancel(id);
         }
         publish();
@@ -37,7 +39,7 @@ function createOverlayState({ client, channel, excludedUserId, releaseDelayMs = 
     // Seed deterministically; subsequent joins append while existing slots remain stable.
     for (const id of [...channel.members.keys()].sort()) {
         if (id !== excludedUserId && id !== client.user?.id) {
-            members.set(id, { id, avatarUrl: '', speaking: false });
+            members.set(id, { id, staticAvatarUrl: '', animatedAvatarUrl: '', speaking: false });
         }
     }
     function setReady(value) {

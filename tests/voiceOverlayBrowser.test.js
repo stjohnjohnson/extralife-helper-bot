@@ -77,3 +77,25 @@ test('explicit preview supports 1–10 fixtures without connecting to live event
         expect(root.querySelectorAll('.speaking').length).toBeGreaterThan(0);
     } finally { global.window.history.replaceState(null, '', '/voice'); }
 });
+
+test('image URL switches preserve nodes without reloading other avatars', () => {
+    const idle = { ...guest('one'), avatarUrl: 'https://cdn.discordapp.com/avatars/one/a_animation.png' };
+    const talking = { ...idle, speaking: true, avatarUrl: 'https://cdn.discordapp.com/avatars/one/a_animation.gif' };
+    sources[0].send('snapshot', snapshot(1, [idle, guest('two')]));
+    const node = root.children[0]; const image = node.firstElementChild;
+    const observer = new global.window.MutationObserver(() => {});
+    observer.observe(root, { subtree: true, attributes: true, attributeFilter: ['src'] });
+    try {
+        sources[0].send('snapshot', snapshot(2, [talking, guest('two')]));
+        expect(root.children[0]).toBe(node); expect(node.firstElementChild).toBe(image);
+        expect(image.getAttribute('src')).toBe('https://cdn.discordapp.com/avatars/one/a_animation.gif');
+        expect(node.classList.contains('speaking')).toBe(true);
+        expect(observer.takeRecords().map(record => record.target)).toEqual([image]);
+        sources[0].send('snapshot', snapshot(3, [talking, guest('two')]));
+        expect(observer.takeRecords()).toHaveLength(0);
+        sources[0].send('snapshot', snapshot(4, [idle, guest('two')]));
+        expect(image.getAttribute('src')).toBe('https://cdn.discordapp.com/avatars/one/a_animation.png');
+        expect(node.classList.contains('speaking')).toBe(false);
+        expect(observer.takeRecords().map(record => record.target)).toEqual([image]);
+    } finally { observer.disconnect(); }
+});
