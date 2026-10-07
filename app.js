@@ -7,6 +7,7 @@ const { handleCommand } = require('./src/commands.js');
 const { handlePresenceUpdate } = require('./src/gameUpdates.js');
 const { startViewerCountMonitoring, stopViewerCountMonitoring } = require('./src/viewerMonitoring.js');
 const { startVoiceMonitoring, stopVoiceMonitoring } = require('./src/voiceMonitoring.js');
+const { startVoiceOverlay } = require('./src/voiceOverlay');
 const { HueController } = require('./src/hueControl.js');
 const { eventMetadata } = require('./src/analysis/eventMetadata.js');
 const { taggedEmotes } = require('./src/analysis/emotes.js');
@@ -96,6 +97,9 @@ function start({ config = parseConfiguration() } = {}) {
         viewerCountInterval: null,
         summaryTimeouts: new Set(),
         seenDonationIDs: new Set(),
+        voiceOverlay: null,
+        voiceOverlayStartup: null,
+        voiceOverlayAbort: new AbortController(),
         resolveReady: null
     };
     runtime = state;
@@ -161,6 +165,15 @@ function start({ config = parseConfiguration() } = {}) {
         }
         discordLog.info(`Found Discord Summary Channel: ${state.summaryChannel.id}`);
         state.voiceMonitor = startVoiceMonitoring(state.discordClient, state.donationChannel.guild, config, discordLog);
+        if (config.voiceOverlay?.enabled) {
+            state.voiceOverlayStartup = startVoiceOverlay({ client: state.discordClient, config,
+                logger: discordLog, signal: state.voiceOverlayAbort.signal })
+                .then(async service => {
+                    if (!state.active) await service.stop();
+                    else state.voiceOverlay = service;
+                })
+                .catch(error => discordLog.error('Unable to start voice overlay', { error: error.message }));
+        }
         void updateDiscordSummary(state);
         resolveReady();
     });
@@ -261,6 +274,9 @@ async function stop() {
         if (state.donationInterval) clearInterval(state.donationInterval);
         state.summaryTimeouts.forEach(timeout => clearTimeout(timeout));
         state.summaryTimeouts.clear();
+        state.voiceOverlayAbort.abort();
+        await state.voiceOverlayStartup;
+        await state.voiceOverlay?.stop();
         stopVoiceMonitoring(state.voiceMonitor);
         if (state.viewerCountInterval) stopViewerCountMonitoring(state.viewerCountInterval, twitchLog);
 

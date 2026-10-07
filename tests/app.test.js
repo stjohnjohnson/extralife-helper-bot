@@ -81,6 +81,8 @@ const { handlePresenceUpdate } = require('../src/gameUpdates.js');
 const { startViewerCountMonitoring, stopViewerCountMonitoring } = require('../src/viewerMonitoring.js');
 const { HueController } = require('../src/hueControl.js');
 const { startVoiceMonitoring, stopVoiceMonitoring } = require('../src/voiceMonitoring.js');
+jest.mock('../src/voiceOverlay', () => ({ startVoiceOverlay: jest.fn() }));
+const { startVoiceOverlay } = require('../src/voiceOverlay');
 const application = require('../app.js');
 
 const validConfig = {
@@ -345,5 +347,42 @@ describe('application lifecycle', () => {
 
         expect(connect).toHaveBeenCalledTimes(1);
         expect(reply).not.toHaveBeenCalled();
+    });
+});
+
+
+describe('optional overlay application integration', () => {
+    beforeEach(() => {
+        jest.clearAllMocks();
+        mockDiscordClient.channels.cache.get.mockReturnValue({ id: 'channel', guild: { id: 'guild' }, setName: jest.fn().mockResolvedValue() });
+    });
+    afterEach(async () => { await application.stop(); });
+    test('enabled overlay starts with Discord and closes before Discord destruction', async () => {
+        const order = [];
+        startVoiceOverlay.mockResolvedValue({ stop: jest.fn(async () => { order.push('overlay'); }) });
+        mockDiscordClient.destroy.mockImplementation(async () => { order.push('discord'); });
+        const startup = application.start({ config: { ...validConfig, voiceOverlay: { enabled: true } } });
+        registeredHandler(mockDiscordClient.once, 'ready')();
+        await startup; await flushPromises(); await application.stop();
+        expect(startVoiceOverlay).toHaveBeenCalledWith(expect.objectContaining({ client: mockDiscordClient, signal: expect.any(AbortSignal) }));
+        expect(order).toEqual(['overlay', 'discord']);
+    });
+    test('overlay startup failure is isolated from existing application services', async () => {
+        startVoiceOverlay.mockRejectedValue(new Error('voice unavailable'));
+        const startup = application.start({ config: { ...validConfig, voiceOverlay: { enabled: true } } });
+        registeredHandler(mockDiscordClient.once, 'ready')();
+        await startup; await flushPromises();
+        expect(mockDiscordClient.destroy).not.toHaveBeenCalled();
+        expect(mockLogger.error).toHaveBeenCalledWith('Unable to start voice overlay', { error: 'voice unavailable' });
+    });
+    test('stop aborts an in-flight overlay startup and closes a late service', async () => {
+        let finish; let signal;
+        const service = { stop: jest.fn().mockResolvedValue() };
+        startVoiceOverlay.mockImplementation(options => { signal = options.signal; return new Promise(resolve => { finish = resolve; }); });
+        const startup = application.start({ config: { ...validConfig, voiceOverlay: { enabled: true } } });
+        registeredHandler(mockDiscordClient.once, 'ready')(); await startup;
+        const stopping = application.stop();
+        expect(signal.aborted).toBe(true); finish(service); await stopping;
+        expect(service.stop).toHaveBeenCalledTimes(1);
     });
 });
