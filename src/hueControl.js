@@ -1,4 +1,5 @@
 const { v3 } = require('node-hue-api');
+const { parseHueColor, rgbToHue } = require('./hueColors.js');
 
 // Celebration colors in CIE xy coordinates
 const CELEBRATION_COLORS = [
@@ -11,6 +12,10 @@ const CELEBRATION_COLORS = [
 const ANIMATION_DURATION = 5000; // 5 seconds total
 const FLASH_INTERVAL = 300;      // Flash every 300ms for quick flashing
 const RESTORE_DELAY = 100;       // Small delay between light restorations
+const COLOR_COOLDOWN = 1000;
+const PARTY_COOLDOWN = 60000;
+const PARTY_DURATION = 15000;
+const PARTY_INTERVAL = 1000;
 
 /**
  * Hue Bridge Controller
@@ -23,26 +28,41 @@ class HueController {
         this.group = null;
         this.connected = false;
         this.isCelebrating = false;
+        this.activeEffect = null;
+        this.colorWrite = null;
+        this.nextColorAt = 0;
+        this.nextPartyAt = 0;
+        this.stopped = false;
+        this.initialization = null;
+        this.stopPromise = null;
     }
 
     /**
      * Initialize connection to Hue Bridge
      */
-    async initialize() {
+    initialize() {
+        if (this.stopped) return Promise.resolve(false);
+        if (!this.initialization) this.initialization = this.connect();
+        return this.initialization;
+    }
+
+    async connect() {
         try {
             this.api = await v3.api.createLocal(this.config.hue.ipAddress)
                 .connect(this.config.hue.username);
-            this.connected = true;
+            if (this.stopped) return false;
             this.logger.info(`Connected to Hue Bridge at ${this.config.hue.ipAddress}`);
 
             // Verify the group exists
             const groups = await this.api.groups.getAll();
+            if (this.stopped) return false;
             const targetGroup = groups.find(group => group.id === parseInt(this.config.hue.groupId));
             if (!targetGroup) {
                 throw new Error(`Group ${this.config.hue.groupId} not found on Hue Bridge`);
             }
 
             this.group = targetGroup;
+            this.connected = true;
             this.logger.info(`Found Hue Group: "${targetGroup.name}" (${targetGroup.lights.length} lights)`);
             return true;
         } catch (error) {
@@ -60,6 +80,8 @@ class HueController {
             throw new Error('Hue Bridge not connected');
         }
 
+        // The bridge applies group writes to its current membership, not our startup cache.
+        this.group = await this.api.groups.getGroup(parseInt(this.config.hue.groupId));
         // Get detailed light information
         const lights = [];
         for (const lightId of this.group.lights) {
@@ -128,7 +150,7 @@ class HueController {
      * Perform celebration light show
      */
     async celebrateDonation() {
-        if (!this.connected) {
+        if (this.stopped || !this.connected) {
             this.logger.warn('Hue Bridge not connected, skipping celebration');
             return;
         }
@@ -138,59 +160,157 @@ class HueController {
             return;
         }
 
+        const previous = this.activeEffect;
+        this.isCelebrating = true;
+        this.logger.info('Starting Hue celebration light show');
+        const effect = this.createEffect('donation');
+        if (previous) {
+            previous.restore = false;
+            previous.abort.abort();
+        }
+        effect.done = this.runEffect(effect, previous);
+        await effect.ready;
+    }
+
+    /** Admit viewer requests through the same controller on both platforms. */
+    async requestColor(input) {
+        if (!this.config.hue.chatControlEnabled) return { status: 'disabled' };
+        if (this.stopped || !this.connected || !this.group) return { status: 'unavailable' };
+        if (this.activeEffect || this.colorWrite) return { status: 'busy' };
+        const party = typeof input === 'string' && input.trim().toLowerCase() === 'party';
+        const color = party ? null : parseHueColor(input);
+        if (!party && !color) return { status: 'invalid' };
+        const now = Date.now();
+        const retryAfterMs = (party ? this.nextPartyAt : this.nextColorAt) - now;
+        if (retryAfterMs > 0) return { status: 'cooldown', retryAfterMs };
+
+        if (party) {
+            const effect = this.createEffect('party');
+            effect.admittedAt = now;
+            effect.done = this.runEffect(effect);
+            return effect.ready;
+        }
+
+        this.nextColorAt = now + COLOR_COOLDOWN;
+        // Deferring the I/O lets us reserve ownership before the first bridge call.
+        const write = Promise.resolve().then(() => this.setGroupColor(color));
+        this.colorWrite = write;
         try {
-            this.isCelebrating = true;
-            this.logger.info('Starting Hue celebration light show');
+            await write;
+            return { status: 'applied' };
+        } catch (error) {
+            this.logger.warn('Failed to set Hue color', { error: error.message });
+            return { status: 'unavailable' };
+        } finally {
+            this.colorWrite = null;
+        }
+    }
 
-            // Get all lights in the group
-            const lights = await this.getGroupLights();
-            if (lights.length === 0) {
-                this.logger.warn('No lights found in group, skipping celebration');
-                this.isCelebrating = false;
-                return;
+    createEffect(kind) {
+        const effect = { kind, abort: new AbortController(), restore: true, savedStates: null, lights: null };
+        effect.ready = new Promise(resolve => { effect.resolveReady = resolve; });
+        this.activeEffect = effect;
+        return effect;
+    }
+
+    /** Drain earlier writes and transfer the original snapshot on donation takeover. */
+    async runEffect(effect, previous = null) {
+        let started = false;
+        try {
+            if (previous) await previous.done;
+            if (this.colorWrite) await this.colorWrite.catch(() => {});
+            if (previous?.savedStates) {
+                effect.lights = previous.lights;
+                effect.savedStates = previous.savedStates;
+            } else {
+                effect.lights = await this.getGroupLights();
+                if (!effect.lights.length) {
+                    this.logger.warn('No lights found in group, skipping celebration');
+                    return;
+                }
+                // A group party would also change unreadable lights, which we could not restore.
+                if (effect.kind === 'party' && effect.lights.length !== this.group.lights.length) return;
+                effect.savedStates = await this.saveLightStates(effect.lights);
             }
-
-            // Save current states
-            const savedStates = await this.saveLightStates(lights);
-
-            // Start the celebration animation
-            const animationPromise = this.runCelebrationAnimation(lights);
-
-            // Set a timeout to restore states after animation duration
-            setTimeout(async () => {
+            if (effect.abort.signal.aborted) return;
+            started = true;
+            if (effect.kind === 'party') {
+                await this.runPartyAnimation(effect);
+            } else {
+                effect.resolveReady({ status: 'applied' });
+                await this.runCelebrationAnimation(effect.lights, effect.abort.signal);
+            }
+        } catch (error) {
+            const message = effect.kind === 'party' ? 'Hue party failed'
+                : started ? 'Celebration animation failed' : 'Failed to start Hue celebration';
+            this.logger.error(message, { error: error.message });
+        } finally {
+            effect.resolveReady({ status: effect.abort.signal.aborted ? 'busy' : 'unavailable' });
+            if (effect.restore && effect.savedStates) {
                 try {
-                    await this.restoreLightStates(savedStates);
-                    this.logger.info('Hue celebration completed, lights restored');
+                    await this.restoreLightStates(effect.savedStates);
+                    this.logger.info(`Hue ${effect.kind === 'party' ? 'party' : 'celebration'} completed, lights restored`);
                 } catch (error) {
                     this.logger.error('Failed to restore light states after celebration', { error: error.message });
-                } finally {
-                    this.isCelebrating = false;
                 }
-            }, ANIMATION_DURATION);
-
-            // Don't await the animation to avoid blocking donation processing
-            animationPromise.catch(error => {
-                this.logger.error('Celebration animation failed', { error: error.message });
-            });
-
-        } catch (error) {
-            this.logger.error('Failed to start Hue celebration', { error: error.message });
-            this.isCelebrating = false;
+            }
+            // A canceled party must never release the donation's newer ownership.
+            if (this.activeEffect === effect) {
+                this.activeEffect = null;
+                this.isCelebrating = false;
+            }
         }
+    }
+
+    async setGroupColor(color) {
+        const { hue, saturation, brightness } = rgbToHue(color);
+        const state = new v3.lightStates.GroupLightState().hue(hue).saturation(saturation).brightness(brightness);
+        await this.api.groups.setGroupState(this.config.hue.groupId, state);
+    }
+
+    async runPartyAnimation(effect) {
+        const endTime = Date.now() + PARTY_DURATION;
+        let firstFrame = true;
+        while (!effect.abort.signal.aborted && Date.now() < endTime) {
+            await this.setGroupColor(parseHueColor('random'));
+            if (effect.abort.signal.aborted) return;
+            if (firstFrame) {
+                this.nextPartyAt = effect.admittedAt + PARTY_COOLDOWN;
+                effect.resolveReady({ status: 'party' });
+                firstFrame = false;
+            }
+            await this.sleep(Math.min(PARTY_INTERVAL, Math.max(0, endTime - Date.now())), effect.abort.signal);
+        }
+    }
+
+    /** Stop accepting effects, drain I/O, then let the owning effect restore its snapshot. */
+    stop() {
+        if (this.stopPromise) return this.stopPromise;
+        this.stopped = true;
+        const effect = this.activeEffect;
+        effect?.abort.abort();
+        this.stopPromise = (async () => {
+            await this.initialization;
+            if (this.colorWrite) await this.colorWrite.catch(() => {});
+            await effect?.done;
+            this.connected = false;
+        })();
+        return this.stopPromise;
     }
 
     /**
      * Run the celebration animation
      */
-    async runCelebrationAnimation(lights) {
+    async runCelebrationAnimation(lights, signal) {
         const endTime = Date.now() + ANIMATION_DURATION;
 
-        while (Date.now() < endTime) {
+        while (!signal?.aborted && Date.now() < endTime) {
             // Flash all lights with random colors
             await this.flashLightsWithRandomColors(lights);
 
             // Wait before next flash
-            await this.sleep(FLASH_INTERVAL);
+            if (signal) await this.sleep(FLASH_INTERVAL, signal);
+            else await this.sleep(FLASH_INTERVAL);
         }
     }
 
@@ -220,8 +340,17 @@ class HueController {
     /**
      * Utility: Sleep for specified milliseconds
      */
-    sleep(ms) {
-        return new Promise(resolve => setTimeout(resolve, ms));
+    sleep(ms, signal) {
+        if (signal?.aborted) return Promise.resolve();
+        return new Promise(resolve => {
+            const finish = () => {
+                clearTimeout(timer);
+                signal?.removeEventListener('abort', finish);
+                resolve();
+            };
+            const timer = setTimeout(finish, ms);
+            signal?.addEventListener('abort', finish, { once: true });
+        });
     }
 }
 

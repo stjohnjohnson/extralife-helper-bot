@@ -24,6 +24,10 @@ const moneyFormatter = new Intl.NumberFormat('en-US', {
 async function handleCommand(command, platform, context, config, clients, logger, hueController = null) {
     // Convert command to lowercase for case-insensitive matching
     const normalizedCommand = command.toLowerCase();
+    const colorCommand = normalizedCommand.trim().match(/^color(?:\s+([\s\S]*))?$/);
+    if (colorCommand) {
+        return await handleColorCommand(colorCommand[1]?.trim() || '', platform, context, config, hueController, logger);
+    }
 
     // Check for built-in commands first
     switch (normalizedCommand) {
@@ -50,6 +54,39 @@ async function handleCommand(command, platform, context, config, clients, logger
 
     // Unknown command
     return null;
+}
+
+/** Translate the controller's shared admission result into a chat response. */
+async function handleColorCommand(input, platform, context, config, hueController, logger) {
+    try {
+        const result = !config.hue?.chatControlEnabled ? { status: 'disabled' }
+            : !hueController ? { status: 'unavailable' } : await hueController.requestColor(input);
+        logger.info('Hue color command', eventMetadata('command', {
+            command: 'color', platform, username: context.username, argument: input, status: result.status
+        }));
+        switch (result.status) {
+        case 'applied':
+            return null;
+        case 'party':
+            return 'Party started! Lights will return to their previous state afterward.';
+        case 'disabled':
+            return 'Chat light control is disabled.';
+        case 'busy':
+            return 'Lights are busy. Please try again after the current effect finishes.';
+        case 'cooldown': {
+            const seconds = Math.ceil(result.retryAfterMs / 1000);
+            const action = input === 'party' ? 'party' : 'color change';
+            return `Please wait ${seconds} ${seconds === 1 ? 'second' : 'seconds'} before another ${action}.`;
+        }
+        case 'invalid':
+            return 'Use !color <CSS name>, !color #RRGGBB, !color random, or !color party.';
+        default:
+            return 'Hue lights are unavailable right now. Please try again later.';
+        }
+    } catch (error) {
+        logger.error('Error executing color command', { error: error.message });
+        return 'Hue lights are unavailable right now. Please try again later.';
+    }
 }
 
 /**
@@ -175,6 +212,7 @@ async function handleTestLightsCommand(platform, context, config, hueController,
 
 module.exports = {
     handleCommand,
+    handleColorCommand,
     handleGoalCommand,
     handlePromoteCommand,
     handleTestLightsCommand

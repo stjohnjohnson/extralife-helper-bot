@@ -46,6 +46,11 @@ function parseConfiguration() {
     const { customResponses, customResponseErrors } = parseCustomResponses(process.env.CUSTOM_RESPONSES);
     configErrors.push(...customResponseErrors);
 
+    const hueChatFlag = process.env.HUE_CHAT_CONTROL_ENABLED;
+    if (hueChatFlag !== undefined && !['true', 'false'].includes(hueChatFlag)) {
+        configErrors.push('HUE_CHAT_CONTROL_ENABLED must be true or false');
+    }
+
     const interval = key => {
         const raw = process.env[key];
         const value = raw === undefined ? 60 : Number(raw);
@@ -98,6 +103,7 @@ function parseConfiguration() {
             messageTemplate: process.env.DISCORD_GAME_UPDATE_MESSAGE || 'Now playing {game}!'
         },
         hue: {
+            chatControlEnabled: hueChatFlag === 'true',
             username: process.env.HUE_USERNAME,
             ipAddress: process.env.HUE_IPADDRESS,
             groupId: process.env.HUE_GROUPID
@@ -127,7 +133,7 @@ function parseAdminUsers(adminString) {
 function parseCustomResponses(customResponseString) {
     const customResponses = new Map();
     const errors = [];
-    const builtInCommands = ['goal', 'promote']; // List of built-in commands
+    const builtInCommands = ['goal', 'promote', 'color']; // List of built-in commands
 
     if (!customResponseString) {
         return { customResponses, customResponseErrors: errors };

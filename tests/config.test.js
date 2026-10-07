@@ -68,6 +68,12 @@ describe('Config Module', () => {
     });
 
     describe('parseCustomResponses', () => {
+        test('reserves color even when chat lighting is disabled', () => {
+            const result = parseCustomResponses('color:"a custom response"');
+            expect(result.customResponses.has('color')).toBe(false);
+            expect(result.customResponseErrors).toHaveLength(1);
+            expect(result.customResponseErrors[0]).toContain('conflicts with built-in command');
+        });
         test('should parse valid custom responses', () => {
             const input = 'donate:"Check out my donation link",discord:"Join our Discord server"';
             const result = parseCustomResponses(input);
@@ -182,6 +188,16 @@ describe('Config Module', () => {
                     delete process.env[key];
                 }
             });
+        });
+
+        test.each([[undefined, false], ['false', false], ['true', true]])('parses Hue chat opt-in %s', (flag, expected) => {
+            if (flag !== undefined) process.env.HUE_CHAT_CONTROL_ENABLED = flag;
+            expect(parseConfiguration().hue.chatControlEnabled).toBe(expected);
+        });
+
+        test.each(['', 'yes', '1', 'TRUE'])('rejects invalid Hue chat opt-in %s', flag => {
+            process.env.HUE_CHAT_CONTROL_ENABLED = flag;
+            expect(parseConfiguration().errors).toContain('HUE_CHAT_CONTROL_ENABLED must be true or false');
         });
 
         test('should return valid config when all required vars present', () => {
