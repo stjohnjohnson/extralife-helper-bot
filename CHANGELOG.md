@@ -1,3 +1,20 @@
+# [4.6.0](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v4.5.0...v4.6.0) (2026-10-07)
+
+
+### Bug Fixes
+
+* animate Discord avatars only while speaking ([375eff1](https://github.com/stjohnjohnson/extralife-helper-bot/commit/375eff107feed60ae0992c98107e7d42f7f8e6af))
+* exclude helper from voice participation counts ([a43175d](https://github.com/stjohnjohnson/extralife-helper-bot/commit/a43175dbab18ee2e0dc294e5a6109cd7297e08ec))
+* recover voice overlay across Discord outages and shutdown ([25b3811](https://github.com/stjohnjohnson/extralife-helper-bot/commit/25b38119349871d932d83d9062f5699422bb320c))
+
+
+### Features
+
+* configure optional Discord voice overlay ([c347d73](https://github.com/stjohnjohnson/extralife-helper-bot/commit/c347d7386d316aaf96996aafe73c59634317b929))
+* render responsive OBS voice avatars ([34cdc59](https://github.com/stjohnjohnson/extralife-helper-bot/commit/34cdc59edfb01b5d62260510928734f5c50f326e))
+* serve voice overlay snapshots over the local network ([4acec0e](https://github.com/stjohnjohnson/extralife-helper-bot/commit/4acec0ed99cbd998a11851028c848e5a93ef9769))
+* track live room avatars and speaking activity ([2d8b8f2](https://github.com/stjohnjohnson/extralife-helper-bot/commit/2d8b8f269483e4dc41cf3d2cf932adf841ce2410))
+
 # [4.5.0](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v4.4.0...v4.5.0) (2026-10-02)
 
 
