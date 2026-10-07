@@ -85,3 +85,19 @@ test('backpressured clients disconnect instead of accumulating snapshots', async
         expect(state.emitter.listenerCount('snapshot')).toBe(0);
     } finally { write.mockRestore(); await server.stop(); }
 });
+
+test('shutdown closes sockets with incomplete HTTP headers', async () => {
+    const net = require('node:net');
+    const server = await startOverlayServer({ config, state: stateFixture(), logger });
+    const socket = net.connect({ host: '127.0.0.1', port: server.address.port });
+    let timeout;
+    try {
+        await new Promise((resolve, reject) => { socket.once('connect', resolve); socket.once('error', reject); });
+        socket.write('GET /voice HTTP/1.1\r\nHost:');
+        await new Promise(resolve => setTimeout(resolve, 10));
+        await Promise.race([
+            server.stop(),
+            new Promise((resolve, reject) => { timeout = setTimeout(() => reject(new Error('Shutdown retained incomplete request socket')), 300); })
+        ]);
+    } finally { clearTimeout(timeout); socket.destroy(); await server.stop(); }
+});

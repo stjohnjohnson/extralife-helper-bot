@@ -44,7 +44,7 @@ async function startOverlayServer({ config, state }) {
             if (!stopping) stopping = new Promise((resolve, reject) => {
                 for (const [client, cleanup] of clients) { cleanup(); client.destroy(); }
                 server.close(error => error ? reject(error) : resolve());
-                server.closeIdleConnections();
+                server.closeAllConnections();
             });
             return stopping;
         }

@@ -3,7 +3,7 @@ const { createOverlayState } = require('../src/voiceOverlay/state');
 const voice = require('@discordjs/voice');
 jest.mock('@discordjs/voice', () => ({
     joinVoiceChannel: jest.fn(), entersState: jest.fn(),
-    VoiceConnectionStatus: { Ready: 'ready', Disconnected: 'disconnected', Destroyed: 'destroyed' },
+    VoiceConnectionStatus: { Ready: 'ready', Disconnected: 'disconnected', Destroyed: 'destroyed', Signalling: 'signalling', Connecting: 'connecting' },
     VoiceConnectionDisconnectReason: { WebSocketClose: 0, Manual: 3 }
 }));
 const { startOverlayConnection } = require('../src/voiceOverlay/connection');
@@ -80,4 +80,60 @@ test('stop aborts pending readiness and ignores late events', async () => {
     expect(s.state.getSnapshot().ready).toBe(false);
     expect(s.client.listenerCount('voiceStateUpdate')).toBe(1); // only roster state remains
     s.state.stop(); expect(jest.getTimerCount()).toBe(0);
+});
+
+
+test('gateway destruction recreates the connection and detaches the old receiver', async () => {
+    const s = setup(); await s.controller.ready;
+    const replacement = new EventEmitter();
+    replacement.state = { status: 'ready' };
+    replacement.receiver = { speaking: new EventEmitter() };
+    replacement.rejoin = jest.fn(() => true);
+    replacement.destroy = jest.fn(() => { replacement.state = { status: 'destroyed' }; });
+    voice.joinVoiceChannel.mockReturnValue(replacement);
+    voice.entersState.mockResolvedValue(replacement);
+    s.connection.state = { status: 'destroyed' };
+    s.connection.emit('stateChange', { status: 'ready' }, s.connection.state);
+    expect(s.state.getSnapshot().ready).toBe(false);
+    await jest.advanceTimersByTimeAsync(1000);
+    expect(voice.joinVoiceChannel).toHaveBeenCalledTimes(2);
+    expect(s.connection.receiver.speaking.listenerCount('start')).toBe(0);
+    expect(s.state.getSnapshot().ready).toBe(true);
+    replacement.receiver.speaking.emit('start', 'guest');
+    expect(s.state.getSnapshot().members[0].speaking).toBe(true);
+    await s.controller.stop(); s.state.stop();
+    expect(replacement.receiver.speaking.listenerCount('start')).toBe(0);
+    expect(jest.getTimerCount()).toBe(0);
+});
+
+test('guild unavailability clears the roster until the guild becomes available', async () => {
+    const s = setup(); await s.controller.ready;
+    s.connection.receiver.speaking.emit('start', 'guest');
+    s.client.emit('guildUnavailable', { id: 'other-guild' });
+    expect(s.state.getSnapshot().ready).toBe(true);
+    s.client.emit('guildUnavailable', s.channel.guild);
+    expect(s.state.getSnapshot()).toMatchObject({ ready: false, members: [] });
+    await jest.advanceTimersByTimeAsync(30000);
+    s.client.emit('guildAvailable', s.channel.guild);
+    expect(s.state.getSnapshot()).toMatchObject({ ready: true, members: [{ id: 'guest', speaking: false }] });
+    await s.controller.stop(); s.state.stop();
+    expect(s.client.listenerCount('guildUnavailable')).toBe(0);
+    expect(s.client.listenerCount('guildAvailable')).toBe(0);
+    expect(jest.getTimerCount()).toBe(0);
+});
+
+test.each(['signalling', 'connecting'])('a stalled %s transition has a bounded recovery wait', async status => {
+    const s = setup(); await s.controller.ready;
+    s.connection.state = { status };
+    s.connection.emit('stateChange', { status: 'ready' }, s.connection.state);
+    expect(s.state.getSnapshot().ready).toBe(false);
+    await jest.advanceTimersByTimeAsync(20999);
+    expect(s.connection.rejoin).not.toHaveBeenCalled();
+    await jest.advanceTimersByTimeAsync(1);
+    expect(s.connection.rejoin).toHaveBeenCalledTimes(1);
+    s.connection.state = { status: 'ready' };
+    s.connection.emit('stateChange', { status }, s.connection.state);
+    expect(s.state.getSnapshot().ready).toBe(true);
+    await s.controller.stop(); s.state.stop();
+    expect(jest.getTimerCount()).toBe(0);
 });
