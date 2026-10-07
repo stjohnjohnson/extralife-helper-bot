@@ -285,3 +285,7 @@ The bot automatically manages Twitch access tokens when game update notification
 Discord follows `DISCORD_GAME_UPDATE_USER_ID` in the guild containing `DISCORD_DONATION_CHANNEL`. The bot needs access to that guild and voice channels; its existing voice-state intent supplies participation data. Total humans include the streamer, companions exclude the streamer, and bots are separate. The new voice events retain counts and guild/channel identifiers without member names or user IDs. No audio or speaking activity is recorded.
 
 Voice samples occur at startup, on relevant count/channel changes, and periodically. Only periodic observations contribute to average, median, peak, start, and end summaries; all observations appear on the timeline. Reports show cadence, sample sizes, coverage, gaps, and service failures. Coverage is the union of successful periodic sampling intervals clipped to each window. Missing data is unavailable rather than zero; confirmed disconnection and offline Twitch samples are valid zero observations. Existing historical logs retain their original deterministic reports.
+
+### OBS voice overlay
+
+The optional voice overlay uses the configured live room and excludes the game-update target and helper bot. Enable it with `VOICE_OVERLAY_ENABLED=true`; `VOICE_OVERLAY_HOST` defaults to `0.0.0.0` for LAN access and `VOICE_OVERLAY_PORT` to `3000`. The helper joins self-muted to observe speaking activity without recording audio. The helper is excluded from voice participation counts.

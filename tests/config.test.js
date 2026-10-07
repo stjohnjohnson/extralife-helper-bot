@@ -421,3 +421,37 @@ describe('Config Module', () => {
         });
     });
 });
+
+describe('optional voice overlay configuration', () => {
+    let previous;
+    beforeEach(() => {
+        previous = { ...process.env };
+        for (const key of ['VOICE_OVERLAY_ENABLED', 'VOICE_OVERLAY_HOST', 'VOICE_OVERLAY_PORT']) delete process.env[key];
+    });
+    afterEach(() => { process.env = previous; });
+    test('defaults off with LAN defaults', () => {
+        expect(parseConfiguration().voiceOverlay).toEqual({ enabled: false, host: '0.0.0.0', port: 3000 });
+    });
+    test('enabled defaults reuse existing channel and target configuration', () => {
+        process.env.VOICE_OVERLAY_ENABLED = 'true';
+        expect(parseConfiguration().voiceOverlay).toEqual({ enabled: true, host: '0.0.0.0', port: 3000 });
+    });
+    test('accepts explicit host and port', () => {
+        Object.assign(process.env, { VOICE_OVERLAY_ENABLED: 'true', VOICE_OVERLAY_HOST: '127.0.0.1', VOICE_OVERLAY_PORT: '4321' });
+        expect(parseConfiguration().voiceOverlay).toEqual({ enabled: true, host: '127.0.0.1', port: 4321 });
+    });
+    test.each(['0', '65536', '3.5', '', 'abc', '1e3'])('rejects invalid enabled port %s', value => {
+        Object.assign(process.env, { VOICE_OVERLAY_ENABLED: 'true', VOICE_OVERLAY_PORT: value });
+        expect(parseConfiguration().errors.some(error => error.startsWith('VOICE_OVERLAY_PORT'))).toBe(true);
+    });
+    test('rejects malformed enablement and empty enabled host', () => {
+        process.env.VOICE_OVERLAY_ENABLED = 'yes';
+        expect(parseConfiguration().errors.some(error => error.startsWith('VOICE_OVERLAY_ENABLED'))).toBe(true);
+        Object.assign(process.env, { VOICE_OVERLAY_ENABLED: 'true', VOICE_OVERLAY_HOST: '' });
+        expect(parseConfiguration().errors.some(error => error.startsWith('VOICE_OVERLAY_HOST'))).toBe(true);
+    });
+    test('disabled feature ignores unused invalid network settings', () => {
+        Object.assign(process.env, { VOICE_OVERLAY_ENABLED: 'false', VOICE_OVERLAY_HOST: '', VOICE_OVERLAY_PORT: 'abc' });
+        expect(parseConfiguration().errors.some(error => error.startsWith('VOICE_OVERLAY'))).toBe(false);
+    });
+});
