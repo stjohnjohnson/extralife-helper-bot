@@ -15,10 +15,14 @@ jobs:
         with:
           node-version: '24'
           cache: 'npm'
+      - name: Install Lua companion test runtime
+        run: sudo apt-get update && sudo apt-get install -y lua5.4
       - run: npm ci
       - run: npm run audit:prod
       - run: npm run lint
       - run: npm test
+        env:
+          LUA_BIN: lua5.4
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
       - name: Build Docker image
