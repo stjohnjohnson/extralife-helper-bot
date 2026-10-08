@@ -2,6 +2,8 @@ const { parseHueColor, rgbToHue } = require('../src/hueColors.js');
 
 describe('Hue chat colors', () => {
     test.each([
+        ['red', { red: 255, green: 0, blue: 0 }],
+        ['blue', { red: 0, green: 0, blue: 255 }],
         ['lightblue', { red: 173, green: 216, blue: 230 }],
         ['  LIGHTBLUE  ', { red: 173, green: 216, blue: 230 }],
         ['#112233', { red: 17, green: 34, blue: 51 }],
@@ -17,7 +19,7 @@ describe('Hue chat colors', () => {
 
     test.each([undefined, null, 123, '', ' ', 'party', 'unknown', '#abc', '#11223344',
         '#gg2233', '112233', 'red blue', 'red\nblue', 'transparent', 'currentcolor',
-        'constructor', '__proto__', 'toString'])('rejects unsupported color %s', input => {
+        'constructor', '__proto__', 'toString', 'default', '__esModule'])('rejects unsupported color %s', input => {
         expect(parseHueColor(input)).toBeNull();
     });
 
