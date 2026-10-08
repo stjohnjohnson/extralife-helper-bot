@@ -42,13 +42,14 @@ test.each([
     ['density-rotation', 'rotation=rotation+snapshot.render.maxHearts', 'rotation=0'],
     ['cleanup', 'pcall(entry.object.destroy)', 'pcall(function() end)'],
     ['movement', 'object.image.anchor("center",true)', 'object.image.anchor("bottom left",true)'],
-    ['crowd', 'app.platformServiceSettings.SetUserLeave(id)', 'app.platformServiceSettings.SetUserLeave(900099)']
+    ['crowd', 'app.platformServiceSettings.SetUserLeave(id)', 'app.platformServiceSettings.SetUserLeave(900099)'],
+    ['backoff', 'retryDelay=math.min(30,retryDelay*2)', 'retryDelay=math.min(60,retryDelay*2)']
 ])('Lua regression detects mutation %s / %s', (scenario, original, broken) => {
     const directory = mkdtempSync(join(tmpdir(), 'sa-mutation-'));
     try {
         const source = readFileSync(resolve('integrations/stream-avatars/companion.lua'), 'utf8');
         if (!source.includes(original)) throw new Error('Mutation target moved; update the behavioral mutation');
-        const script = join(directory, 'companion.lua'); writeFileSync(script, source.replace(original, broken));
+        const script = join(directory, 'companion.lua'); writeFileSync(script, source.replaceAll(original, broken));
         const result = run(script, scenario);
         expect(result.error).toBeUndefined(); expect(result.status).toBe(1); expect(result.stderr).toMatch(/assertion failed|must|density|disconnect/);
     } finally { rmSync(directory, { recursive: true, force: true }); }

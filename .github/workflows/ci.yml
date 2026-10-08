@@ -58,6 +58,7 @@ jobs:
           LUA_SHA256: ${{ matrix.lua.sha256 }}
         run: |
           set -eu
+          sudo apt-get update && sudo apt-get install -y libreadline-dev
           cd "$RUNNER_TEMP"
           curl --fail --silent --show-error "https://www.lua.org/ftp/lua-$LUA_VERSION.tar.gz" -o lua.tar.gz
           echo "$LUA_SHA256  lua.tar.gz" | sha256sum -c -

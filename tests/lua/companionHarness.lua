@@ -135,7 +135,9 @@ elseif scenario=="async-open" then
 elseif scenario=="backoff" then
     assert(connectedCount==1); tick(0.9); assert(connectedCount==1); tick(0.1); assert(connectedCount==2)
     tick(1.9); assert(connectedCount==2); tick(0.1); assert(connectedCount==3)
-    tick(100); local before=connectedCount; tick(29); assert(connectedCount<=before+1)
+    tick(4); assert(connectedCount==4); tick(8); assert(connectedCount==5); tick(16); assert(connectedCount==6)
+    tick(29.99); assert(connectedCount==6); tick(0.02); assert(connectedCount==7)
+    tick(29.99); assert(connectedCount==7); tick(0.02); assert(connectedCount==8)
 elseif scenario=="mailbox-burst" then
     addUser(1); raw(codec.encode(snapshot())); raw(codec.encode(hearts())); raw(codec.encode({version=1,type="clear",mode="production",generation=2})); tick(); assert(count()==0)
     raw(codec.encode(snapshot("rehearsal",3))); raw(codec.encode(hearts("later",3))); tick(); assert(count()==1)
