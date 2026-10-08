@@ -46,6 +46,13 @@ function parseConfiguration() {
     const { customResponses, customResponseErrors } = parseCustomResponses(process.env.CUSTOM_RESPONSES);
     configErrors.push(...customResponseErrors);
 
+    const rawMarkerThreshold = process.env.STREAM_MARKER_DONATION_THRESHOLD?.trim();
+    const thresholdCents = rawMarkerThreshold ? Math.round(Number(rawMarkerThreshold) * 100) : null;
+    if (rawMarkerThreshold && (!/^\d+(\.\d{1,2})?$/.test(rawMarkerThreshold) ||
+        !Number.isSafeInteger(thresholdCents) || thresholdCents <= 0)) {
+        configErrors.push('STREAM_MARKER_DONATION_THRESHOLD must be a positive USD amount with up to two decimal places');
+    }
+
     const hueChatFlag = process.env.HUE_CHAT_CONTROL_ENABLED;
     if (hueChatFlag !== undefined && !['true', 'false'].includes(hueChatFlag)) {
         configErrors.push('HUE_CHAT_CONTROL_ENABLED must be true or false');
@@ -75,6 +82,7 @@ function parseConfiguration() {
     if (enabled && !host.trim()) configErrors.push('VOICE_OVERLAY_HOST must not be empty');
     return {
         voiceOverlay: { enabled, host, port },
+        streamMarkers: { donationThresholdCents: thresholdCents },
         isValid: configErrors.length === 0,
         errors: configErrors,
         participantId: process.env.EXTRALIFE_PARTICIPANT_ID,

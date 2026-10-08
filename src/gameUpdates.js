@@ -33,6 +33,7 @@ function makeTwitchApiRequest(path, options = {}, clientId, accessToken) {
             port: 443,
             path: `/helix${path}`,
             method: options.method || 'GET',
+            ...(options.signal ? { signal: options.signal } : {}),
             headers: {
                 'Client-ID': clientId,
                 'Authorization': `Bearer ${accessToken}`,
@@ -55,7 +56,7 @@ function makeTwitchApiRequest(path, options = {}, clientId, accessToken) {
                     }
 
                     if (!data) {
-                        reject(new Error(`Empty response with status ${res.statusCode}`));
+                        reject(Object.assign(new Error(`Empty response with status ${res.statusCode}`), { statusCode: res.statusCode }));
                         return;
                     }
 
@@ -63,10 +64,10 @@ function makeTwitchApiRequest(path, options = {}, clientId, accessToken) {
                     if (res.statusCode >= 200 && res.statusCode < 300) {
                         resolve(parsed);
                     } else {
-                        reject(new Error(`API Error ${res.statusCode}: ${parsed.message || data}`));
+                        reject(Object.assign(new Error(`API Error ${res.statusCode}: ${parsed.message || data}`), { statusCode: res.statusCode }));
                     }
                 } catch (err) {
-                    reject(new Error(`Failed to parse response (${data.length} chars): "${data.substring(0, 200)}" - ${err.message}`));
+                    reject(Object.assign(new Error(`Failed to parse response (${data.length} chars): "${data.substring(0, 200)}" - ${err.message}`), { statusCode: res.statusCode }));
                 }
             });
         });
@@ -90,7 +91,7 @@ function makeTwitchApiRequest(path, options = {}, clientId, accessToken) {
  * @param {string} refreshToken - Refresh token
  * @returns {Promise<Object>} Token response with access_token and refresh_token
  */
-async function refreshUserToken(clientId, clientSecret, refreshToken) {
+async function refreshUserToken(clientId, clientSecret, refreshToken, signal) {
     return new Promise((resolve, reject) => {
         const postData = `client_id=${clientId}&client_secret=${clientSecret}&grant_type=refresh_token&refresh_token=${refreshToken}`;
 
@@ -99,6 +100,7 @@ async function refreshUserToken(clientId, clientSecret, refreshToken) {
             port: 443,
             path: '/oauth2/token',
             method: 'POST',
+            ...(signal ? { signal } : {}),
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
                 'Content-Length': Buffer.byteLength(postData)
@@ -139,7 +141,7 @@ async function refreshUserToken(clientId, clientSecret, refreshToken) {
  * @param {Object} logger - Logger instance
  * @returns {Promise<string>} Valid access token
  */
-async function getValidAccessToken(config, logger) {
+async function getValidAccessToken(config, logger, signal) {
     // Require refresh token and client secret for channel management
     if (!config.twitch.clientSecret || !config.twitch.refreshToken) {
         throw new Error('TWITCH_CLIENT_SECRET and TWITCH_REFRESH_TOKEN are required for channel management. Please set both environment variables.');
@@ -157,7 +159,8 @@ async function getValidAccessToken(config, logger) {
         const refreshResponse = await refreshUserToken(
             config.twitch.clientId,
             config.twitch.clientSecret,
-            config.twitch.refreshToken
+            config.twitch.refreshToken,
+            signal
         );
 
         // Cache new token in memory
@@ -184,8 +187,8 @@ async function getValidAccessToken(config, logger) {
  * @param {string} accessToken - OAuth access token
  * @returns {Promise<string>} Broadcaster ID
  */
-async function getBroadcasterIdFromChannel(channelName, clientId, accessToken) {
-    const response = await makeTwitchApiRequest(`/users?login=${channelName}`, {}, clientId, accessToken);
+async function getBroadcasterIdFromChannel(channelName, clientId, accessToken, signal) {
+    const response = await makeTwitchApiRequest(`/users?login=${channelName}`, signal ? { signal } : {}, clientId, accessToken);
     if (!response.data || response.data.length === 0) {
         throw new Error(`Channel "${channelName}" not found`);
     }

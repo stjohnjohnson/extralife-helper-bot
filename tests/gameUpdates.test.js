@@ -817,3 +817,67 @@ describe('Game Updates Module', () => {
         });
     });
 });
+
+
+describe('abortable Twitch requests', () => {
+    const https = require('https');
+    const { EventEmitter } = require('events');
+    const { makeTwitchApiRequest } = require('../src/gameUpdates');
+    let requestSpy;
+    afterEach(() => requestSpy.mockRestore());
+
+    test('passes AbortSignal to native HTTPS so a marker can be cancelled', async () => {
+        const controller = new AbortController();
+        requestSpy = jest.spyOn(https, 'request').mockImplementation((options) => {
+            const req = new EventEmitter();
+            req.end = () => options.signal.addEventListener('abort', () => req.emit('error', new Error('aborted')));
+            req.write = jest.fn();
+            return req;
+        });
+        const operation = makeTwitchApiRequest('/streams/markers', { signal: controller.signal }, 'client', 'token');
+        expect(requestSpy.mock.calls[0][0].signal).toBe(controller.signal);
+        controller.abort();
+        await expect(operation).rejects.toThrow('aborted');
+    });
+
+    test('cancels token refresh and broadcaster lookup before a marker POST', async () => {
+        const { getBroadcasterIdFromChannel } = require('../src/gameUpdates');
+        const controller = new AbortController();
+        requestSpy = jest.spyOn(https, 'request').mockImplementation((options, callback) => {
+            const req = new EventEmitter();
+            req.write = jest.fn();
+            req.end = () => {
+                const res = new EventEmitter();
+                res.statusCode = 200;
+                callback(res);
+                res.emit('data', options.hostname === 'id.twitch.tv' ?
+                    JSON.stringify({ access_token: 'fresh-token', expires_in: 3600 }) :
+                    JSON.stringify({ data: [{ id: 'broadcaster' }] }));
+                res.emit('end');
+            };
+            return req;
+        });
+        // Fresh module bypasses token cache populated by other test cases.
+        let uncachedGetToken;
+        jest.isolateModules(() => { uncachedGetToken = require('../src/gameUpdates').getValidAccessToken; });
+        await uncachedGetToken({ twitch: { clientId: 'client', clientSecret: 'secret', refreshToken: 'refresh' } }, { info: jest.fn(), error: jest.fn() }, controller.signal);
+        expect(requestSpy.mock.calls[0][0].signal).toBe(controller.signal);
+        await getBroadcasterIdFromChannel('streamer', 'client', 'token', controller.signal);
+        expect(requestSpy.mock.calls[1][0].signal).toBe(controller.signal);
+    });
+
+    test.each([['{"message":"offline"}', 404], ['', 429]])('exposes structured HTTP status for %s', async (body, statusCode) => {
+        requestSpy = jest.spyOn(https, 'request').mockImplementation((options, callback) => {
+            const req = new EventEmitter();
+            req.end = () => {
+                const res = new EventEmitter();
+                res.statusCode = statusCode;
+                callback(res);
+                res.emit('data', body);
+                res.emit('end');
+            };
+            return req;
+        });
+        await expect(makeTwitchApiRequest('/streams/markers', {}, 'client', 'token')).rejects.toMatchObject({ statusCode });
+    });
+});
