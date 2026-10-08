@@ -24,6 +24,16 @@ async function createSessionController({ store, clock, mode, channel, graceMs, c
             try { await store.save(next); } catch (error) { recoveryRequired = true; throw error; }
             state = next; publish();
         }); },
+        rebaseRehearsalClock(atMs) { return enqueue(async () => {
+            if (mode !== 'rehearsal' || !Number.isSafeInteger(atMs) || atMs < (state.startedAtMs ?? 0)) throw new Error('Invalid rehearsal clock baseline');
+            const next = structuredClone(state); next.revision++; next.recoveryBaselineMs = atMs;
+            next.offlineSinceMs = null; next.lastOfflineAtMs = null;
+            if (next.latestObservation) {
+                next.latestObservation.observedAtMs = atMs;
+                if (next.latestObservation.status === 'online') next.latestObservation.startedAtMs = next.startedAtMs;
+            }
+            await store.save(next); state = next; publish();
+        }); },
         reset() { return enqueue(async () => { state = await store.archiveAndReset(); recoveryRequired = false; publish(); }); },
         recover() { return enqueue(async () => {
             const recovered = await store.recoverLastBackup();

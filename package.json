@@ -11,7 +11,8 @@
     "test:coverage": "npm test -- --coverage",
     "audit:prod": "npm audit --omit=dev --audit-level=high",
     "start": "node app.js",
-    "semantic-release": "semantic-release"
+    "semantic-release": "semantic-release",
+    "sa:rehearse": "node scripts/sa-rehearse.js"
   },
   "repository": {
     "type": "git",

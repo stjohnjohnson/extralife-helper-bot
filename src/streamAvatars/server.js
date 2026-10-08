@@ -66,6 +66,8 @@ async function startBridgeServer({ config, getSnapshot, onClientMessage = async 
         if (signal?.aborted) throw new Error('Stream Avatars startup aborted');
     } catch (error) { await stop(); throw error; }
     return { address: server.address(),
+        getStatus: () => ({ authenticatedClients: [...clients.values()].filter(record => record.authenticated).length }),
+        disconnectClients() { for (const socket of clients.keys()) socket.terminate(); },
         send(message) { validateServerMessage(message); let delivered = false; for (const [socket, record] of clients) delivered = sendTo(socket, record, message) || delivered; return delivered; },
         stop };
 }
