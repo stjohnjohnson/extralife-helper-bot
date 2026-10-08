@@ -1,3 +1,16 @@
+# [4.8.0](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v4.7.1...v4.8.0) (2026-10-08)
+
+
+### Bug Fixes
+
+* recover donation markers from startup and transport failures ([4bfe119](https://github.com/stjohnjohnson/extralife-helper-bot/commit/4bfe119a36006ffbe63f49723a672abc340f78a9))
+
+
+### Features
+
+* add configurable donation marker service ([c513822](https://github.com/stjohnjohnson/extralife-helper-bot/commit/c5138221b240dc800861658611b94326774c79bb))
+* create markers for newly announced large donations ([e517e6e](https://github.com/stjohnjohnson/extralife-helper-bot/commit/e517e6e68cac0cd987d49f39f2f464e9b1223ea5))
+
 ## [4.7.1](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v4.7.0...v4.7.1) (2026-10-08)
 
 
