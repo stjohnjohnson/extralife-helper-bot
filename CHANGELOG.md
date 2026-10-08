@@ -1,3 +1,10 @@
+## [4.7.1](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v4.7.0...v4.7.1) (2026-10-08)
+
+
+### Bug Fixes
+
+* left-align Discord voice overlay icons ([6fc4120](https://github.com/stjohnjohnson/extralife-helper-bot/commit/6fc412019641d7800339eadb2abb8ee722f77d76))
+
 # [4.7.0](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v4.6.0...v4.7.0) (2026-10-07)
 
 
