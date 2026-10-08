@@ -1,6 +1,6 @@
 :root { --avatar-size: 48px; --avatar-gap: 8px; --avatar-ring: 3px; --speaking-accent: #20dbe2; }
 html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: transparent; }
-#voice-overlay { display: flex; align-items: center; justify-content: center; gap: var(--avatar-gap); padding: 5px; box-sizing: border-box; width: 100%; height: 100%; }
+#voice-overlay { display: flex; align-items: center; justify-content: flex-start; gap: var(--avatar-gap); padding: 5px; box-sizing: border-box; width: 100%; height: 100%; }
 .avatar { position: relative; flex: 0 0 auto; width: calc(var(--avatar-size) + 2 * var(--avatar-ring)); height: calc(var(--avatar-size) + 2 * var(--avatar-ring)); border: var(--avatar-ring) solid transparent; box-sizing: border-box; border-radius: 50%; opacity: .6; background: #263945; transition: opacity 120ms, border-color 120ms; }
 .avatar img { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
 .avatar img[hidden] { display: none; }

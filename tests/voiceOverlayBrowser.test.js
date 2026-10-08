@@ -1,4 +1,6 @@
 /** @jest-environment jsdom */
+const fs = require('node:fs');
+const path = require('node:path');
 const { mountOverlay } = require('../src/voiceOverlay/browser');
 let root; let cleanup; let sources;
 class Source extends global.window.EventTarget {
@@ -18,6 +20,19 @@ beforeEach(() => {
     cleanup = mountOverlay({ root, window: global.window });
 });
 afterEach(() => { cleanup?.(); jest.useRealTimers(); });
+test('avatars align left within the overlay while remaining vertically centered', () => {
+    const stylesheet = global.document.createElement('style');
+    stylesheet.textContent = fs.readFileSync(path.join(__dirname, '../src/voiceOverlay/overlay.css'), 'utf8');
+    global.document.head.appendChild(stylesheet);
+    try {
+        sources[0].send('snapshot', snapshot(1, [guest('one'), guest('two')]));
+        const style = global.window.getComputedStyle(root);
+        expect(style.display).toBe('flex');
+        expect(style.justifyContent).toBe('flex-start');
+        expect(style.alignItems).toBe('center');
+        expect(style.paddingLeft).toBe('5px');
+    } finally { stylesheet.remove(); }
+});
 test('keyed nodes remain stable while simultaneous speaking classes update', () => {
     sources[0].send('snapshot', snapshot(1, [guest('one'), guest('two')]));
     const first = root.children[0];
