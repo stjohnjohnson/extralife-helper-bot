@@ -123,6 +123,17 @@ describe('Twitch API integration boundaries', () => {
         }, logger)).rejects.toThrow('Token refresh failed: Failed to refresh token: invalid refresh');
     });
 
+    test.each(['token refresh', 'category search'])('preserves the transport error during %s', async operation => {
+        const cause = new Error('socket closed');
+        queueResponses({ requestError: cause });
+        const { getValidAccessToken, searchGameCategory } = loadModule();
+        const result = operation === 'token refresh'
+            ? getValidAccessToken({ twitch: { clientId: 'client', clientSecret: 'secret', refreshToken: 'refresh' } }, logger)
+            : searchGameCategory('Balatro', 'client', 'token', logger);
+
+        await expect(result).rejects.toMatchObject({ cause });
+    });
+
     test('reports malformed token refresh responses', async () => {
         queueResponses({ body: 'not-json' });
         const { getValidAccessToken } = loadModule();
