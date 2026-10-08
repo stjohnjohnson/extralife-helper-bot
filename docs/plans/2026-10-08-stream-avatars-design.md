@@ -66,11 +66,26 @@ Hearts and confetti require custom transparent sprite animations. Documented Lua
 
 A short Twitch network blip must remain part of the same long stream, even if Twitch changes its stream ID or reported start timestamp. Preserve the original session start, live donation total, processed donation IDs, reached fundraising milestones, reached time checkpoints, and current chapter across reconnects and bot restarts.
 
-Use a configurable grace period after confirmed offline observations before ending a session; proposed initial default is 15 minutes, to be tuned during implementation. Collection errors or missing samples are unknown states, not evidence of offline status. Elapsed wall-clock time continues across brief interruptions. Render checkpoint celebrations only when the streamer is confirmed online, and summarize current state instead of replaying a backlog after recovery.
+Use a configurable grace period after confirmed offline observations before ending a session; proposed initial default is 15 minutes, to be tuned during implementation. Collection errors or missing samples are unknown states, not evidence of offline status. Elapsed wall-clock time continues across brief interruptions. In production, render checkpoint celebrations only when the streamer is confirmed online. Offline rehearsal supplies simulated live status. Summarize current state instead of replaying a backlog after recovery.
 
 Store session state atomically in a configurable persistent location on Linux, with deployment guidance for persistent Docker volumes where applicable. Use donation timestamps and the retained broadcast window to classify donations and deduplicate late or out-of-order poll results. Initial historical donations must not trigger effects. If the bot starts midway through a broadcast, use Twitch's original start time and reconcile available in-window donations into the total without replaying old celebrations. API failures must not create duplicate money or reset progress. Any unresolved timestamp semantics are investigated before claiming correct live totals.
 
 Provide an admin recovery/reset path. A sustained confirmed offline period ends the session; a later broadcast begins a new session. Keep session history and checkpoints sufficient to prevent duplicate celebrations. Ending, reconnecting, and reset behavior must be exercised explicitly in tests and preview.
+
+## Offline rehearsal
+
+All four slices must be testable without starting an OBS broadcast or requiring Twitch to report the channel live. Rehearsal uses the real Linux-to-gaming-computer LAN connection and the same event, scheduling, and rendering paths, with simulated inputs and separate test state.
+
+- Open OBS preview or record locally; broadcasting is not required.
+- Use Stream Avatars' custom Lua service to create a simulated crowd, with configurable crowd size and late join/leave scenarios. No actual viewers or Twitch extension are required. Document setup and restoration of the normal streaming configuration.
+- Provide preview controls for selecting games/themes, injecting fake donations, setting a simulated campaign goal, crossing live fundraising milestones, and advancing or seeking a virtual marathon clock.
+- Provide lifecycle scenarios for brief disconnect/reconnect, changed Twitch stream identifiers, API errors, bot restart, and a sustained disconnect beyond the grace period.
+- Preview works while the real Twitch channel is offline and without real Twitch, Discord, or ExtraLife credentials. The shared LAN connection still requires its configured token.
+- Store preview session state separately. Fake donations and reached checkpoints cannot alter production fundraising totals, donation deduplication, sessions, or milestone history. Resetting or exiting rehearsal does not modify live state.
+- Suppress Twitch/Discord messages and stream-marker writes. Hue output is disabled by default and can be explicitly enabled for physical-light rehearsals.
+- The foundation slice supplies offline crowd/session/heart previews and extensible scenario controls. Each feature slice wires its own visual scenarios into that shared mode when implemented.
+
+Verification must include a complete offline run: Minecraft theme, a $25 fake donation, a $500 milestone crossing, hour 7, hour 5, hour 25, and a brief reconnect preserving progress. Preview is a future implementation requirement, not a currently available command.
 
 ## Published GitHub issues
 
@@ -100,3 +115,4 @@ The issues include observable acceptance criteria, failure/recovery cases, previ
 - Avatar positions: https://docs.streamavatars.com/lua-scripting-api/api-reference-and-tips/classes/user/getposition
 - Object positioning: https://docs.streamavatars.com/lua-scripting-api/api-reference-and-tips/classes/gameobject/setposition
 - Temporary gear: https://docs.streamavatars.com/lua-scripting-api/api-reference-and-tips/classes/user/settemporarygear
+- Offline simulated viewers and activity: https://docs.streamavatars.com/lua-scripting-api/api-reference-and-tips/events/servicecontroller
