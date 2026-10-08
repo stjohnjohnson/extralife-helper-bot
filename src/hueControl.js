@@ -149,13 +149,14 @@ class HueController {
     /**
      * Perform celebration light show
      */
-    async celebrateDonation() {
+    async celebrateDonation({ signal } = {}) {
+        if (signal?.aborted) return;
         if (this.stopped || !this.connected) {
             this.logger.warn('Hue Bridge not connected, skipping celebration');
             return;
         }
 
-        if (this.isCelebrating) {
+        if (this.isCelebrating && (signal || this.activeEffect?.kind !== 'rehearsal')) {
             this.logger.info('Hue celebration already in progress, skipping');
             return;
         }
@@ -163,7 +164,12 @@ class HueController {
         const previous = this.activeEffect;
         this.isCelebrating = true;
         this.logger.info('Starting Hue celebration light show');
-        const effect = this.createEffect('donation');
+        const effect = this.createEffect(signal ? 'rehearsal' : 'donation');
+        if (signal) {
+            const cancel = () => { effect.abort.abort(); effect.resolveReady({ status: 'busy' }); };
+            signal.addEventListener('abort', cancel, { once: true });
+            effect.detachOwner = () => signal.removeEventListener('abort', cancel);
+        }
         if (previous) {
             previous.restore = false;
             previous.abort.abort();
@@ -219,11 +225,13 @@ class HueController {
         try {
             if (previous) await previous.done;
             if (this.colorWrite) await this.colorWrite.catch(() => {});
+            if (effect.abort.signal.aborted && !previous?.savedStates) return;
             if (previous?.savedStates) {
                 effect.lights = previous.lights;
                 effect.savedStates = previous.savedStates;
             } else {
                 effect.lights = await this.getGroupLights();
+                if (effect.abort.signal.aborted) return;
                 if (!effect.lights.length) {
                     this.logger.warn('No lights found in group, skipping celebration');
                     return;
@@ -245,6 +253,7 @@ class HueController {
                 : started ? 'Celebration animation failed' : 'Failed to start Hue celebration';
             this.logger.error(message, { error: error.message });
         } finally {
+            effect.detachOwner?.();
             effect.resolveReady({ status: effect.abort.signal.aborted ? 'busy' : 'unavailable' });
             if (effect.restore && effect.savedStates) {
                 try {

@@ -41,3 +41,17 @@ test('bounds in-flight messages for a slow companion instead of accumulating an 
     await closing; expect(refused).toBeGreaterThan(0);
     expect(server.send(snapshot())).toBe(false);
 });
+
+test('valid coalesced client frames are serialized rather than rejected', async () => {
+    const seen = []; let complete; const handled = new Promise(resolve => { complete = resolve; });
+    server = await startBridgeServer({ config: { host: '127.0.0.1', port: 0, token }, getSnapshot: snapshot,
+        onClientMessage: async message => { seen.push(message.type); if (seen.length === 2) complete(); } });
+    const socket = await connect(); const snapshotReceived = once(socket, 'message');
+    socket.send(JSON.stringify({ version: 1, type: 'auth', token })); await snapshotReceived;
+    const closed = once(socket, 'close').then(() => 'closed');
+    socket._socket.cork();
+    socket.send(JSON.stringify({ version: 1, type: 'ready', capabilities: ['hearts'], resolution: { width: 1920, height: 200 } }));
+    socket.send(JSON.stringify({ version: 1, type: 'heartbeat' })); socket._socket.uncork();
+    expect(await Promise.race([handled.then(() => 'handled'), closed])).toBe('handled');
+    expect(seen).toEqual(['ready', 'heartbeat']); expect(socket.readyState).toBe(WebSocket.OPEN);
+});

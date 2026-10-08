@@ -21,6 +21,7 @@ async function assertDistinctPaths(first, second) {
 function createSessionStore({ path, mode, channel, fs = defaultFs }) {
     const file = resolve(path);
     const lock = file + '.lock';
+    const recovery = file + '.recovery-required';
     let owned = false;
     let closed = false;
     let lastRevision = -1;
@@ -33,6 +34,13 @@ function createSessionStore({ path, mode, channel, fs = defaultFs }) {
     };
     const assertOwner = () => { if (closed) throw new Error('Session store closed'); if (!owned) throw new Error('Session store requires its owner'); };
     const read = async source => validate(JSON.parse(await fs.readFile(source, 'utf8')));
+    const syncDirectory = async () => {
+        if (process.platform !== 'linux') return;
+        const directory = await fs.open(dirname(file), 'r');
+        try { await directory.sync(); } finally { await directory.close(); }
+    };
+    const quarantine = async () => { await fs.rename(file, file + '.quarantine-' + randomUUID()); await syncDirectory(); };
+    const clearRecovery = async () => { await fs.rm(recovery, { force: true }); await syncDirectory(); };
     const save = state => enqueue(async () => {
         assertOwner();
         state = validate(state);
@@ -43,10 +51,7 @@ function createSessionStore({ path, mode, channel, fs = defaultFs }) {
             try { await handle.writeFile(JSON.stringify(state)); await handle.sync(); } finally { await handle.close(); }
             try { await fs.copyFile(file, file + '.backup'); } catch (error) { if (error.code !== 'ENOENT') throw error; }
             await fs.rename(temp, file);
-            if (process.platform === 'linux') {
-                const directory = await fs.open(dirname(file), 'r');
-                try { await directory.sync(); } finally { await directory.close(); }
-            }
+            await syncDirectory();
             lastRevision = state.revision;
         } finally { await fs.rm(temp, { force: true }); }
     });
@@ -65,11 +70,22 @@ function createSessionStore({ path, mode, channel, fs = defaultFs }) {
                 owned = true;
                 try { await handle.writeFile(JSON.stringify({ pid: process.pid })); } finally { await handle.close(); }
             }
+            let requiresRecovery = false;
+            try { await fs.access(recovery); requiresRecovery = true; } catch (error) { if (error.code !== 'ENOENT') throw error; }
+            if (requiresRecovery) {
+                // Finish an interrupted quarantine without replacing the last valid backup.
+                try { await read(file); } catch (error) { if (error.code !== 'ENOENT') await quarantine(); }
+                throw new Error('Session state requires recovery');
+            }
             try {
                 const state = await read(file); lastRevision = state.revision; return state;
             } catch (error) {
                 if (error.code === 'ENOENT') return null;
-                await fs.rename(file, file + '.quarantine-' + randomUUID());
+                // Persist the recovery gate before moving the corrupt original, including across crashes.
+                const marker = await fs.open(recovery, 'wx', 0o600);
+                try { await marker.writeFile('corrupt-state'); await marker.sync(); } finally { await marker.close(); }
+                await syncDirectory();
+                await quarantine();
                 throw new Error('Session state requires recovery');
             }
         },
@@ -78,13 +94,13 @@ function createSessionStore({ path, mode, channel, fs = defaultFs }) {
             await tail; assertOwner();
             try { await fs.copyFile(file, file + '.archive-' + randomUUID()); } catch (error) { if (error.code !== 'ENOENT') throw error; }
             const initial = { ...createInitialState({ mode, channel }), revision: Math.max(0, lastRevision + 1) };
-            await save(initial); return initial;
+            await save(initial); await clearRecovery(); return initial;
         },
         async recoverLastBackup() {
             await tail; assertOwner();
             const backup = await read(file + '.backup');
             backup.revision = Math.max(backup.revision, lastRevision + 1);
-            await save(backup); return backup;
+            await save(backup); await clearRecovery(); return backup;
         },
         flush: () => tail,
         async close() { await tail; if (owned) { await fs.rm(lock, { force: true }); owned = false; } closed = true; }

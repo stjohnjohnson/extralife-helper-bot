@@ -32,7 +32,7 @@ The Compose example mounts `stream-avatars-state` at `/usr/src/app/data/stream-a
 
 For a direct container run, add `-p 3001:3001 -v stream-avatars-state:/usr/src/app/data/stream-avatars` and supply the private `.env`. For bind mounts, create the directory with ownership writable by the image's unprivileged `node` user (UID/GID 1000). Keep the mount private, and do not share it between bot instances.
 
-Production and rehearsal use distinct `production/state.json` and `rehearsal/state.json`. Writes are serialized, fsynced, and atomically renamed; the previous good state remains in `.backup`. Corrupt state is quarantined and requires explicit recovery/reset. State includes reserved donation IDs, integer-cent totals, and checkpoint fields for future integration slices. Session loading and backup recovery send snapshots without replaying transient animations. The session clock uses the original Twitch start and survives changed IDs/start metadata; only a continuous sequence of successful offline samples spanning the grace period ends it. Unknown/error observations and gaps longer than two sampling intervals interrupt offline confirmation.
+Production and rehearsal use distinct `production/state.json` and `rehearsal/state.json`. Writes are serialized, fsynced, and atomically renamed; the previous good state remains in `.backup`. Corrupt state is quarantined behind a durable `.recovery-required` gate that survives restarts and requires explicit recovery/reset; do not remove that marker manually. State includes reserved donation IDs, integer-cent totals, and checkpoint fields for future integration slices. Session loading and backup recovery send snapshots without replaying transient animations. The session clock uses the original Twitch start and survives changed IDs/start metadata; only a continuous sequence of successful offline samples spanning the grace period ends it. Unknown/error observations and gaps longer than two sampling intervals interrupt offline confirmation.
 
 Each state file has an exclusive `.lock`. After a crash, verify that no process/container still owns the directory before manually removing its stale lock. A second writer or aliased rehearsal path is refused. Keep archives/backups when diagnosing recovery; do not put state in Git.
 
@@ -74,11 +74,11 @@ Only logins in `TWITCH_ADMIN_USERS` can operate these commands, in `TWITCH_CHANN
 | `!sa scenario api-error` | Simulate an unknown API observation |
 | `!sa scenario sustained-offline` | Confirm grace-period end and start a fresh simulated session |
 | `!sa scenario restart` | Reload saved rehearsal state without replaying effects |
-| `!sa hue on` / `!sa hue off` | Explicit physical Hue opt-in/out for rehearsal previews |
+| `!sa hue on` / `!sa hue off` | Explicit physical Hue opt-in/out for rehearsal previews; off cancels owned effects |
 | `!sa session recover confirm` | Restore validated production backup with a new recovery baseline |
 | `!sa session reset confirm` | Archive and reset production state |
 
-Durations use integer `s`, `m`, or `h` units and are limited to 48 hours per command. Synthetic crowd IDs are limited to 1–100. Production recovery/reset requires a fresh successful offline observation; it cannot alter an active live session. Rehearsal cannot generate fake donation announcements or stream markers. Short acknowledgements of admin commands are sent to Twitch. Ordinary real donation/Hue services remain independently active; rehearse offline to avoid mixing real effects with previews.
+Durations use integer `s`, `m`, or `h` units and are limited to 48 hours per command. Synthetic crowd IDs are limited to 1–100. Production recovery/reset requires a fresh successful offline observation; it cannot alter an active live session. Rehearsal cannot generate fake donation announcements or stream markers. Rehearsal stop/reset, Hue-off and real-live preemption cancel only rehearsal-owned Hue effects and restore any changed lights; ordinary production Hue remains available. Short acknowledgements of admin commands are sent to Twitch. Ordinary real donation/Hue services remain independently active; rehearse offline to avoid mixing real effects with previews.
 
 The scenario registry accepts only trusted locally registered handlers. Future features can add scenarios for games, donations, milestones, chapters and the finale; these are not shipped by this foundation. Payloads cannot select arbitrary script names or image paths.
 

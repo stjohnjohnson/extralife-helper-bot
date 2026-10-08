@@ -56,3 +56,24 @@ test('symlink state and invalid backup are refused; close fences writes', async 
     await expect(value.recoverLastBackup()).rejects.toThrow(/state/i);
     await value.close(); await expect(value.save(state(1))).rejects.toThrow(/closed/i);
 });
+
+test('quarantine requires explicit recovery across repeated process restarts', async () => {
+    const first = store(); await first.load(); await first.save(state(1)); await first.save(state(2)); await first.close();
+    await fs.writeFile(join(dir, 'state.json'), '{broken');
+    const quarantining = store(); await expect(quarantining.load()).rejects.toThrow(/recovery/i); await quarantining.close();
+    const restarted = store(); await expect(restarted.load()).rejects.toThrow(/recovery/i);
+    await restarted.recoverLastBackup(); await restarted.close();
+    const restored = store(); expect(await restored.load()).toMatchObject({ liveTotalCents: 2500, processedDonationIds: ['donation-1'] }); await restored.close();
+    await fs.writeFile(join(dir, 'state.json'), '{broken-again');
+    const corruptAgain = store(); await expect(corruptAgain.load()).rejects.toThrow(/recovery/i); await corruptAgain.close();
+    const resetting = store(); await expect(resetting.load()).rejects.toThrow(/recovery/i); await resetting.archiveAndReset(); await resetting.close();
+    expect(await store().load()).toMatchObject({ sessionId: null, liveTotalCents: 0 });
+});
+
+test('crash between recovery marker and quarantine preserves the good backup on explicit reset', async () => {
+    await fs.writeFile(join(dir, 'state.json'), '{broken');
+    await fs.writeFile(join(dir, 'state.json.backup'), JSON.stringify(state(1)));
+    await fs.writeFile(join(dir, 'state.json.recovery-required'), 'corrupt-state');
+    const value = store(); await expect(value.load()).rejects.toThrow(/recovery/i); await value.archiveAndReset();
+    expect(JSON.parse(await fs.readFile(join(dir, 'state.json.backup'), 'utf8'))).toEqual(state(1));
+});

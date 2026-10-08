@@ -19,14 +19,16 @@ async function startBridgeServer({ config, getSnapshot, onClientMessage = async 
         record.pending++; socket.send(body, () => { record.pending--; }); return true;
     }
     wss.on('connection', socket => {
-        const record = { authenticated: false, pending: 0, lastSeen: Date.now(), busy: false };
+        const record = { authenticated: false, pending: 0, lastSeen: Date.now(), alive: true, incoming: 0, inboundTail: Promise.resolve() };
         clients.set(socket, record);
         const timeout = setTimeout(() => { if (!record.authenticated) socket.close(1008, 'Authentication required'); }, config.authTimeoutMs ?? 5000);
         socket.on('error', () => {});
-        socket.on('close', () => { clearTimeout(timeout); clients.delete(socket); });
-        socket.on('message', async (raw, binary) => {
+        socket.on('close', () => { record.alive = false; clearTimeout(timeout); clients.delete(socket); });
+        const reject = () => { record.alive = false; logger.warn('Stream Avatars connection rejected'); socket.close(1008, 'Invalid message'); };
+        socket.on('message', (raw, binary) => {
             try {
-                if (binary || record.busy) throw new Error('Invalid message');
+                if (!record.alive) return;
+                if (binary) throw new Error('Invalid message');
                 const message = decodeClientMessage(raw.toString());
                 record.lastSeen = Date.now();
                 if (!record.authenticated) {
@@ -36,9 +38,12 @@ async function startBridgeServer({ config, getSnapshot, onClientMessage = async 
                     sendTo(socket, record, getSnapshot()); return;
                 }
                 if (message.type === 'auth') throw new Error('Already authenticated');
-                record.busy = true;
-                try { await onClientMessage(message); } finally { record.busy = false; }
-            } catch { logger.warn('Stream Avatars connection rejected'); socket.close(1008, 'Invalid message'); }
+                if (record.incoming >= 32) throw new Error('Inbound queue full');
+                record.incoming++;
+                record.inboundTail = record.inboundTail.then(async () => {
+                    if (record.alive && socket.readyState === WebSocket.OPEN) await onClientMessage(message);
+                }).catch(reject).finally(() => { record.incoming--; });
+            } catch { reject(); }
         });
     });
     const heartbeat = setInterval(() => {
@@ -50,7 +55,7 @@ async function startBridgeServer({ config, getSnapshot, onClientMessage = async 
     const stop = () => {
         if (!stopping) stopping = (async () => {
             signal?.removeEventListener('abort', abort);
-            clearInterval(heartbeat); for (const socket of clients.keys()) socket.terminate();
+            clearInterval(heartbeat); for (const [socket, record] of clients) { record.alive = false; socket.terminate(); }
             await new Promise(resolve => wss.close(resolve));
             await new Promise(resolve => server.close(resolve)); server.closeAllConnections();
         })();

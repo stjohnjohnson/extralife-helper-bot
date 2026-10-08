@@ -38,13 +38,14 @@ function createScenarioRegistry() {
 }
 async function createRehearsalController({ createSession, productionStatus, clock, realClock, bridge, eventDispatcher, hue, registry = createScenarioRegistry(), notify, graceMs, cadenceMs, standalone = false }) {
     let session = await createSession(); let unsubscribe = session.subscribe(() => notify(false));
-    let active = false; let stopped = false; let hueEnabled = false; let epoch = 0; let tail = Promise.resolve();
+    let active = false; let stopped = false; let hueEnabled = false; let hueAbort = null; let epoch = 0; let tail = Promise.resolve();
     const crowd = new Set();
     const restored = session.getSnapshot();
     if (restored.latestObservation) clock.seek(restored.latestObservation.observedAtMs);
     const result = (status, message) => ({ status, message });
     const getStatus = () => ({ active, crowdIds: [...crowd].sort(), hueEnabled, state: session.getSnapshot(), nowMs: clock.nowMs(), recoveryRequired: session.getStatus().recoveryRequired });
-    const deactivate = () => { epoch++; active = false; hueEnabled = false; crowd.clear(); notify(true); };
+    const cancelHue = () => { hueEnabled = false; hueAbort?.abort(); hueAbort = null; };
+    const deactivate = () => { epoch++; active = false; cancelHue(); crowd.clear(); notify(true); };
     const online = async (streamId = 'rehearsal-stream', start = session.getSnapshot().startedAtMs ?? clock.nowMs()) => {
         await session.observe({ status: 'online', observedAtMs: clock.nowMs(), startedAtMs: start, streamId });
     };
@@ -75,7 +76,7 @@ async function createRehearsalController({ createSession, productionStatus, cloc
             if (admittedEpoch !== epoch || stopped) return result('unavailable', 'Rehearsal action cancelled.');
             active = true; notify(true); return result('ok', 'Rehearsal started. Use !sa crowd <count> and !sa hearts.');
         }
-        if (name === 'rehearsal.reset') { await session.reset(); crowd.clear(); hueEnabled = false; if (active) { clock.advance(1); await online(); } notify(true); return result('ok', 'Rehearsal state reset.'); }
+        if (name === 'rehearsal.reset') { cancelHue(); await session.reset(); crowd.clear(); if (active) { clock.advance(1); await online(); } notify(true); return result('ok', 'Rehearsal state reset.'); }
         if (!active) return result('denied', 'Start rehearsal before using simulated controls.');
         if (name.startsWith('crowd.')) {
             const id = 'sa_rehearsal_' + args[0];
@@ -92,7 +93,10 @@ async function createRehearsalController({ createSession, productionStatus, cloc
         if (name === 'hearts') {
             if (session.getStatus().recoveryRequired) return result('unavailable', 'Rehearsal state requires recovery.');
             const sent = eventDispatcher.publishHearts({ sessionId: session.getSnapshot().sessionId });
-            if (sent && hueEnabled) await hue().celebrateDonation();
+            if (sent && hueEnabled) {
+                if (!hueAbort || hueAbort.signal.aborted) hueAbort = new AbortController();
+                await hue().celebrateDonation({ signal: hueAbort.signal });
+            }
             return result(sent ? 'ok' : 'unavailable', sent ? 'Heart preview sent.' : 'Stream Avatars companion is unavailable; effects were not queued.');
         }
         if (name === 'scenario') { await registry.run(args[0], args[1], { session, clock, eventDispatcher }); if (admittedEpoch === epoch) notify(true); return result('ok', 'Rehearsal scenario ' + args[0] + ' complete.'); }
@@ -100,13 +104,15 @@ async function createRehearsalController({ createSession, productionStatus, cloc
     }
     return { getStatus,
         dispatch(action) {
+            // Cancel immediately even when an earlier preview is awaiting bridge reads.
+            if (['rehearsal.stop', 'rehearsal.reset'].includes(action.name) || (action.name === 'hue' && !action.args[0])) cancelHue();
             const admittedEpoch = epoch;
             const operation = tail.then(() => execute(action, admittedEpoch)).catch(error => result(error.status || 'unavailable', error.status ? error.message : 'Rehearsal action failed; check state and companion setup.'));
             tail = operation.then(() => {}); return operation;
         },
         observeProduction(observation) {
             if (observation.status !== 'online') return false;
-            const wasActive = active; epoch++; active = false; hueEnabled = false; crowd.clear();
+            const wasActive = active; epoch++; active = false; cancelHue(); crowd.clear();
             if (wasActive) notify(true);
             return wasActive;
         },
