@@ -1,4 +1,5 @@
 const dotenv = require('dotenv');
+const { parseStreamAvatarsConfiguration } = require('./streamAvatars/config');
 
 /**
  * Validates and parses environment configuration
@@ -81,6 +82,7 @@ function parseConfiguration() {
     }
     if (enabled && !host.trim()) configErrors.push('VOICE_OVERLAY_HOST must not be empty');
     return {
+        streamAvatars: parseStreamAvatarsConfiguration(process.env),
         voiceOverlay: { enabled, host, port },
         streamMarkers: { donationThresholdCents: thresholdCents },
         isValid: configErrors.length === 0,

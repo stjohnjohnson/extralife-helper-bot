@@ -87,6 +87,8 @@ const { HueController } = require('../src/hueControl.js');
 const { startVoiceMonitoring, stopVoiceMonitoring } = require('../src/voiceMonitoring.js');
 jest.mock('../src/voiceOverlay', () => ({ startVoiceOverlay: jest.fn() }));
 const { startVoiceOverlay } = require('../src/voiceOverlay');
+jest.mock('../src/streamAvatars', () => ({ startStreamAvatars: jest.fn() }), { virtual: true });
+const { startStreamAvatars } = require('../src/streamAvatars');
 const application = require('../app.js');
 
 const validConfig = {
@@ -192,7 +194,7 @@ describe('application lifecycle', () => {
         expect(tmi.Client).toHaveBeenCalledTimes(1);
         expect(connect).toHaveBeenCalledTimes(1);
         expect(HueController).toHaveBeenCalledWith(validConfig, mockLogger);
-        expect(startViewerCountMonitoring).toHaveBeenCalledWith(validConfig, mockLogger);
+        expect(startViewerCountMonitoring).toHaveBeenCalledWith(validConfig, mockLogger, { onObservation: expect.any(Function) });
         expect(getUserDonations).toHaveBeenCalledWith('participant-1');
         expect(() => application.start({ config: validConfig })).toThrow('Application already started');
     });
@@ -520,5 +522,27 @@ describe('optional overlay application integration', () => {
         const stopping = application.stop();
         expect(signal.aborted).toBe(true); finish(service); await stopping;
         expect(service.stop).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe('optional Stream Avatars application lifecycle', () => {
+    beforeEach(() => { jest.clearAllMocks(); mockDiscordClient.channels.cache.get.mockReturnValue({ id: 'channel', guild: { id: 'guild' }, setName: jest.fn().mockResolvedValue() }); });
+    afterEach(async () => { await application.stop(); });
+    test('starts before Discord ready, forwards observations, and stops cleanly', async () => {
+        const service = { observeProduction: jest.fn().mockResolvedValue(), stop: jest.fn().mockResolvedValue() };
+        startStreamAvatars.mockResolvedValue(service);
+        const startup = application.start({ config: { ...validConfig, streamAvatars: { enabled: true, config: {} } } });
+        await flushPromises(); expect(startStreamAvatars).toHaveBeenCalledTimes(1);
+        const callback = startViewerCountMonitoring.mock.calls[0][2].onObservation;
+        await callback({ status: 'offline', observedAtMs: 1 }); expect(service.observeProduction).toHaveBeenCalledTimes(1);
+        registeredHandler(mockDiscordClient.once, 'ready')(); await startup; await application.stop();
+        expect(service.stop).toHaveBeenCalledTimes(1);
+        await callback({ status: 'offline', observedAtMs: 2 }); expect(service.observeProduction).toHaveBeenCalledTimes(1);
+    });
+    test('optional failure cannot stop existing services or expose secrets in log', async () => {
+        startStreamAvatars.mockRejectedValue(new Error('secret token'));
+        const startup = application.start({ config: { ...validConfig, streamAvatars: { enabled: true, config: {} } } });
+        registeredHandler(mockDiscordClient.once, 'ready')(); await startup; await flushPromises();
+        expect(mockDiscordClient.destroy).not.toHaveBeenCalled(); expect(mockLogger.error).toHaveBeenCalledWith('Stream Avatars unavailable');
     });
 });

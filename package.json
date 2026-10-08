@@ -34,7 +34,8 @@
     "extra-life-api": "^8.0.0",
     "node-hue-api": "^5.0.0-beta.16",
     "tmi.js": "^1.8.5",
-    "winston": "^3.19.0"
+    "winston": "^3.19.0",
+    "ws": "8.22.0"
   },
   "devDependencies": {
     "@semantic-release/changelog": "^7.0.0",

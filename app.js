@@ -8,6 +8,7 @@ const { handlePresenceUpdate } = require('./src/gameUpdates.js');
 const { startViewerCountMonitoring, stopViewerCountMonitoring } = require('./src/viewerMonitoring.js');
 const { startVoiceMonitoring, stopVoiceMonitoring } = require('./src/voiceMonitoring.js');
 const { startVoiceOverlay } = require('./src/voiceOverlay');
+const { startStreamAvatars } = require('./src/streamAvatars');
 const { HueController } = require('./src/hueControl.js');
 const { createStreamMarkerService } = require('./src/streamMarkers.js');
 const { eventMetadata } = require('./src/analysis/eventMetadata.js');
@@ -111,12 +112,20 @@ function start({ config = parseConfiguration() } = {}) {
         viewerCountInterval: null,
         summaryTimeouts: new Set(),
         seenDonationIDs: new Set(),
+        streamAvatars: null,
+        streamAvatarsStartup: null,
+        streamAvatarsAbort: new AbortController(),
         voiceOverlay: null,
         voiceOverlayStartup: null,
         voiceOverlayAbort: new AbortController(),
         resolveReady: null
     };
     runtime = state;
+    if (config.streamAvatars?.enabled) {
+        state.streamAvatarsStartup = startStreamAvatars({ config, logger: log, signal: state.streamAvatarsAbort.signal })
+            .then(async service => { if (!state.active) await service.stop(); else state.streamAvatars = service; })
+            .catch(() => log.error('Stream Avatars unavailable'));
+    } else if (config.streamAvatars?.errors?.length) log.warn('Stream Avatars configuration invalid; integration disabled');
 
     log.info(`ExtraLife Helper Bot starting for participant ${config.participantId}`);
     log.info('All services configured and enabled: Discord, Twitch, Voice, Game Updates, Hue');
@@ -268,7 +277,10 @@ function start({ config = parseConfiguration() } = {}) {
     twitchLog.info('Twitch Bot connecting...');
     state.donationInterval = setInterval(() => void getLatestDonation(state), 30000);
     void getLatestDonation(state, true);
-    state.viewerCountInterval = startViewerCountMonitoring(config, twitchLog);
+    state.viewerCountInterval = startViewerCountMonitoring(config, twitchLog, { onObservation: async observation => {
+        await state.streamAvatarsStartup;
+        if (state.active) await state.streamAvatars?.observeProduction(observation);
+    } });
 
     return Promise.all([discordLogin, readyPromise])
         .then(() => undefined)
@@ -293,7 +305,10 @@ async function stop() {
         const hueCleanup = Promise.resolve()
             .then(() => state.hueController?.stop())
             .catch(error => hueLog.error('Error stopping Hue controller', { error: error.message }));
+        state.streamAvatarsAbort.abort();
         state.voiceOverlayAbort.abort();
+        await state.streamAvatarsStartup;
+        await state.streamAvatars?.stop();
         await state.voiceOverlayStartup;
         await state.voiceOverlay?.stop();
         stopVoiceMonitoring(state.voiceMonitor);
