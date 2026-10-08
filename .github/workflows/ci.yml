@@ -31,3 +31,46 @@ jobs:
           context: .
           push: false
           tags: extralife-helper-bot:latest
+
+  lua-portability:
+    name: Lua ${{ matrix.lua.version }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        lua:
+          - version: '5.2.4'
+            sha256: b9e2e4aad6789b3b63a056d442f7b39f0ecfca3ae0f1fc0ae4e9614401b69f4b
+          - version: '5.4.9'
+            sha256: 2335b6c582a52654f94612bf10d2f4672805d05329aa6568b1d8cd9e5c6fb8e6
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: 'npm'
+      - name: Build verified upstream Lua on Linux
+        if: runner.os == 'Linux'
+        shell: bash
+        env:
+          LUA_VERSION: ${{ matrix.lua.version }}
+          LUA_SHA256: ${{ matrix.lua.sha256 }}
+        run: |
+          set -eu
+          cd "$RUNNER_TEMP"
+          curl --fail --silent --show-error "https://www.lua.org/ftp/lua-$LUA_VERSION.tar.gz" -o lua.tar.gz
+          echo "$LUA_SHA256  lua.tar.gz" | sha256sum -c -
+          tar -xzf lua.tar.gz
+          make -C "lua-$LUA_VERSION" linux
+          echo "LUA_BIN=$RUNNER_TEMP/lua-$LUA_VERSION/src/lua" >> "$GITHUB_ENV"
+      - name: Build verified upstream Lua on Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          LUA_VERSION: ${{ matrix.lua.version }}
+          LUA_SHA256: ${{ matrix.lua.sha256 }}
+        run: .github/scripts/build-lua-windows.ps1
+      - run: npm ci
+      - name: Run shipped companion contracts and mutation checks
+        run: npm test -- --runInBand --coverage=false --runTestsByPath tests/streamAvatarsCompanion.test.js

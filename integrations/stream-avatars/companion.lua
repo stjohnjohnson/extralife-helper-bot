@@ -9,12 +9,13 @@ function sa_on_socket(title, event, message, code)
         set("sa_connected", true)
         app.sendWebsocketMessage(title, json.serialize({ version=1, type="auth", token=settings.token }))
     elseif event == "OnMessage" then
+        if not get("sa_connected") then return end
         local queue = get("sa_mailbox") or {}
-        if #queue >= 32 then set("sa_connected", false); app.removeWebSocket(title); return end
+        if #queue >= 32 then set("sa_connected", false); set("sa_disconnect_pending",true); set("sa_mailbox",{}); app.removeWebSocket(title); return end
         queue[#queue+1] = message
         set("sa_mailbox", queue)
     elseif event == "OnClose" or event == "OnError" then
-        set("sa_connected", false)
+        set("sa_connected", false); set("sa_disconnect_pending",true); set("sa_mailbox",{})
     end
 end
 
@@ -25,16 +26,19 @@ return function()
         log("SA bridge: configure private URL/token in the script JSON settings")
         return
     end
+    local function number(value) return type(value)=="number" and value==value and value~=math.huge and value~=-math.huge end
+    local function integer(value) return number(value) and value%1==0 end
     local app = getApp()
     local socket = "sa_helper_bridge"
     local objects, owned, seen, seenOrder = {}, {}, {}, {}
     local snapshot, effect = nil, nil
+    local generationFloor = -1
     local elapsed, serverOffset, updateElapsed = 0, 0, 0
     local retryAt, retryDelay, rotation, wasConnected = 0, 1, 0, false
     local worldWidth = settings.worldWidth or 32
     local worldHeight = settings.worldHeight or 32
     local avatarTop = settings.avatarTopOffset or 40
-    if worldWidth <= 0 or worldHeight <= 0 or avatarTop < 0 then log("SA bridge: invalid measured image geometry"); return end
+    if not number(worldWidth) or not number(worldHeight) or not number(avatarTop) or worldWidth <= 0 or worldHeight <= 0 or avatarTop < 0 then log("SA bridge: invalid measured image geometry"); return end
     local function send(value) app.sendWebsocketMessage(socket, json.serialize(value)) end
     local function diagnostic(code) send({version=1,type="diagnostic",code=code}) end
     local function clearObjects()
@@ -57,9 +61,8 @@ return function()
         set("sa_owned_ids",idsToRemember)
     end
     local function cleanup()
-        clearObjects(); reconcileCrowd({}); snapshot=nil; set("sa_mailbox",{})
+        clearObjects(); reconcileCrowd({}); snapshot=nil; generationFloor=-1
     end
-    local function number(value) return type(value)=="number" and value==value and value~=math.huge and value~=-math.huge end
     local function validCrowd(ids)
         if type(ids)~="table" or #ids>100 then return false end
         for _,name in ipairs(ids) do
@@ -72,7 +75,7 @@ return function()
         return type(value.session)=="table" and type(value.strip)=="table" and type(value.render)=="table" and
             number(value.serverNowMs) and number(value.strip.x) and number(value.strip.y) and number(value.strip.width) and number(value.strip.height) and
             value.strip.width>=worldWidth and value.strip.height>=worldHeight and type(value.rehearsal)=="table" and validCrowd(value.rehearsal.crowdIds) and
-            number(value.render.maxHearts) and value.render.maxHearts>=1 and value.render.maxHearts<=100 and
+            integer(value.render.maxHearts) and value.render.maxHearts>=1 and value.render.maxHearts<=100 and
             number(value.render.heartOffset) and value.render.heartOffset>=0
     end
     local function handleMessage(value)
@@ -81,12 +84,12 @@ return function()
             serverOffset=value.serverNowMs-elapsed*1000
             send({version=1,type="heartbeat"}); return
         end
-        if (value.mode~="production" and value.mode~="rehearsal") or not number(value.generation) or value.generation<0 then return end
+        if (value.mode~="production" and value.mode~="rehearsal") or not integer(value.generation) or value.generation<generationFloor or value.generation<0 then return end
         if value.type=="clear" then
-            clearObjects(); reconcileCrowd({}); snapshot=nil
+            generationFloor=value.generation; clearObjects(); reconcileCrowd({}); snapshot=nil
         elseif value.type=="snapshot" and validSnapshot(value) then
             if not snapshot or snapshot.generation~=value.generation or snapshot.mode~=value.mode or snapshot.session.sessionId~=value.session.sessionId then clearObjects() end
-            snapshot=value; serverOffset=value.serverNowMs-elapsed*1000; retryDelay=1
+            generationFloor=value.generation; snapshot=value; serverOffset=value.serverNowMs-elapsed*1000; retryDelay=1
             reconcileCrowd(value.mode=="rehearsal" and value.rehearsal.crowdIds or {})
             local resolution=app.getResolution()
             send({version=1,type="ready",capabilities={"hearts","crowd","session","clock"},resolution={width=resolution.x,height=resolution.y}})
@@ -127,13 +130,16 @@ return function()
         for _,id in ipairs(get("sa_owned_ids") or {}) do if id>=900001 and id<=900100 then app.platformServiceSettings.SetUserLeave(id) end end
         app.platformServiceSettings.SetStreamer(900000,"sa_rehearsal_host")
     end
-    set("sa_settings",settings); set("sa_mailbox",{}); set("sa_connected",false)
+    set("sa_settings",settings); set("sa_mailbox",{}); set("sa_connected",false); set("sa_disconnect_pending",false)
     app.removeWebSocket(socket); addEvent("websocket","sa_on_socket")
     local bottom=app.convertPercentToPosition(0,0); local top=app.convertPercentToPosition(1,1)
     log("SA game bounds: "..bottom.x..","..bottom.y.." to "..top.x..","..top.y)
     while true do
         local connected=get("sa_connected")
-        if not connected and wasConnected then cleanup(); retryAt=elapsed+retryDelay; retryDelay=math.min(30,retryDelay*2) end
+        if get("sa_disconnect_pending") or (not connected and wasConnected) then
+            cleanup(); set("sa_disconnect_pending",false)
+            if not connected then retryAt=elapsed+retryDelay; retryDelay=math.min(30,retryDelay*2) end
+        end
         wasConnected=connected
         if not connected and elapsed>=retryAt then
             retryAt=elapsed+retryDelay; retryDelay=math.min(30,retryDelay*2)

@@ -36,6 +36,12 @@ Production and rehearsal use distinct `production/state.json` and `rehearsal/sta
 
 Each state file has an exclusive `.lock`. After a crash, verify that no process/container still owns the directory before manually removing its stale lock. A second writer or aliased rehearsal path is refused. Keep archives/backups when diagnosing recovery; do not put state in Git.
 
+## Windows gaming computer
+
+The same companion runs in Stream Avatars on Windows; no separate system Lua installation is needed for the application. Use Stream Avatars' **Create Script** action to open the command's own `.lua`/`.json` folder, then copy the shipped companion and private settings there. Do not hard-code Windows paths into the script. The WebSocket URL names the Linux bot's LAN address, not `localhost` on the gaming computer. Allow Stream Avatars' outbound connection through Windows Defender Firewall, and permit the incoming bridge port on the Linux LAN firewall. Do not publish the bridge to the public internet.
+
+Native Windows/Linux Lua 5.2 and 5.4 CI, plus CRLF/path-with-spaces tests, check portability without installing Stream Avatars. They do not reproduce the application's graphics engine. See [Lua confidence and remaining visual checks](stream-avatars-verification.md#lua-confidence-and-windows-portability).
+
 ## Companion import
 
 1. Back up your Stream Avatars settings and record your current Login Details streaming service.
