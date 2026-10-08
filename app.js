@@ -9,6 +9,7 @@ const { startViewerCountMonitoring, stopViewerCountMonitoring } = require('./src
 const { startVoiceMonitoring, stopVoiceMonitoring } = require('./src/voiceMonitoring.js');
 const { startVoiceOverlay } = require('./src/voiceOverlay');
 const { HueController } = require('./src/hueControl.js');
+const { createStreamMarkerService } = require('./src/streamMarkers.js');
 const { eventMetadata } = require('./src/analysis/eventMetadata.js');
 const { taggedEmotes } = require('./src/analysis/emotes.js');
 
@@ -38,6 +39,10 @@ function updateDiscordSummary(state) {
 }
 
 async function getLatestDonation(state, silent = false) {
+    if (!state.active || state.donationPollBusy) return;
+    state.donationPollBusy = true;
+    // Keep the first successful snapshot silent, even when startup fetches fail.
+    silent = silent || !state.donationsInitialized;
     try {
         const data = await getUserDonations(state.config.participantId);
         if (!state.active) return;
@@ -50,6 +55,7 @@ async function getLatestDonation(state, silent = false) {
             const displayName = donation.displayName || 'Anonymous';
             const donorMessage = donation.message ? ` with the message "${donation.message}"` : '';
             messages.unshift({
+                donation,
                 discord: `${displayName} just donated ${amount}${donorMessage}!`,
                 twitch: `ExtraLife ExtraLife ${displayName} just donated ${amount}${donorMessage}! ExtraLife ExtraLife`
             });
@@ -62,7 +68,9 @@ async function getLatestDonation(state, silent = false) {
             }));
         });
 
+        state.donationsInitialized = true;
         if (messages.length === 0 || silent) return;
+        messages.forEach(message => { void state.streamMarkers.markDonation(message.donation); });
         if (state.donationChannel) messages.forEach(message => state.donationChannel.send(message.discord));
         if (state.twitchClient) {
             messages.forEach(message => state.twitchClient.say(state.config.twitch.channel, message.twitch));
@@ -78,6 +86,8 @@ async function getLatestDonation(state, silent = false) {
         extralifeLog.error('Error getting Donations', eventMetadata('service_error', {
             error: err.message
         }));
+    } finally {
+        state.donationPollBusy = false;
     }
 }
 
@@ -95,6 +105,9 @@ function start({ config = parseConfiguration() } = {}) {
         donationChannel: null,
         summaryChannel: null,
         donationInterval: null,
+        donationPollBusy: false,
+        donationsInitialized: false,
+        streamMarkers: createStreamMarkerService(config, twitchLog),
         viewerCountInterval: null,
         summaryTimeouts: new Set(),
         seenDonationIDs: new Set(),
@@ -270,6 +283,7 @@ async function stop() {
     if (!runtime) return;
     const state = runtime;
     state.active = false;
+    state.streamMarkers.stop();
     state.resolveReady();
 
     stoppingPromise = (async () => {

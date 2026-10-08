@@ -190,6 +190,23 @@ describe('Config Module', () => {
             });
         });
 
+        test.each([undefined, '', '   '])('disables donation markers for unset/blank threshold %s', raw => {
+            if (raw !== undefined) process.env.STREAM_MARKER_DONATION_THRESHOLD = raw;
+            expect(parseConfiguration().streamMarkers.donationThresholdCents).toBeNull();
+        });
+
+        test.each([['100', 10000], ['25.50', 2550], ['0.01', 1], [' 100.00 ', 10000]])('parses USD threshold %s in cents', (raw, cents) => {
+            process.env.STREAM_MARKER_DONATION_THRESHOLD = raw;
+            expect(parseConfiguration().streamMarkers.donationThresholdCents).toBe(cents);
+        });
+
+        test.each(['0', '-1', 'NaN', 'Infinity', '1e2', '0x10', '100.001', 'one hundred', '9007199254740991'])('rejects invalid marker threshold %s', raw => {
+            process.env.STREAM_MARKER_DONATION_THRESHOLD = raw;
+            const config = parseConfiguration();
+            expect(config.isValid).toBe(false);
+            expect(config.errors).toContain('STREAM_MARKER_DONATION_THRESHOLD must be a positive USD amount with up to two decimal places');
+        });
+
         test.each([[undefined, false], ['false', false], ['true', true]])('parses Hue chat opt-in %s', (flag, expected) => {
             if (flag !== undefined) process.env.HUE_CHAT_CONTROL_ENABLED = flag;
             expect(parseConfiguration().hue.chatControlEnabled).toBe(expected);

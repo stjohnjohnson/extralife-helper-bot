@@ -185,6 +185,20 @@ Legacy mixed-text logs have three important limitations: Twitch chat dates are i
 5. **Note**: The Discord bot needs the "Server Members Intent" and "Presence Intent" enabled for presence monitoring
 6. **Customize the notification** (optional): Set `DISCORD_GAME_UPDATE_MESSAGE` (use `{game}` as placeholder)
 
+### Donation Stream Markers
+
+Set `STREAM_MARKER_DONATION_THRESHOLD=100` to create one Twitch stream marker for each new Extra Life donation of **$100.00 or more**. The value is a positive USD amount with up to two decimal places (for example, `25.50`). Leaving it unset or blank disables markers; invalid values prevent startup.
+
+Markers reuse the broadcaster's `TWITCH_REFRESH_TOKEN`, `TWITCH_CLIENT_ID`, and `TWITCH_CLIENT_SECRET` from Game Update Setup with the `channel:manage:broadcast` scope. Your stream must be live with **Store past broadcasts** enabled under Twitch's VOD settings. Bot chat credentials alone cannot create markers.
+
+Each marker is labeled `Donation: $100.00 from Full Display Name`. Donor names appear in full unless Twitch's 140-character description limit requires shortening the name with an ellipsis. Missing or blank names appear as `Anonymous`; donation messages are not included. Multiple qualifying donations in the same poll receive separate markers, with no application-imposed per-stream cap or cooldown. Twitch documents API rate limits but no per-stream marker count quota; the API's 100-marker retrieval limit is per page.
+
+Markers are requested alongside announcements using the existing 30-second donation polling interval. They mark the stream's current position when Twitch processes the request; they cannot be backdated to the original donation time. Twitch already records category changes as VOD chapters, so the bot adds markers only for donations.
+
+The first successful donation load remains silent even if earlier startup fetches fail; it and repeated donation IDs never create markers. Offline/VOD-unavailable donations are skipped, and other failures (including rate limits) are logged without interrupting announcements or Hue celebrations. Requests expire after ten seconds and are cancelled during shutdown. Failed, skipped, or historical donations are not retried or replayed after restart, avoiding duplicate and late markers.
+
+See [Twitch's marker API](https://dev.twitch.tv/docs/api/reference#create-stream-marker), [rate limits](https://dev.twitch.tv/docs/api/guide/#twitch-rate-limits), and [VOD chapters](https://help.twitch.tv/s/article/video-on-demand) for platform requirements.
+
 ## Commands
 
 ### Built-in Commands (work on both Discord and Twitch)
