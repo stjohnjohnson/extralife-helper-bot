@@ -232,6 +232,14 @@ Missing or invalid colors get usage guidance. Disabled controls and unavailable 
 
 The `color` command name is reserved even when chat light control is disabled; rename any existing custom response using that name before upgrading.
 
+### Stream Avatars controls (optional, Twitch admins)
+
+Enable the authenticated LAN bridge with `STREAM_AVATARS_ENABLED=true` and configure its private token, persistent storage, and measured strip bounds. The companion runs in Stream Avatars on the gaming computer; it renders a transparent moving-heart preview and supports offline simulated crowds.
+
+In the configured Twitch channel, admins can use `!sa status`, `!sa rehearsal start`, `!sa crowd 20`, `!sa hearts`, and `!sa rehearsal stop`. Starting rehearsal requires a fresh successful offline Twitch sample. Real live status stops rehearsal automatically. The `sa` name is reserved from custom responses.
+
+`npm run sa:rehearse` provides the same controls locally without Twitch, Discord, or Extra Life credentials. Rehearsal has separate state and a virtual clock; physical Hue output requires explicit opt-in. See [setup, Docker storage, and the complete command reference](docs/stream-avatars-setup.md) and [verification status](docs/stream-avatars-verification.md). A real Stream Avatars/OBS preview remains required for issue #65 acceptance.
+
 ### Custom Commands
 You can create your own custom commands using the `CUSTOM_RESPONSES` environment variable. Custom commands:
 - Work on both Discord and Twitch
@@ -255,6 +263,7 @@ Some commands are restricted to admin users only for security purposes. Admin us
 
 **Admin-only commands:**
 - `!promote` - Voice channel management (moves users from waiting room to live chat)
+- `!sa` - Stream Avatars rehearsal and session recovery (Twitch only)
 - `!testlights` - Test Philips Hue light celebration (verifies connection and triggers a demo light show)
 
 **Admin Configuration Examples:**

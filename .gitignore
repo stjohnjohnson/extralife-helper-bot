@@ -142,3 +142,8 @@ dist
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# Stream Avatars persistent state and private companion credentials
+data/stream-avatars/
+integrations/stream-avatars/companion.json
+integrations/stream-avatars/settings.local.json

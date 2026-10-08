@@ -1,6 +1,6 @@
 const { join } = require('node:path');
 const { createSessionController } = require('../broadcastSession');
-const { createInitialState } = require('../broadcastSession/state');
+const { createInitialState, validObservation } = require('../broadcastSession/state');
 const { createSessionStore, assertDistinctPaths } = require('../broadcastSession/store');
 const { startBridgeServer } = require('./server');
 const { createEventDispatcher } = require('./events');
@@ -59,7 +59,9 @@ async function startStreamAvatars({ config, logger, signal, standalone = false, 
     return { address: server.address,
         async observeProduction(observation) {
             if (!active || standalone) return;
-            lastRealObservation = observation;
+            const latestAt = Math.max(lastRealObservation?.observedAtMs ?? -1, production.getSnapshot().latestObservation?.observedAtMs ?? -1);
+            if (!validObservation(observation) || observation.observedAtMs <= latestAt) return;
+            lastRealObservation = structuredClone(observation);
             const stoppedRehearsal = rehearsal.observeProduction(observation);
             await production.observe(observation);
             if (stoppedRehearsal && active) onRehearsalStopped();

@@ -7,6 +7,9 @@ async function createSessionController({ store, clock, mode, channel, graceMs, c
     let tail = Promise.resolve();
     const listeners = new Set();
     try { state = await store.load() || state; } catch { recoveryRequired = true; }
+    const persist = async next => {
+        try { await store.save(next); } catch (error) { recoveryRequired = true; throw error; }
+    };
     const snapshot = () => structuredClone(state);
     const publish = () => { for (const listener of listeners) { try { listener(snapshot()); } catch { /* A transport subscriber cannot corrupt authoritative progress. */ } } };
     const enqueue = operation => {
@@ -21,10 +24,11 @@ async function createSessionController({ store, clock, mode, channel, graceMs, c
             if (recoveryRequired) throw new Error('Session recovery required');
             const next = reduceObservation(state, observation, { graceMs, cadenceMs, newSessionId });
             if (next === state) return;
-            try { await store.save(next); } catch (error) { recoveryRequired = true; throw error; }
+            await persist(next);
             state = next; publish();
         }); },
         rebaseRehearsalClock(atMs) { return enqueue(async () => {
+            if (recoveryRequired) throw new Error('Session recovery required');
             if (mode !== 'rehearsal' || !Number.isSafeInteger(atMs) || atMs < (state.startedAtMs ?? 0)) throw new Error('Invalid rehearsal clock baseline');
             const next = structuredClone(state); next.revision++; next.recoveryBaselineMs = atMs;
             next.offlineSinceMs = null; next.lastOfflineAtMs = null;
@@ -32,13 +36,13 @@ async function createSessionController({ store, clock, mode, channel, graceMs, c
                 next.latestObservation.observedAtMs = atMs;
                 if (next.latestObservation.status === 'online') next.latestObservation.startedAtMs = next.startedAtMs;
             }
-            await store.save(next); state = next; publish();
+            await persist(next); state = next; publish();
         }); },
         reset() { return enqueue(async () => { state = await store.archiveAndReset(); recoveryRequired = false; publish(); }); },
         recover() { return enqueue(async () => {
             const recovered = await store.recoverLastBackup();
             recovered.revision++; recovered.recoveryBaselineMs = clock.nowMs();
-            await store.save(recovered); state = recovered; recoveryRequired = false; publish();
+            await persist(recovered); state = recovered; recoveryRequired = false; publish();
         }); },
         async stop() { active = false; await tail; await store.flush(); await store.close(); listeners.clear(); }
     };

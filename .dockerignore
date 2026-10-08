@@ -1,0 +1,14 @@
+.git
+node_modules
+coverage
+logs
+reports
+*.log
+.env
+.env.*
+data
+.superpowers
+docs/plans
+docs/superpowers/plans
+integrations/stream-avatars/companion.json
+integrations/stream-avatars/settings.local.json

@@ -26,3 +26,12 @@ test('failed load and failed persistence require recovery without losing previou
     expect(controller.getSnapshot().sessionId).toBeNull(); expect(controller.getStatus().recoveryRequired).toBe(true);
     await controller.stop();
 });
+
+test('failed rehearsal clock persistence blocks subsequent effects until explicit recovery', async () => {
+    const store = memoryStore(); const controller = await createSessionController({ store, clock: { nowMs: () => 100 }, mode: 'rehearsal', channel: 'streamer', graceMs: 900000, cadenceMs: 60000 });
+    await controller.observe({ status: 'online', observedAtMs: 100, startedAtMs: 100, streamId: 'fake' });
+    store.save = async () => { throw new Error('disk full'); };
+    await expect(controller.rebaseRehearsalClock(200)).rejects.toThrow('disk full');
+    expect(controller.getSnapshot().latestObservation.observedAtMs).toBe(100);
+    expect(controller.getStatus().recoveryRequired).toBe(true); await controller.stop();
+});

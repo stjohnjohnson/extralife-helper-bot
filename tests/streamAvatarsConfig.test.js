@@ -7,3 +7,7 @@ test('valid enabled bridge defaults to independent port and 15-minute grace', ()
 test.each([{ STREAM_AVATARS_ENABLED: 'yes' }, { STREAM_AVATARS_TOKEN: '' }, { STREAM_AVATARS_PORT: 'NaN' }, { STREAM_AVATARS_HOST: ' ' }, { STREAM_AVATARS_STRIP_WIDTH: '0' }, { STREAM_AVATARS_STRIP_Y: 'Infinity' }, { STREAM_AVATARS_STATE_DIR: '' }, { STREAM_AVATARS_OFFLINE_GRACE_SECONDS: '-1' }])('optional errors disable bridge without exposing token: %j', patch => {
     const result = parseStreamAvatarsConfiguration({ ...enabled, ...patch }); expect(result.enabled).toBe(false); expect(result.errors.length).toBeGreaterThan(0); expect(JSON.stringify(result.errors)).not.toContain('a'.repeat(32));
 });
+
+test('measured game-space coordinates allow finite fractional units', () => {
+    expect(parseStreamAvatarsConfiguration({ ...enabled, STREAM_AVATARS_STRIP_X: '-10.5', STREAM_AVATARS_STRIP_Y: '-8.25', STREAM_AVATARS_STRIP_WIDTH: '20.5', STREAM_AVATARS_STRIP_HEIGHT: '5.5', STREAM_AVATARS_HEART_OFFSET: '1.5' })).toMatchObject({ enabled: true, errors: [], config: { strip: { x: -10.5, y: -8.25, width: 20.5, height: 5.5 }, heartOffset: 1.5 } });
+});
