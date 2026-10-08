@@ -85,3 +85,12 @@ test('ordinary online samples do not clear an ongoing production effect', async 
         expect(received.filter(message => message.type === 'clear')).toEqual([]);
     } finally { socket.terminate(); }
 });
+
+test('production recovery/reset targets are separate and reset requires confirmed offline', async () => {
+    await start(); expect((await command('session reset confirm')).status).toBe('denied');
+    await service.observeProduction({ status: 'online', observedAtMs: now, startedAtMs: now - 3600000, streamId: 'real' });
+    expect((await command('session reset confirm')).status).toBe('denied');
+    now++; await service.observeProduction({ status: 'offline', observedAtMs: now });
+    expect((await command('session reset confirm')).status).toBe('ok'); expect(service.getStatus().state.sessionId).toBeNull();
+    expect((await command('session recover confirm')).status).toBe('ok'); expect(service.getStatus().state.sessionId).not.toBeNull();
+});

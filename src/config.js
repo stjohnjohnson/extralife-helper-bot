@@ -143,7 +143,7 @@ function parseAdminUsers(adminString) {
 function parseCustomResponses(customResponseString) {
     const customResponses = new Map();
     const errors = [];
-    const builtInCommands = ['goal', 'promote', 'color']; // List of built-in commands
+    const builtInCommands = ['goal', 'promote', 'color', 'sa']; // List of built-in commands
 
     if (!customResponseString) {
         return { customResponses, customResponseErrors: errors };
@@ -244,7 +244,7 @@ function isAdmin(platform, userId, config) {
     if (platform === 'discord') {
         return config.discord.admins.includes(userId);
     } else if (platform === 'twitch') {
-        return config.twitch.admins.includes(userId.toLowerCase());
+        return config.twitch.admins.some(admin => admin.toLowerCase() === userId.toLowerCase());
     }
     return false;
 }

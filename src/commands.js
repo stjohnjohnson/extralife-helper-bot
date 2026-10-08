@@ -1,6 +1,7 @@
 const { getUserInfo } = require('extra-life-api');
 const { eventMetadata } = require('./analysis/eventMetadata.js');
 const { isAdmin } = require('./config.js');
+const { handleStreamAvatarsCommand } = require('./streamAvatars/commands');
 
 /**
  * Formats money amount using USD currency format
@@ -21,9 +22,14 @@ const moneyFormatter = new Intl.NumberFormat('en-US', {
  * @param {Object} hueController - Hue controller instance (optional)
  * @returns {Promise<string|null>} Response message or null if command not found
  */
-async function handleCommand(command, platform, context, config, clients, logger, hueController = null) {
+async function handleCommand(command, platform, context, config, clients, logger, hueController = null, avatarService = null) {
     // Convert command to lowercase for case-insensitive matching
     const normalizedCommand = command.toLowerCase();
+    const avatarCommand = normalizedCommand.trim().match(/^sa(?:\s+([\s\S]*))?$/);
+    if (avatarCommand) {
+        if (platform !== 'twitch') return 'Stream Avatars controls are available through Twitch chat.';
+        return handleStreamAvatarsCommand(avatarCommand[1] || 'status', context, { config, service: avatarService, logger });
+    }
     const colorCommand = normalizedCommand.trim().match(/^color(?:\s+([\s\S]*))?$/);
     if (colorCommand) {
         return await handleColorCommand(colorCommand[1]?.trim() || '', platform, context, config, hueController, logger);

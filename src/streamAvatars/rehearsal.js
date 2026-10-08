@@ -1,9 +1,10 @@
 function parseAction(input) {
     const words = input.trim().toLowerCase().split(/\s+/); const [command, sub, arg] = words;
-    const invalid = () => { throw new Error('Use !sa status, rehearsal start|stop|reset, crowd <0-100>, hearts, clock advance|seek <duration>, scenario <name>, or hue on|off.'); };
+    const invalid = () => { throw new Error('Use !sa status, rehearsal start|stop|reset, crowd <0-100>, hearts, clock advance|seek <duration>, scenario <name>, hue on|off, or session reset|recover confirm.'); };
     if (command === 'status' && words.length === 1) return { name: 'status', args: [] };
     if (command === 'hearts' && words.length === 1) return { name: 'hearts', args: [] };
     if (command === 'rehearsal' && ['start', 'stop', 'reset'].includes(sub) && words.length === 2) return { name: 'rehearsal.' + sub, args: [] };
+    if (command === 'session' && ['reset', 'recover'].includes(sub) && arg === 'confirm' && words.length === 3) return { name: 'session.' + sub, args: [] };
     if (command === 'crowd') {
         const text = words.length === 2 ? sub : arg;
         if (!/^\d+$/.test(text || '')) invalid();

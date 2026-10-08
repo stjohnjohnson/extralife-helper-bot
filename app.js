@@ -122,7 +122,13 @@ function start({ config = parseConfiguration() } = {}) {
     };
     runtime = state;
     if (config.streamAvatars?.enabled) {
-        state.streamAvatarsStartup = startStreamAvatars({ config, logger: log, signal: state.streamAvatarsAbort.signal })
+        state.streamAvatarsStartup = startStreamAvatars({ config, logger: log, signal: state.streamAvatarsAbort.signal,
+            hue: () => state.hueController,
+            onRehearsalStopped: () => {
+                if (state.active && state.twitchClient) Promise.resolve(state.twitchClient.say(config.twitch.channel,
+                    'Rehearsal stopped because Twitch reports live. Restore Stream Avatars normal streaming service.'))
+                    .catch(() => twitchLog.error('Unable to send rehearsal shutdown notice'));
+            } })
             .then(async service => { if (!state.active) await service.stop(); else state.streamAvatars = service; })
             .catch(() => log.error('Stream Avatars unavailable'));
     } else if (config.streamAvatars?.errors?.length) log.warn('Stream Avatars configuration invalid; integration disabled');
@@ -212,7 +218,8 @@ function start({ config = parseConfiguration() } = {}) {
                 config,
                 { discord: state.discordClient },
                 discordLog,
-                state.hueController
+                state.hueController,
+                state.streamAvatars
             );
             if (state.active && response) await message.reply(response);
         } catch (err) {
@@ -263,7 +270,8 @@ function start({ config = parseConfiguration() } = {}) {
                 config,
                 { discord: state.discordClient, twitch: state.twitchClient },
                 twitchLog,
-                state.hueController
+                state.hueController,
+                state.streamAvatars
             );
             if (state.active && response) await state.twitchClient.say(channel, response);
         } catch (err) {

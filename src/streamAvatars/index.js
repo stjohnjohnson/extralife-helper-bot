@@ -72,6 +72,12 @@ async function startStreamAvatars({ config, logger, signal, standalone = false, 
         },
         async dispatch(action, commandContext) {
             if (!active) return { status: 'unavailable', message: 'Stream Avatars stopped.' };
+            if (['session.reset', 'session.recover'].includes(action.name)) {
+                if (!production) return { status: 'denied', message: 'Production recovery is unavailable in standalone rehearsal.' };
+                if (lastRealObservation?.status !== 'offline' || realClock.nowMs() - lastRealObservation.observedAtMs > 2 * cadenceMs) return { status: 'denied', message: 'Production recovery/reset requires confirmed offline status.' };
+                if (action.name === 'session.reset') await production.reset(); else await production.recover();
+                notify(true); return { status: 'ok', message: 'Production session ' + (action.name === 'session.reset' ? 'reset and archived.' : 'recovered without replay.') };
+            }
             if (action.name === 'hearts' && !rehearsal.getStatus().active) {
                 const state = production?.getSnapshot();
                 if (!state?.sessionId || state.endedAtMs !== null || production.getStatus().recoveryRequired || lastRealObservation?.status !== 'online' || realClock.nowMs() - lastRealObservation.observedAtMs > 2 * cadenceMs) return { status: 'denied', message: 'Heart preview requires active rehearsal or confirmed live production.' };

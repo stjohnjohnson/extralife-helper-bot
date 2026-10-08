@@ -488,3 +488,9 @@ describe('optional voice overlay configuration', () => {
         expect(parseConfiguration().errors.some(error => error.startsWith('VOICE_OVERLAY'))).toBe(false);
     });
 });
+
+test('sa cannot be shadowed by a custom response and Twitch admin logins ignore case', () => {
+    const { parseCustomResponses, isAdmin } = require('../src/config');
+    expect(parseCustomResponses('sa:"shadow"').customResponseErrors).toHaveLength(1);
+    expect(isAdmin('twitch', 'admin', { twitch: { admins: ['AdMiN'] } })).toBe(true);
+});
