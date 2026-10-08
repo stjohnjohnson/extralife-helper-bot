@@ -195,7 +195,7 @@ Each marker is labeled `Donation: $100.00 from Full Display Name`. Donor names a
 
 Markers are requested alongside announcements using the existing 30-second donation polling interval. They mark the stream's current position when Twitch processes the request; they cannot be backdated to the original donation time. Twitch already records category changes as VOD chapters, so the bot adds markers only for donations.
 
-The silent startup donation load and repeated donation IDs never create markers. Offline/VOD-unavailable donations are skipped, and other failures (including rate limits) are logged without interrupting announcements or Hue celebrations. Requests expire after ten seconds and are cancelled during shutdown. Failed, skipped, or historical donations are not retried or replayed after restart, avoiding duplicate and late markers.
+The first successful donation load remains silent even if earlier startup fetches fail; it and repeated donation IDs never create markers. Offline/VOD-unavailable donations are skipped, and other failures (including rate limits) are logged without interrupting announcements or Hue celebrations. Requests expire after ten seconds and are cancelled during shutdown. Failed, skipped, or historical donations are not retried or replayed after restart, avoiding duplicate and late markers.
 
 See [Twitch's marker API](https://dev.twitch.tv/docs/api/reference#create-stream-marker), [rate limits](https://dev.twitch.tv/docs/api/guide/#twitch-rate-limits), and [VOD chapters](https://help.twitch.tv/s/article/video-on-demand) for platform requirements.
 

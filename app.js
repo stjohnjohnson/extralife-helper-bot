@@ -41,6 +41,8 @@ function updateDiscordSummary(state) {
 async function getLatestDonation(state, silent = false) {
     if (!state.active || state.donationPollBusy) return;
     state.donationPollBusy = true;
+    // Keep the first successful snapshot silent, even when startup fetches fail.
+    silent = silent || !state.donationsInitialized;
     try {
         const data = await getUserDonations(state.config.participantId);
         if (!state.active) return;
@@ -66,6 +68,7 @@ async function getLatestDonation(state, silent = false) {
             }));
         });
 
+        state.donationsInitialized = true;
         if (messages.length === 0 || silent) return;
         messages.forEach(message => { void state.streamMarkers.markDonation(message.donation); });
         if (state.donationChannel) messages.forEach(message => state.donationChannel.send(message.discord));
@@ -103,6 +106,7 @@ function start({ config = parseConfiguration() } = {}) {
         summaryChannel: null,
         donationInterval: null,
         donationPollBusy: false,
+        donationsInitialized: false,
         streamMarkers: createStreamMarkerService(config, twitchLog),
         viewerCountInterval: null,
         summaryTimeouts: new Set(),

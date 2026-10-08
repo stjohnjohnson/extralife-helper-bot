@@ -8,7 +8,7 @@ Approved on 2026-10-07. Twitch automatically records category changes as VOD cha
 - Create one marker for every newly announced donation at or above the threshold, including multiple qualifying donations in a polling batch. There is no application-imposed per-stream cap or cooldown.
 - Description: `Donation: $100.00 from Full Display Name`. Preserve the amount and full donor display name unless the description exceeds Twitch's 140-character limit. Shorten only the name with an ellipsis, without splitting Unicode characters. Missing/blank names use `Anonymous`. Donation messages are not included.
 - Request markers alongside donation announcements, using the existing 30-second polling interval. Twitch records the current stream position, not the original donation time.
-- Skip the silent startup donation load and repeated IDs. Do not replay skipped or failed markers on a later stream or after restart.
+- Skip the first successful donation baseline (including after startup fetch failures) and repeated IDs. Do not replay skipped or failed markers on a later stream or after restart.
 - Marker errors must not block announcements, Hue celebrations, summary refreshes, or subsequent donations. Offline or missing VOD storage is a logged skip. Other errors, including rate limiting, are logged failures. Do not retry ambiguous writes, since Twitch provides no idempotency key and a retry can create duplicates or an inaccurate later marker.
 - Bound each marker operation to 10 seconds. Stop cancels pending marker requests and prevents writes after shutdown, including late authentication results. Reuse existing Twitch broadcaster authentication and scope; do not log credentials.
 

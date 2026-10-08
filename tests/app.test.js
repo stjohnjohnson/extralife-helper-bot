@@ -353,6 +353,20 @@ describe('application lifecycle', () => {
         expect(jest.getTimerCount()).toBe(0);
     });
 
+    test('failed startup donation fetch keeps the first successful load silent', async () => {
+        const history = { donationID: 'history', amount: 500, displayName: 'Historic Donor' };
+        getUserDonations.mockRejectedValueOnce(new Error('Extra Life unavailable'))
+            .mockResolvedValueOnce({ donations: [history] })
+            .mockResolvedValue({ donations: [history, { donationID: 'new', amount: 100, displayName: 'New Donor' }] });
+        application.start({ config: { ...validConfig, streamMarkers: { donationThresholdCents: 10000 } } });
+        await jest.advanceTimersByTimeAsync(30000);
+        expect(makeTwitchApiRequest).not.toHaveBeenCalled();
+        expect(mockTwitchClient.say).not.toHaveBeenCalled();
+        await jest.advanceTimersByTimeAsync(30000);
+        expect(makeTwitchApiRequest).toHaveBeenCalledTimes(1);
+        expect(makeTwitchApiRequest.mock.calls[0][1].body.description).toBe('Donation: $100.00 from New Donor');
+    });
+
     test('a slow silent startup load cannot race a live poll and mark history', async () => {
         const initial = deferred();
         getUserDonations.mockReturnValueOnce(initial.promise).mockResolvedValue({ donations: [

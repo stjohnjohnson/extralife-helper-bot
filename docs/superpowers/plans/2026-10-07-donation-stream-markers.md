@@ -37,12 +37,12 @@
 - Produces `createStreamMarkerService(config, logger) -> { markDonation(donation): Promise<object|null>, stop(): void }`.
 - Consumes `getValidAccessToken(config, logger)`, `getBroadcasterIdFromChannel(channel, clientId, accessToken)`, `makeTwitchApiRequest(path, options, clientId, accessToken)`; options gains AbortSignal support and errors gain statusCode.
 
-- [ ] Write failing tests for unset/blank/invalid threshold, decimal amounts, inclusive qualification, safe description formatting, exact POST body, auth/lookup sharing, 100 markers, offline and rate-limit failures, timeout and stop including late auth.
-- [ ] Run `npm test -- --runInBand tests/config.test.js tests/gameUpdates.test.js tests/streamMarkers.test.js --coverage=false`. Expected: failures identify missing marker configuration/service/cancellation support.
-- [ ] Implement configuration and service, preserving existing API callers. Abortable marker operations use a 10-second deadline; log structured IDs/status without tokens or response bodies. No retries.
-- [ ] Run targeted tests. Expected: all pass.
-- [ ] Run `npm run lint` and `npm test`. Expected: clean lint and entire suite passes, including coverage thresholds.
-- [ ] Commit verified service changes with conventional message and detailed body.
+- [x] Write failing tests for unset/blank/invalid threshold, decimal amounts, inclusive qualification, safe description formatting, exact POST body, auth/lookup sharing, 100 markers, offline and rate-limit failures, timeout and stop including late auth.
+- [x] Run `npm test -- --runInBand tests/config.test.js tests/gameUpdates.test.js tests/streamMarkers.test.js --coverage=false`. Expected: failures identify missing marker configuration/service/cancellation support.
+- [x] Implement configuration and service, preserving existing API callers. Abortable marker operations use a 10-second deadline; log structured IDs/status without tokens or response bodies. No retries.
+- [x] Run targeted tests. Expected: all pass.
+- [x] Run `npm run lint` and `npm test`. Expected: clean lint and entire suite passes, including coverage thresholds.
+- [x] Commit verified service changes with conventional message and detailed body.
 
 ### Task 2: Runtime integration and operator documentation
 
@@ -52,9 +52,11 @@
 - Consumes Task 1 config and service interfaces; app startup creates service, new donations call markDonation, stop calls service.stop.
 - Produces nonblocking runtime donation markers with safe startup and teardown.
 
-- [ ] Write failing app tests exercising the real service with Twitch API boundary doubles: silent startup, exact inclusive boundary, repeated IDs, mixed/multiple qualifying donations, disabled feature, blocked/failing requests that leave chat/Hue working, stop, and overlapping startup polls.
-- [ ] Run `npm test -- --runInBand tests/app.test.js --coverage=false`. Expected: failures identify missing donation marker integration.
-- [ ] Wire service into app lifecycle and announced donation flow; preserve donation objects until notification dispatch. Guard overlapping polls so initial silent load cannot race live polling.
-- [ ] Document threshold examples, broadcaster scope, VOD prerequisites, 140-character descriptions, timing, per-donation batches, failures, and restart behavior. Leave env.example threshold blank.
-- [ ] Run `npm run lint` and `npm test`. Expected: entire suite and coverage gates pass.
-- [ ] Commit only task files. Review whole branch, fix findings with regression tests, push and create PR against main, attach PR to this chat, and verify required CI.
+- [x] Write failing app tests exercising the real service with Twitch API boundary doubles: silent startup, exact inclusive boundary, repeated IDs, mixed/multiple qualifying donations, disabled feature, blocked/failing requests that leave chat/Hue working, stop, and overlapping startup polls.
+- [x] Run `npm test -- --runInBand tests/app.test.js --coverage=false`. Expected: failures identify missing donation marker integration.
+- [x] Wire service into app lifecycle and announced donation flow; preserve donation objects until notification dispatch. Guard overlapping polls so initial silent load cannot race live polling.
+- [x] Document threshold examples, broadcaster scope, VOD prerequisites, 140-character descriptions, timing, per-donation batches, failures, and restart behavior. Leave env.example threshold blank.
+- [x] Run `npm run lint` and `npm test`. Expected: entire suite and coverage gates pass.
+- [x] Commit only task files. Review whole branch and fix findings with regression tests.
+
+Delivery: push and create PR against main, attach PR to this chat, and verify required CI.

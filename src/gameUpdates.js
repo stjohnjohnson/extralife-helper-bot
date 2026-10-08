@@ -21,7 +21,7 @@ const GAME_OVERRIDES = {
 /**
  * Makes an HTTPS request to the Twitch API
  * @param {string} path - API endpoint path
- * @param {Object} options - Request options (method, headers, body)
+ * @param {Object} options - Request options (method, headers, body, signal)
  * @param {string} clientId - Twitch client ID
  * @param {string} accessToken - OAuth access token
  * @returns {Promise<Object>} Response data
@@ -43,6 +43,8 @@ function makeTwitchApiRequest(path, options = {}, clientId, accessToken) {
         };
 
         const req = https.request(requestOptions, (res) => {
+            res.on('error', reject);
+            res.on('aborted', () => reject(new Error('Twitch API response aborted')));
             let data = '';
             res.on('data', (chunk) => {
                 data += chunk;
@@ -89,6 +91,7 @@ function makeTwitchApiRequest(path, options = {}, clientId, accessToken) {
  * @param {string} clientId - Twitch client ID
  * @param {string} clientSecret - Twitch client secret
  * @param {string} refreshToken - Refresh token
+ * @param {AbortSignal} [signal] - Optional request cancellation
  * @returns {Promise<Object>} Token response with access_token and refresh_token
  */
 async function refreshUserToken(clientId, clientSecret, refreshToken, signal) {
@@ -108,6 +111,8 @@ async function refreshUserToken(clientId, clientSecret, refreshToken, signal) {
         };
 
         const req = https.request(options, (res) => {
+            res.on('error', reject);
+            res.on('aborted', () => reject(new Error('Twitch token response aborted')));
             let data = '';
             res.on('data', (chunk) => {
                 data += chunk;
@@ -139,6 +144,7 @@ async function refreshUserToken(clientId, clientSecret, refreshToken, signal) {
  * Gets valid user access token with automatic refresh and in-memory caching
  * @param {Object} config - Configuration object
  * @param {Object} logger - Logger instance
+ * @param {AbortSignal} [signal] - Optional refresh cancellation
  * @returns {Promise<string>} Valid access token
  */
 async function getValidAccessToken(config, logger, signal) {
@@ -185,6 +191,7 @@ async function getValidAccessToken(config, logger, signal) {
  * @param {string} channelName - Twitch channel name
  * @param {string} clientId - Twitch client ID
  * @param {string} accessToken - OAuth access token
+ * @param {AbortSignal} [signal] - Optional lookup cancellation
  * @returns {Promise<string>} Broadcaster ID
  */
 async function getBroadcasterIdFromChannel(channelName, clientId, accessToken, signal) {

@@ -35,13 +35,19 @@ function createStreamMarkerService(config, logger) {
     let broadcasterId;
     let preparing;
     let preparationController;
+    // The shared OAuth helper logs raw error text; report failures only in our
+    // sanitized catch below, including failures before a marker POST exists.
+    const authLogger = {
+        info: (message, details) => logger.info(message, details),
+        error: () => {}
+    };
 
     async function credentials() {
         if (!preparing) {
             preparationController = new AbortController();
             const signal = preparationController.signal;
             preparing = (async () => {
-                const accessToken = await getValidAccessToken(config, logger, signal);
+                const accessToken = await getValidAccessToken(config, authLogger, signal);
                 if (!active || signal.aborted || pending.size === 0) return null;
                 if (!broadcasterId) {
                     broadcasterId = await getBroadcasterIdFromChannel(

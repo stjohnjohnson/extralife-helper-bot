@@ -41,6 +41,7 @@ describe('Twitch API integration boundaries', () => {
 
     beforeEach(() => {
         jest.clearAllMocks();
+        https.request.mockReset();
         now += 7200000;
         dateNowSpy = jest.spyOn(Date, 'now').mockImplementation(() => now);
     });
@@ -130,6 +131,77 @@ describe('Twitch API integration boundaries', () => {
         await expect(getValidAccessToken({
             twitch: { clientId: 'client', clientSecret: 'secret', refreshToken: 'refresh' }
         }, logger)).rejects.toThrow('Token refresh failed: Failed to parse refresh response');
+    });
+
+    test('marker authentication never logs raw refresh response text', async () => {
+        const { createStreamMarkerService } = require('../src/streamMarkers');
+        queueResponses({ statusCode: 401, body: '{"message":"rejected FAKE_REFRESH_SECRET"}' });
+        const service = createStreamMarkerService({
+            twitch: { channel: 'streamer', clientId: 'client', clientSecret: 'secret', refreshToken: 'FAKE_REFRESH_SECRET' },
+            streamMarkers: { donationThresholdCents: 10000 }
+        }, logger);
+        try {
+            expect(await service.markDonation({ donationID: 'd-1', amount: 100, displayName: 'Donor' })).toBeNull();
+            const logs = JSON.stringify([logger.info.mock.calls, logger.warn.mock.calls, logger.error.mock.calls]);
+            expect(logs).not.toContain('FAKE_REFRESH_SECRET');
+            expect(logger.warn).toHaveBeenCalledWith('Donation stream marker failed', expect.objectContaining({ donationId: 'd-1' }));
+        } finally {
+            service.stop();
+        }
+    });
+
+    test('an aborted partial auth response does not lock out subsequent donations', async () => {
+        jest.useFakeTimers({ now });
+        const { createStreamMarkerService } = require('../src/streamMarkers');
+        https.request.mockImplementationOnce((options, callback) => {
+            const req = new EventEmitter();
+            req.write = jest.fn();
+            req.end = () => {
+                const res = new EventEmitter();
+                res.statusCode = 200;
+                callback(res);
+                res.emit('data', '{"access_token":');
+                res.emit('aborted');
+            };
+            return req;
+        });
+        const service = createStreamMarkerService({
+            twitch: { channel: 'streamer', clientId: 'client', clientSecret: 'secret', refreshToken: 'refresh' },
+            streamMarkers: { donationThresholdCents: 10000 }
+        }, logger);
+        try {
+            const first = service.markDonation({ donationID: 'd-1', amount: 100, displayName: 'Donor' });
+            await jest.advanceTimersByTimeAsync(10000);
+            expect(await first).toBeNull();
+            queueResponses(
+                { body: '{"access_token":"fresh-token","expires_in":3600}' },
+                { body: '{"data":[{"id":"broadcaster-1"}]}' },
+                { body: '{"data":[{"id":"marker-2","position_seconds":120}]}' }
+            );
+            const second = service.markDonation({ donationID: 'd-2', amount: 100, displayName: 'Donor' });
+            await jest.advanceTimersByTimeAsync(10000);
+            expect(await second).toEqual({ id: 'marker-2', position_seconds: 120 });
+            expect(https.request).toHaveBeenCalledTimes(4);
+        } finally {
+            service.stop();
+            jest.useRealTimers();
+        }
+    });
+
+    test('handles asynchronous response errors without an unhandled event', async () => {
+        let response;
+        https.request.mockImplementationOnce((options, callback) => {
+            const req = new EventEmitter();
+            req.end = () => {
+                response = new EventEmitter();
+                callback(response);
+            };
+            return req;
+        });
+        const operation = loadModule().makeTwitchApiRequest('/streams/markers', {}, 'client', 'token');
+        const outcome = operation.catch(error => error);
+        expect(() => response.emit('error', new Error('response transport failure'))).not.toThrow();
+        expect(await outcome).toMatchObject({ message: 'response transport failure' });
     });
 
     test('looks up broadcasters, searches categories, and updates channels', async () => {
