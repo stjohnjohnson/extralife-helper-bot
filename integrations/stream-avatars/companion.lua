@@ -93,7 +93,7 @@ return function()
     local function reconcileCrowd(ids)
         local desired = {}
         for _,name in ipairs(ids) do
-            local index = tonumber(string.match(name, "^sa_rehearsal_(%d+)$"))
+            local index = tonumber(string.match(name, "^sa_integration_(%d+)$"))
             if index and index >= 1 and index <= 100 then desired[900000+index] = name end
         end
         for id,_ in pairs(owned) do if not desired[id] then app.platformServiceSettings.SetUserLeave(id); owned[id]=nil end end
@@ -107,7 +107,7 @@ return function()
     local function validCrowd(ids)
         if type(ids)~="table" or #ids>100 then return false end
         for _,name in ipairs(ids) do
-            if type(name)~="string" or not string.match(name,"^sa_rehearsal_%d+$") then return false end
+            if type(name)~="string" or not string.match(name,"^sa_integration_%d+$") then return false end
             local n=tonumber(string.match(name,"(%d+)$")); if n<1 or n>100 then return false end
         end
         return true
@@ -256,7 +256,7 @@ return function()
         elseif value.type=="snapshot" and validSnapshot(value) then
             if not snapshot or snapshot.generation~=value.generation or snapshot.mode~=value.mode or snapshot.session.sessionId~=value.session.sessionId then clearObjects() end
             generationFloor=value.generation; snapshot=value; serverOffset=value.serverNowMs-elapsed*1000; retryDelay=1
-            if value.mode=="integration" and not previewHostSet then app.platformServiceSettings.SetStreamer(900000,"sa_rehearsal_host"); previewHostSet=true end
+            if value.mode=="integration" and not previewHostSet then app.platformServiceSettings.SetStreamer(900000,"sa_integration_host"); previewHostSet=true end
             if value.mode=="production" then previewHostSet=false end
             reconcileCrowd(value.mode=="integration" and value.integration.crowdIds or {})
             local resolution=app.getResolution()
