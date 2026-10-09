@@ -240,6 +240,8 @@ In the configured Twitch channel, admins can use `!sa status`, `!sa rehearsal st
 
 `npm run sa:rehearse` provides the same controls locally without Twitch, Discord, or Extra Life credentials. Rehearsal has separate state and a virtual clock; physical Hue output requires explicit opt-in. See [setup, Docker storage, and the complete command reference](docs/stream-avatars-setup.md) and [verification status](docs/stream-avatars-verification.md). A real Stream Avatars/OBS preview remains required for issue #65 acceptance.
 
+Run `npm run sa:package` to generate `dist/stream-avatars/sa-helper-bridge.zip` for **Import & Export → Select Import** on another computer. It bundles the companion and all image manifests with their frame/FPS/loop settings, using placeholder credentials. See [package import and adding images](docs/stream-avatars-setup.md#generate-and-import-a-package); reimporting replaces the bridge's local settings, so preserve them before updating.
+
 ### Custom Commands
 You can create your own custom commands using the `CUSTOM_RESPONSES` environment variable. Custom commands:
 - Work on both Discord and Twitch

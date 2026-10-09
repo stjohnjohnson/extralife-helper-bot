@@ -42,11 +42,54 @@ Each state file has an exclusive `.lock`. After a crash, verify that no process/
 
 ## Windows gaming computer
 
-The same companion runs in Stream Avatars on Windows; no separate system Lua installation is needed for the application. Use Stream Avatars' **Create Script** action to open the command's own `.lua`/`.json` folder, then copy the shipped companion and private settings there. Do not hard-code Windows paths into the script. The WebSocket URL names the Linux bot's LAN address, not `localhost` on the gaming computer. Allow Stream Avatars' outbound connection through Windows Defender Firewall, and permit the incoming bridge port on the Linux LAN firewall. Do not publish the bridge to the public internet.
+The same companion runs in Stream Avatars on Windows; no separate system Lua installation is needed for the application. Import the generated package below, or use Stream Avatars' **Create Script** action for the manual setup. Do not hard-code Windows paths into the script. The WebSocket URL names the Linux bot's LAN address, not `localhost` on the gaming computer. Allow Stream Avatars' outbound connection through Windows Defender Firewall, and permit the incoming bridge port on the Linux LAN firewall. Do not publish the bridge to the public internet.
 
 Native Windows/Linux Lua 5.2 and 5.4 CI, plus CRLF/path-with-spaces tests, check portability without installing Stream Avatars. They do not reproduce the application's graphics engine. See [Lua confidence and remaining visual checks](stream-avatars-verification.md#lua-confidence-and-windows-portability).
 
 ## Companion import
+
+### Generate and import a package
+
+After `npm ci`, run:
+
+```sh
+npm run sa:package
+```
+
+This creates **`dist/stream-avatars/sa-helper-bridge.zip`**, containing the current Lua companion, every image described by `integrations/stream-avatars/assets/*.json`, and the saved image animation settings. The ZIP uses Stream Avatars' private-content import layout (`data.txt` and `scripts/sa_helper_bridge/`). It includes the On Connect command and sets looping animations to the native infinity value, so frame sizes, FPS and looping do not need to be entered manually. Packaging works on Mac, Windows and Linux with Node.js alone; it does not require Stream Avatars, system Lua, or a platform-specific ZIP utility. The generated `dist/` directory is ignored by Git.
+
+To choose another output location, run `npm run sa:package -- --output "path with spaces/bridge.zip"`. Identical inputs produce byte-identical ZIPs.
+
+1. Back up the destination's Stream Avatars settings. For updates, privately copy its existing `sa_helper_bridge_settings.json` before importing.
+2. On the destination computer, open **Import & Export → Select Import** and select the ZIP. The command is named **sa_helper_bridge**.
+3. Open that command's script folder through **Create Script** and edit **sa_helper_bridge_settings.json**. Set the actual bot URL and matching private token, or restore the saved private settings when updating. The package always uses placeholder URL/token values and `customService: false`; it never reads `.env`, local credentials, or the installed application's data.
+4. Connect Stream Avatars and run `hearts` in rehearsal. See the measured bounds and offline crowd instructions below.
+
+**Reimporting replaces this command, its script folder, images and settings.** Preserve private settings and any custom edits first. General application settings, Twitch login, selected platform, avatar capacity and OBS scenes are not part of the package. Select the Custom Lua service and `customService: true` separately for offline crowds; keep your ordinary streaming service and `customService: false` for production.
+
+### Add images to future packages
+
+Add a PNG spritesheet and a matching JSON manifest to `integrations/stream-avatars/assets/`, following `heart.json`:
+
+```json
+{
+  "name": "sa_heart",
+  "file": "heart.png",
+  "frameWidth": 32,
+  "frameHeight": 32,
+  "frames": 8,
+  "rows": 1,
+  "framesPerSecond": 12,
+  "loop": true,
+  "transparent": true
+}
+```
+
+`frames` is the total frame count, laid out in `rows` equal rows. For example, eight 32×32 frames in two rows require a 128×64 PNG. Names must be unique even when compared without case, and use letters, numbers, underscores or hyphens; Windows reserved filenames are refused. `file` must name a PNG directly inside the assets directory. Packaging checks PNG chunk checksums, sheet dimensions, positive integer frame geometry, FPS (greater than zero and at most 240), and boolean `loop`/`transparent` fields. Use actual PNG alpha for transparent images; this flag describes the asset and does not remove a background. Files must be regular files, not symlinks. Frame dimensions/count/rows are limited to 4096, PNGs to 16 megapixels and 32 MiB each, and the complete package input to 128 MiB.
+
+Run `npm run sa:package` again to include new manifests automatically. Unlisted PNGs, editable SVGs and private files are not bundled. Importing an image makes it available to Lua; a new effect still needs renderer logic to select and use it.
+
+### Manual setup
 
 1. Back up your Stream Avatars settings and record your current Login Details streaming service.
 2. Import `integrations/stream-avatars/companion.lua` as an **On Connect** Lua command. Do not import real credentials into shared script exports.
@@ -57,11 +100,15 @@ Native Windows/Linux Lua 5.2 and 5.4 CI, plus CRLF/path-with-spaces tests, check
 
 The companion clamps the whole measured heart rectangle, follows active avatars, rotates a 50-object selection for large crowds, and clears temporary objects on expiry, disconnect, mode switch, reload, or explicit stop. Missing or stalled image loads time out after two game seconds, produce a sanitized diagnostic, and leave the connection responsive. The host may retain a blank pending object when its callback fails; pending loads are capped at 100. Repair the image import and press F5 to clear retained host objects and retry.
 
+**`worldWidth` and `worldHeight` mean the displayed heart's dimensions in game coordinates, not the whole screen or game area.** The current 32×32 frame at image scale `1` occupies 32×32 game units, so use `32` for both. The 256×32 spritesheet width is not the displayed frame width. In the installed application, displayed frame dimensions equal frame pixels multiplied by the image's scale (with the companion's object scale at `1`). If you change the image scale to `2`, use `64` for both. These values give the renderer a half-width/half-height margin at strip edges so the complete image stays inside. The overall allowed area is configured separately on the bot with `STREAM_AVATARS_STRIP_X`, `Y`, `WIDTH`, and `HEIGHT`; screen/OBS pixels can differ from game coordinates. `avatarTopOffset` is separate again: the distance from the avatar position to its top.
+
+**`STREAM_AVATARS_HEART_OFFSET` adds the distance from the avatar's top to the heart's center.** Before strip-edge clamping, `heartCenterY = avatarPositionY + avatarTopOffset + HEART_OFFSET`. With `avatarTopOffset: 40`, a 32-unit-tall heart and `HEART_OFFSET=16`, the heart's bottom meets the avatar's top. To leave an 8-unit gap, use `HEART_OFFSET=24` (half the displayed heart height plus the desired gap). Measure `avatarTopOffset` for your avatar geometry; use `HEART_OFFSET` to adjust the visual spacing above it.
+
 If a heart follows the avatar but looks static, check the imported image's **Loop** field first. Eight frames at 12 FPS finish one cycle in about 0.67 seconds; with Loop `1`, the remaining preview shows a still image. The image editor's own preview loops independently, so an animated editor preview does not prove the saved image is configured to loop during Lua playback. Set Loop to **∞**, save, and run another `hearts` preview.
 
 ## Offline crowd
 
-Select Stream Avatars' **custom Lua streaming service** under Login Details and set private `customService: true` before connecting. The bot's separate Twitch chat connection continues receiving admin controls. Synthetic users have IDs 900001–900100 and names `sa_rehearsal_1`–`sa_rehearsal_100`; reserve these IDs. This companion only removes IDs it created. It does not require viewers or the Twitch extension.
+Select Stream Avatars' **custom Lua streaming service** under Login Details and set private `customService: true` before connecting. Allow at least **101 avatars** for 100 synthetic viewers plus the caster, with spawning set to **Everyone / In Chat**. The bot's separate Twitch chat connection continues receiving admin controls. Synthetic users have IDs 900001–900100 and names `sa_rehearsal_1`–`sa_rehearsal_100`; reserve these IDs. This companion only removes IDs it created. It does not require viewers or the Twitch extension.
 
 After rehearsal, stop its effects/crowd, restore your normal streaming service and `customService: false`, and reconnect Stream Avatars. A real Twitch live observation automatically stops the integrated rehearsal; restoring the Stream Avatars Login Details service is still a manual step.
 

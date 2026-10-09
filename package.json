@@ -12,7 +12,8 @@
     "audit:prod": "npm audit --omit=dev --audit-level=high",
     "start": "node app.js",
     "semantic-release": "semantic-release",
-    "sa:rehearse": "node scripts/sa-rehearse.js"
+    "sa:rehearse": "node scripts/sa-rehearse.js",
+    "sa:package": "node scripts/sa-package.js"
   },
   "repository": {
     "type": "git",
@@ -33,7 +34,9 @@
     "discord.js": "^14.27.0",
     "dotenv": "^17.2.2",
     "extra-life-api": "^8.0.0",
+    "fflate": "0.8.3",
     "node-hue-api": "^5.0.0-beta.16",
+    "pngjs": "7.0.0",
     "tmi.js": "^1.8.5",
     "winston": "^3.19.0",
     "ws": "8.22.0"
