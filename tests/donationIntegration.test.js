@@ -49,3 +49,15 @@ test('newer campaign observation can confirm a delayed goal with no duplicate do
     now++; expect((await accept(donations, { observedAtMs: now, totalCents: 100000, goalCents: 100000 })).intent).toMatchObject({ goalReached: true, donationIds: [] });
     expect(service.getStatus().state.liveTotalCents).toBe(10000);
 });
+
+test('a closed session still polls newest campaign gifts for legacy notifications', async () => {
+    await live(); await accept([]); now++;
+    await service.observeProduction({ status: 'offline', observedAtMs: now });
+    for (let i=0;i<15;i++) { now+=60000; await service.observeProduction({ status: 'offline', observedAtMs: now }); }
+    expect(service.getStatus().state.endedAtMs).not.toBeNull();
+    now+=60000;
+    // The reducer owns session eligibility; a historical API upper bound would hide offline notifications.
+    expect(service.getSessionWindow().throughMs).toBe(now);
+    expect((await accept([{ ...gift('after', 10000), createdAtMs: now - 1 }])).intent).toBeNull();
+    expect(service.getStatus().state.liveTotalCents).toBe(0);
+});

@@ -51,10 +51,18 @@ test('valid coalesced client frames are serialized rather than rejected', async 
     socket.send(JSON.stringify({ version: 2, type: 'auth', token })); await snapshotReceived;
     const closed = once(socket, 'close').then(() => 'closed');
     socket._socket.cork();
-    socket.send(JSON.stringify({ version: 2, type: 'ready', capabilities: ['hearts'], resolution: { width: 1920, height: 200 } }));
+    socket.send(JSON.stringify({ version: 2, type: 'ready', capabilities: ['hearts', 'celebrations'], resolution: { width: 1920, height: 200 } }));
     socket.send(JSON.stringify({ version: 2, type: 'heartbeat' })); socket._socket.uncork();
     expect(await Promise.race([handled.then(() => 'handled'), closed])).toBe('handled');
     expect(seen).toEqual(['ready', 'heartbeat']); expect(socket.readyState).toBe(WebSocket.OPEN);
 });
 
 test('old companion receives actionable v2 import rejection',async()=>{await start();const socket=await connect();const closed=once(socket,'close');socket.send(JSON.stringify({version:1,type:'auth',token}));const [code,reason]=await closed;expect(code).toBe(1008);expect(reason.toString()).toContain('latest companion v2');});
+
+test('v2 companion without celebration capability receives an actionable rejection', async () => {
+    await start(); const socket = await connect(); const snapshotReceived = once(socket, 'message');
+    socket.send(JSON.stringify({ version: 2, type: 'auth', token })); await snapshotReceived;
+    const closed = once(socket, 'close'); socket.send(JSON.stringify({ version: 2, type: 'ready', capabilities: ['hearts'], resolution: { width: 1920, height: 1080 } }));
+    const [code, reason] = await closed; expect(code).toBe(1008); expect(reason.toString()).toContain('companion v2');
+    expect(server.getStatus().readyClients).toBe(0);
+});

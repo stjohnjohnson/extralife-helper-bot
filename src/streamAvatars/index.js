@@ -66,7 +66,7 @@ async function startStreamAvatars({ config, logger, signal, webServer, standalon
         getSessionWindow() {
             const state = production?.getSnapshot();
             if (!active || !state?.sessionId || production.getStatus().recoveryRequired) return null;
-            return { sessionId: state.sessionId, participantId: state.participantId, fromMs: state.startedAtMs, throughMs: Math.min(realClock.nowMs(), state.endedAtMs === null ? Infinity : state.endedAtMs - 1) };
+            return { sessionId: state.sessionId, participantId: state.participantId, fromMs: state.startedAtMs, throughMs: realClock.nowMs() };
         },
         async acceptDonations(input) {
             if (!active || !production) return { accepted: false, intent: null, delivered: false, diagnostics: ['unavailable'] };

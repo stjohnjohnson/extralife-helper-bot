@@ -43,7 +43,10 @@ async function startBridgeServer({ config, getSnapshot, onClientMessage = async 
                 record.incoming++;
                 record.inboundTail = record.inboundTail.then(async () => {
                     if (record.alive && socket.readyState === WebSocket.OPEN) {
-                        if (message.type === 'ready') record.capabilities = message.capabilities;
+                        if (message.type === 'ready') {
+                            if (!message.capabilities.includes('celebrations')) throw new Error('Import latest companion v2');
+                            record.capabilities = message.capabilities;
+                        }
                         await onClientMessage(message);
                     }
                 }).catch(reject).finally(() => { record.incoming--; });

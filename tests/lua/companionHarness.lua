@@ -13,6 +13,7 @@ end
 local function hostSerialize(value) return (codec.encode(value):gsub("/", "\\/")) end
 local function clone(value) if type(value) ~= "table" then return value end local copy={} for k,v in pairs(value) do copy[k]=clone(v) end return copy end
 local connectedCount, leaves, removals = 0, 0, 0
+local jumps, dances, exits = 0, 0, 0
 local config = { url = "ws://127.0.0.1/sa/socket", token = "private-test-token", image = "sa_heart" }
 local expectedUrl=config.url
 if scenario=="address-ip" then config={address="192.168.1.42",token=config.token}; expectedUrl="ws://192.168.1.42:3000/sa/socket" end
@@ -48,18 +49,18 @@ local env; env = {
     end, set = function(key,value) shared[key]=clone(value) end,
     load = function() shared.data = config end,
     getUsers = function() local list={} for _,user in pairs(users) do list[#list+1]=user end return list end,
-    applyImage = function(ob,name) assert(name=="sa_heart" and not ob.removed); if scenario=="missing-image" then error("missing image") end
+    applyImage = function(ob,name) assert(type(name)=="string" and name:match("^sa_") and not ob.removed); ob.asset=name; if (scenario=="celebration-missing-confetti" and name=="sa_confetti") or (scenario=="celebration-missing-heart" and name=="sa_heart") then error("missing layer") end; if scenario=="missing-image" then error("missing image") end
         if (scenario=="missing-image-host" or scenario=="image-pending-cap") then error("CLR missing image") end
-        if scenario=="image-load-delay" or scenario=="pending-image-stop" or scenario=="image-loaded-before-clear" then
+        if scenario=="celebration-delay-cancel" or scenario=="image-load-delay" or scenario=="pending-image-stop" or scenario=="image-loaded-before-clear" then
             -- The real callback plays the image before it resumes the worker.
             ob.imageLoaded=true; coroutine.yield()
         end
-        if scenario=="image-load-timeout" then while true do coroutine.yield() end end
+        if scenario=="celebration-pending-cap" or scenario=="image-load-timeout" then while true do coroutine.yield() end end
         ob.imageLoaded=true
     end,
     log = function(message) logs[#logs+1]=message; assert(not message:find(config.token,1,true)) end,
     yield = function() return coroutine.yield() end,
-    json = { serialize = scenario=="host-json-escapes" and hostSerialize or codec.encode, parse = scenario=="host-json-escapes" and hostParse or codec.decode }
+    json = { null=codec.null, serialize = scenario=="host-json-escapes" and hostSerialize or codec.encode, parse = scenario=="host-json-escapes" and hostParse or codec.decode }
 }
 -- The companion has no filesystem, shell, package, clock or dynamic-code access.
 for _,name in ipairs({"type","pairs","ipairs","tonumber","tostring","pcall","math","table","string"}) do env[name]=_G[name] end
@@ -102,10 +103,21 @@ local function hearts(id,generation)
     return {version=2,type="hearts",mode="integration",generation=generation or 1,sessionId="session",id=id or "effect",issuedAtMs=1000,expiresAtMs=11000,durationMs=5000}
 end
 local function addUser(id,x,y)
-    local user={id=id,isActive=true,x=x or 50,y=y or 20}
+    local user={id=id,isActive=true,x=x or 50,y=y or 20,gear="sentinel",state="Idle",animation="idle"}
+    user.getState=function() return user.state end; user.getAnimation=function() return user.animation end
+    user.exitState=function() exits=exits+1; user.state="Idle"; user.animation="idle" end
+    user.runCommand=function(command,quiet)
+        assert(quiet==true and (command=="!{cmd:jump}" or command=="!{cmd:dance}"))
+        if scenario=="celebration-faults" then error("action unavailable") end
+        if command=="!{cmd:jump}" then jumps=jumps+1 else dances=dances+1; user.state="CustomAnimation"; user.animation="dance" end
+    end
     user.getPosition=function() return {x=user.x,y=user.y} end; users[tostring(id)]=user; return user
 end
 local function count() local n=0 for _,ob in ipairs(objects) do if not ob.removed and ob.imageLoaded and ob.scale>0 then n=n+1 end end return n end
+local function assetCount(prefix) local n=0 for _,ob in ipairs(objects) do if not ob.removed and ob.imageLoaded and ob.scale>0 and ob.asset and (ob.asset==prefix or (prefix=="sa_digit" and ob.asset:find("sa_digit_",1,true))) then n=n+1 end end return n end
+local function celebration(kind,id)
+    return {version=2,type="celebration",mode="integration",generation=1,sessionId="session",id=id or "celebration",issuedAtMs=1000,expiresAtMs=11000,heartsUntilMs=6000,partyUntilMs=kind=="goal" and 21000 or (kind=="milestone" and 19000 or 0),kind=kind or "donation",liveTotalCents=154350,milestoneCents=kind=="milestone" and 150000 or codec.null}
+end
 local function active() for _,ob in ipairs(objects) do if not ob.removed and ob.imageLoaded and ob.scale>0 then return ob end end end
 if scenario=="host-json-escapes" then
     config.token="private/test\\path/token"
@@ -118,7 +130,51 @@ if scenario=="invalid-settings" or scenario=="invalid-token" or scenario=="inval
     local ok,err=coroutine.resume(runner); assert(ok,err); assert(coroutine.status(runner)=="dead" and connectedCount==0); print("OK "..scenario); return
 end
 tick()
-if scenario=="image-pending-cap" then
+if scenario=="celebration-pending-cap" then
+    for i=1,101 do addUser(i) end; send(snapshot()); send(celebration("goal")); tick(); assert(#objects==128 and shared.sa_pending_images==128)
+    tick(2.1); tick(); assert(#objects==128 and count()==0)
+elseif scenario=="wire-celebration" then
+    local file=assert(io.open(arg[3],"rb")); local value=codec.decode(file:read("*a")); file:close()
+    addUser(1); send(snapshot()); send(value); tick(); assert(assetCount(value.kind=="donation" and "sa_thanks" or value.kind=="goal" and "sa_goal" or "sa_raised")==1)
+elseif scenario=="celebration-stale" then
+    addUser(1); send(snapshot()); local goal=celebration("goal"); goal.issuedAtMs=1100; send(goal); tick();
+    local old=celebration("milestone","old"); send(old); tick(); assert(assetCount("sa_goal")==1 and assetCount("sa_raised")==0)
+elseif scenario=="celebration-density" then
+    for i=1,105 do addUser(i) end; send(snapshot()); send(celebration("goal")); tick(); assert(assetCount("sa_heart")==101 and assetCount("sa_confetti")==32)
+    local found=false; for _,packet in ipairs(packets) do if packet.code=="density-limit" then found=true end end; assert(found)
+    assert((shared.sa_pending_images or 0)<=128)
+    for _,ob in ipairs(objects) do if not ob.removed and ob.scale>0 then assert(ob.x>=0 and ob.x<=1000 and ob.y>=0 and ob.y<=200) end end
+elseif scenario=="celebration-missing-confetti" or scenario=="celebration-missing-heart" then
+    addUser(1); send(snapshot()); send(celebration("milestone")); tick();
+    assert(assetCount("sa_raised")==1); if scenario=="celebration-missing-confetti" then assert(assetCount("sa_heart")==1 and assetCount("sa_confetti")==0) else assert(assetCount("sa_confetti")==32 and assetCount("sa_heart")==0) end
+    send({version=2,type="heartbeat",serverNowMs=1200}); assert(packets[#packets].type=="heartbeat")
+elseif scenario=="celebration-delay-cancel" then
+    addUser(1); send(snapshot()); send(celebration("goal")); send({version=2,type="clear",mode="integration",generation=2}); tick(); assert(count()==0)
+elseif scenario=="ordinary-101" then
+    for i=1,101 do addUser(i) end; send(snapshot()); send(celebration()); tick();
+    assert(assetCount("sa_heart")==101 and jumps==101 and assetCount("sa_thanks")==1)
+    tick(5); tick(); assert(count()==0)
+elseif scenario=="milestone-banner" or scenario=="goal-banner" or scenario=="gear-preservation" then
+    local user=addUser(1); user.x=900; send(snapshot()); local kind=scenario=="goal-banner" and "goal" or "milestone"; send(celebration(kind)); tick();
+    assert(assetCount("sa_confetti")==32 and assetCount(kind=="goal" and "sa_goal" or "sa_raised")==1 and dances==1)
+    if kind=="milestone" then assert(assetCount("sa_digit")==6 and assetCount("sa_comma")==1 and assetCount("sa_dot")==1 and assetCount("sa_dollar")==1) end
+    assert(user.gear=="sentinel"); tick(kind=="goal" and 20 or 18); tick(); assert(count()==0 and exits==1 and user.gear=="sentinel")
+elseif scenario=="celebration-faults" then
+    addUser(1); send(snapshot()); send(celebration("milestone")); tick(); assert(assetCount("sa_heart")==1 and assetCount("sa_raised")==1)
+    send({version=2,type="heartbeat",serverNowMs=1200}); assert(packets[#packets].type=="heartbeat")
+elseif scenario=="celebration-expiry" then
+    addUser(1); send(snapshot()); send({version=2,type="heartbeat",serverNowMs=12000}); send(celebration()); assert(count()==0 and jumps==0)
+    local v=celebration(); v.id="wrong"; v.sessionId="wrong"; v.expiresAtMs=22000; v.issuedAtMs=12000; send(v); assert(count()==0 and jumps==0)
+elseif scenario=="celebration-merge" then
+    addUser(1); send(snapshot()); send(celebration()); tick(); send(celebration()); assert(jumps==1)
+    send(celebration("donation","next")); assert(jumps==1)
+    send(celebration("milestone","party")); tick(); send(celebration("goal","upgrade")); tick(); assert(dances==1 and assetCount("sa_goal")==1)
+elseif scenario=="celebration-late-join" then
+    local user=addUser(1); send(snapshot()); send(celebration("milestone")); tick(); local late=addUser(2); tick(); tick(); assert(assetCount("sa_heart")==2 and dances==2)
+    users["1"]=nil; tick(); assert(assetCount("sa_heart")==1); late.state="MiniGame"; late.animation="attack"; tick(20); tick(); assert(late.state=="MiniGame")
+elseif scenario=="celebration-cancel" then
+    addUser(1); send(snapshot()); send(celebration("goal")); send({version=2,type="clear",mode="integration",generation=2}); tick(); assert(count()==0 and exits==1)
+elseif scenario=="image-pending-cap" then
     addUser(1)
     for i=1,105 do send(snapshot()); send(hearts("failed-"..i)); tick(2.1); tick() end
     assert(#objects==100 and shared.sa_pending_images==100, "must bound failed host loads")

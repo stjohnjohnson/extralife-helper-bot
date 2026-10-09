@@ -1,0 +1,11 @@
+{
+  "name": "sa_goal",
+  "file": "sa_goal.png",
+  "frameWidth": 431,
+  "frameHeight": 23,
+  "frames": 1,
+  "rows": 1,
+  "framesPerSecond": 1,
+  "loop": true,
+  "transparent": true
+}
