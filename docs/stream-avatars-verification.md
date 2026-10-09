@@ -21,6 +21,8 @@ LUA_BIN=/path/to/lua5.2 npm test -- --runInBand --coverage=false --runTestsByPat
 npm run sa:package
 ```
 
+The current issue #66 verification record is below. Earlier local Mac heart observations establish only the earlier bridge behavior. The installed native reader/type and parser probes are component evidence; they do not establish graphical import, theme rendering or native fitting.
+
 The complete coverage-enforced suite passes 996 tests across 54 suites; lint is clean. All 171 companion contracts and behavioral mutations pass with Lua 5.2.4 and local Lua. Production dependency audit reports zero vulnerabilities. No tests are disabled to obtain these results. Retired stream-session tests were replaced with campaign, shared Twitch-validation and integration coverage.
 
 | Behavior | Evidence |
@@ -36,6 +38,8 @@ The complete coverage-enforced suite passes 996 tests across 54 suites; lint is 
 | Six independent campaign fixtures, real CLI signals, readiness/port errors, temp-state isolation, no real clients, opt-in Hue | `streamAvatarsDevelopmentRunner`, `streamAvatarsIntegrationCli` |
 
 Regression checks were observed failing before fixes for split-response duplicate recognition, rejected-client readiness loss, repeat-ready updates, delayed initial-request cutoff and service abort cleanup. A deliberate mutation that assigns party-time gifts to the active batch fails the delayed-goal/pending-recognition regression; restoring the implementation passes. Existing Lua mutations detect phase/action/admission regressions.
+
+The local Docker daemon is unavailable; CI checks the image build. Persistent-volume operation still belongs in the Linux acceptance run. Follow the [bridge acceptance checklist](stream-avatars-setup.md#real-lan-and-obs-acceptance-run) for issue #65 and the [six-theme acceptance matrix](stream-avatars-theme-verification.md#acceptance-evidence) before accepting issue #66.
 
 The source now diagnoses contradictory duplicate facts within one scan while retaining the first normalized record and never adding a duplicate ID twice. This resolves the previously recorded same-scan diagnostic omission.
 
@@ -83,3 +87,21 @@ Synthetic Lua tests cover 1,002 users including a caster, late joins, supported/
 
 
 The Task5 review also corrected a proved native Unicode caption defect: installed MoonSharp uses UTF16 units and lossy `string.byte`/pattern classes, while standard Lua uses UTF8 bytes. The unchanged updated shipping sanitizer passed18 actual installed-interpreter cases against independent .NET Rune expectations, with zero unpaired surrogate output. Complete CJK/emoji and the48-scalar boundary are preserved. Native font rendering/width remain pending; see the [installed Unicode correction](stream-avatars-native-contract.md#installed-caption-unicode-correction).
+
+
+## Issue #66 review candidate verification (2026-10-09)
+
+The review candidate has 42 valid but unapproved designs, 118 provisional avatar mappings and no approved native fits. The default package remains one animated heart. The exact [candidate artifacts and revision](stream-avatars-theme-verification.md#review-artifacts-and-exact-revision), [offline import instructions](stream-avatars-setup.md#candidate-import-and-matching-rehearsal-server), [read-only fitting review](stream-avatars-theme-verification.md#read-only-fitting-review) and [regeneration route](stream-avatars-theme-verification.md#regeneration-and-approval-route) are available for operator review.
+
+Fresh local checks use a supported Node 24.x runtime and explicit Lua versions matching CI. `npm ci` completed; its full development-dependency audit reported 34 findings (21 moderate, 12 high, one critical). `npm run audit:prod` separately passed with zero production vulnerabilities. No dependency or lockfile change was made to obtain this result. Lint passed. Lua 5.2.4 companion contracts and mutations passed all 144 tests, with no skips. With Node 24.19.0 (npm 11.5.1) and explicit Lua 5.4.9, the complete `npm test -- --runInBand` suite plus a test-start diagnostic reporter passed **50 suites / 1,001 tests**, zero skips, in 138.216s. Coverage was 94.38% statements / 89.83% branches / 95.96% functions / 97.63% lines; existing thresholds and tests remain unchanged. The reporter only records suite start/result and does not change execution or coverage.
+
+`npm run sa:package` passed and produced the default heart-only ZIP. Two fresh candidate builds were byte-identical to each other and the saved review ZIP: SHA256 `5136b558c3f2ceee58b140f8c0383bcb8a68718cf341f950430eb0bd9325ab09`, 46 archive members / 43 PNGs (heart + 30 world designs + 12 hats), revision `293087deb6e6f1455a6cf6af0b481caf65641d0b0072e78e4d9db2101fe90dad`. Preview metadata carries the same revision. `npm run sa:art -- release --check` exited 1 with 42 required / zero selected assets; this is the expected production refusal and leaves all approvals pending.
+
+The exact saved review ZIP passed 97 checks through the installed `Ionic.Zip.ZipFile.Read`, `SA_ImportExport.BuildExportFiles` deserializer and native serializer round trip. Independent byte checks passed 393 assertions, covering archive/PNG CRCs, decompression, dimensions and every candidate PNG's equality to its portable export/hash; heart bytes match the repository source. Native metadata contains an empty `avatar` root, one reserved nonrandom gear set, twelve 32×32 PPU-1 hats and 31 script-image settings (heart + world) with center pivots and metadata scale 1. Packaged caption source matches the shipping function that passed 18 installed-interpreter Unicode checks. These checks did not execute the command or invoke the native import entrypoint, apply permissions/pivots, enumerate live users or produce graphical evidence. Probe sources/results remain ignored under `reports/stream-avatars-theme-proof/final-pack-native-check/`; no installed DLLs or private settings are committed.
+
+Native graphical import, all six theme renders, both-direction/action hat fitting and restoration, Linux-to-destination LAN, measured OBS geometry/dense performance, all 42 approvals, production promotion and supported variant proof remain pending. Docker CLI 29.8.1 could not connect because the local daemon socket was absent; the required CI image build remains pending. No push/PR or required CI run occurred in this ready-for-review stage, and no #67/#68 completion is claimed. Existing reported avatar teleporting remains unresolved.
+
+
+### Unresolved local Node process crash
+
+The first fresh Task 7 full-suite invocation exited 139 before any suite result. macOS recorded `EXC_BAD_ACCESS` / `SIGSEGV` at address `0x0e`, with V8 `ClearStaleLeftTrimmedPointerVisitor` → `InternalFrame::Iterate` → `MarkCompactCollector` garbage-collection frames. An earlier local Node diagnostic has the same stack. The next complete run, on the same Node 24.19.0 / V8 13.6.233.17-node.51 runtime with a suite-start reporter, passed all 1,001 tests; its first suite was `streamAvatarsArtwork.test.js`. No runtime flags, dependencies, assertions or coverage settings were changed to obtain the pass. The process crash's trigger/root cause is still unknown; it is not claimed fixed or dismissed as a unique event. Task 5's earlier transient exit 139 remains part of this history. A future recurrence needs preserved process diagnostics and a supported-runtime comparison before further release claims.

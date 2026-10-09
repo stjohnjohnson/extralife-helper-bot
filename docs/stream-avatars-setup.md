@@ -18,6 +18,8 @@ The existing shared listener settings are `WEB_HOST=0.0.0.0` and `WEB_PORT=3000`
 
 ## Generate and import the ZIP
 
+The default package contains the ordinary animated heart only. Six-theme artwork is currently an explicit **rehearsal-only candidate**: all 42 designs are unapproved and all 118 candidate avatar mappings are provisional. Follow [candidate review and acceptance](stream-avatars-theme-verification.md) before importing that ZIP. Production themes require an approved, native-proof-bound portable pack; setting `STREAM_AVATARS_THEME_PACK` to a candidate directory is rejected.
+
 ```sh
 npm run sa:package
 ```
@@ -154,3 +156,9 @@ The ordinary poll cadence is 30 seconds. Automated clock-injected tests exercise
 Use `npm run sa:integration -- --scenario themes --theme all --candidate-pack /local/review-pack` for all six worlds, shared-theme game changes, an alias, and neutral. Use `--theme kitchen` or `--game "Keep Talking and Nobody Explodes"` with an existing donation scenario to inspect the two owners together. Approved packs use `--theme-pack`; production uses `STREAM_AVATARS_THEME_PACK` and rejects candidates.
 
 Preview state is isolated in the runner's temporary directory and removed on exit. It sends no Twitch category updates, chat, markers, or production game observations. Reconnect restores current state without an entrance. Each changed game identity gets one six-second entrance; repeated identities retain scenery and hats. Dispatch logs do not prove native fitting, graphics, or LAN/OBS acceptance.
+
+### Candidate import and matching integration runner
+
+Build `npm run sa:package -- --candidate-pack reports/stream-avatars-artwork/rehearsal-pack --output reports/stream-avatars-artwork/rehearsal-review.zip`, then use that same directory with `sa:integration -- --scenario themes --theme all --candidate-pack reports/stream-avatars-artwork/rehearsal-pack`. Repeat with `--crowd 0`, `1`, `20`, and `100`; use `--scenario ordinary --theme kitchen` for donation interaction. Stop with SIGINT and restore the normal streaming service afterwards.
+
+The archive contains placeholder credentials. Back up private settings before any operator import and restore the private address/token afterwards. Hat-only exports contain no private avatar permissions or frame pivots. Follow the [read-only fitting plan](stream-avatars-theme-verification.md#read-only-fitting-review), [six-theme acceptance matrix](stream-avatars-theme-verification.md#acceptance-evidence), and [artwork promotion gates](stream-avatars-artwork.md#explicit-candidate-review-pack). Candidate art remains unapproved, and no private fitting apply is authorized by building or testing this package.
