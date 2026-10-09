@@ -1,4 +1,5 @@
-const { getUserDonations, getUserInfo } = require('extra-life-api');
+const { createDonationSource } = require('./src/donations/source');
+const { getUserInfo } = require('extra-life-api');
 const { Client: DiscordClient, GatewayIntentBits } = require('discord.js');
 const tmi = require('tmi.js');
 const getLogger = require('./logger.js');
@@ -40,60 +41,71 @@ function updateDiscordSummary(state) {
         .catch(err => discordLog.error('Error updating Discord summary', { err }));
 }
 
+function announceDonations(state, donations, silent) {
+    if (!state.active) return;
+    const messages = [];
+
+    donations.forEach(donation => {
+        if (state.seenDonationIDs.has(donation.donationID)) return;
+        state.seenDonationIDs.add(donation.donationID);
+        const amount = donation.amount == null ? '' : moneyFormatter.format(donation.amount);
+        const amountText = amount ? ' ' + amount : '';
+        const displayName = donation.displayName || 'Anonymous';
+        const donorMessage = donation.message ? ` with the message "${donation.message}"` : '';
+        messages.unshift({
+            donation,
+            discord: `${displayName} just donated${amountText}${donorMessage}!`,
+            twitch: `ExtraLife ExtraLife ${displayName} just donated${amountText}${donorMessage}! ExtraLife ExtraLife`
+        });
+        extralifeLog.info(`Donation: ${displayName} / ${amount}${donorMessage}`, eventMetadata('donation', {
+            donationId: donation.donationID,
+            amount: donation.amount == null ? null : Number(donation.amount),
+            displayName,
+            message: donation.message || '',
+            silent
+        }));
+    });
+
+    state.donationsInitialized = true;
+    if (messages.length === 0 || silent) return;
+    messages.forEach(message => { void state.streamMarkers.markDonation(message.donation); });
+    if (state.donationChannel) messages.forEach(message => state.donationChannel.send(message.discord));
+    if (state.twitchClient) {
+        messages.forEach(message => state.twitchClient.say(state.config.twitch.channel, message.twitch));
+    }
+    state.hueController.celebrateDonation().catch(err => hueLog.error('Hue celebration failed', { err }));
+
+    const timeout = setTimeout(() => {
+        state.summaryTimeouts.delete(timeout);
+        void updateDiscordSummary(state);
+    }, 5000);
+    state.summaryTimeouts.add(timeout);
+}
 async function getLatestDonation(state, silent = false) {
     if (!state.active || state.donationPollBusy) return;
     state.donationPollBusy = true;
-    // Keep the first successful snapshot silent, even when startup fetches fail.
     silent = silent || !state.donationsInitialized;
+    const window = state.streamAvatars?.getSessionWindow?.() ?? null;
+    const avatarInput = result => ({ expectedSessionId: window.sessionId, scan: result.scan, campaign: result.campaign, observedAtMs: Date.now() });
+    const accept = async input => {
+        try { if (state.active) await state.streamAvatars?.acceptDonations(input); }
+        catch { log.warn('Stream Avatars donation accounting unavailable'); }
+    };
     try {
-        const data = await getUserDonations(state.config.participantId);
+        const result = await state.donationSource.poll({ participantId: state.config.participantId, window, signal: state.donationAbort.signal,
+            onLatest: donations => announceDonations(state, donations, silent) });
+        if (!state.active || !window || !result.scan) return;
+        await accept(avatarInput(result));
         if (!state.active) return;
-        const messages = [];
-
-        data.donations.forEach(donation => {
-            if (state.seenDonationIDs.has(donation.donationID)) return;
-            state.seenDonationIDs.add(donation.donationID);
-            const amount = moneyFormatter.format(donation.amount);
-            const displayName = donation.displayName || 'Anonymous';
-            const donorMessage = donation.message ? ` with the message "${donation.message}"` : '';
-            messages.unshift({
-                donation,
-                discord: `${displayName} just donated ${amount}${donorMessage}!`,
-                twitch: `ExtraLife ExtraLife ${displayName} just donated ${amount}${donorMessage}! ExtraLife ExtraLife`
-            });
-            extralifeLog.info(`Donation: ${displayName} / ${amount}${donorMessage}`, eventMetadata('donation', {
-                donationId: donation.donationID,
-                amount: Number(donation.amount),
-                displayName,
-                message: donation.message || '',
-                silent
-            }));
-        });
-
-        state.donationsInitialized = true;
-        if (messages.length === 0 || silent) return;
-        messages.forEach(message => { void state.streamMarkers.markDonation(message.donation); });
-        if (state.donationChannel) messages.forEach(message => state.donationChannel.send(message.discord));
-        if (state.twitchClient) {
-            messages.forEach(message => state.twitchClient.say(state.config.twitch.channel, message.twitch));
-        }
-        state.hueController.celebrateDonation().catch(err => hueLog.error('Hue celebration failed', { err }));
-
-        const timeout = setTimeout(() => {
-            state.summaryTimeouts.delete(timeout);
-            void updateDiscordSummary(state);
-        }, 5000);
-        state.summaryTimeouts.add(timeout);
+        // Campaign refresh shares request pacing but never delays first-page notifications.
+        const campaign = await state.donationSource.readCampaign({ participantId: state.config.participantId, signal: state.donationAbort.signal });
+        await accept({ ...avatarInput(result), campaign });
     } catch (err) {
-        extralifeLog.error('Error getting Donations', eventMetadata('service_error', {
-            error: err.message
-        }));
-    } finally {
-        state.donationPollBusy = false;
-    }
+        if (state.active) extralifeLog.error('Error getting Donations', eventMetadata('service_error', { error: err.message }));
+    } finally { state.donationPollBusy = false; }
 }
 
-function start({ config = parseConfiguration() } = {}) {
+function start({ config = parseConfiguration(), donationSource } = {}) {
     if (runtime || stoppingPromise) throw new Error('Application already started');
     if (!config.isValid) throw new Error(`Invalid configuration:\n${config.errors.join('\n')}`);
 
@@ -107,7 +119,7 @@ function start({ config = parseConfiguration() } = {}) {
         donationChannel: null,
         summaryChannel: null,
         donationInterval: null,
-        donationPollBusy: false,
+        donationPollBusy: false, donationSource: donationSource ?? createDonationSource({ logger: extralifeLog }), donationTask: null, donationAbort: new AbortController(),
         donationsInitialized: false,
         streamMarkers: createStreamMarkerService(config, twitchLog),
         viewerCountInterval: null,
@@ -136,12 +148,7 @@ function start({ config = parseConfiguration() } = {}) {
     if (config.streamAvatars?.enabled) {
         state.streamAvatarsStartup = state.webServerStartup.then(webServer => {
             if (!webServer || !state.active) return;
-            return startStreamAvatars({ config, webServer, logger: log, signal: state.streamAvatarsAbort.signal,
-                onRehearsalStopped: () => {
-                    if (state.active && state.twitchClient) Promise.resolve(state.twitchClient.say(config.twitch.channel,
-                        'Rehearsal stopped because Twitch reports live. Restore Stream Avatars normal streaming service.'))
-                        .catch(() => twitchLog.error('Unable to send rehearsal shutdown notice'));
-                } })
+            return startStreamAvatars({ config, webServer, logger: log, signal: state.streamAvatarsAbort.signal })
                 .then(async service => { if (!state.active) await service.stop(); else state.streamAvatars = service; })
                 .catch(() => log.error('Stream Avatars unavailable'));
         });
@@ -300,8 +307,8 @@ function start({ config = parseConfiguration() } = {}) {
         .then(() => state.twitchClient.connect())
         .catch(err => twitchLog.error('Error connecting to Twitch', { err }));
     twitchLog.info('Twitch Bot connecting...');
-    state.donationInterval = setInterval(() => void getLatestDonation(state), 30000);
-    void getLatestDonation(state, true);
+    state.donationInterval = setInterval(() => { if (!state.donationPollBusy) state.donationTask = getLatestDonation(state); }, 30000);
+    state.donationTask = getLatestDonation(state, true);
     state.viewerCountInterval = startViewerCountMonitoring(config, twitchLog, { onObservation: async observation => {
         await state.streamAvatarsStartup;
         if (state.active) await state.streamAvatars?.observeProduction(observation);
@@ -330,9 +337,11 @@ async function stop() {
         const hueCleanup = Promise.resolve()
             .then(() => state.hueController?.stop())
             .catch(error => hueLog.error('Error stopping Hue controller', { error: error.message }));
+        state.donationAbort.abort(); state.donationSource.stop();
         state.webServerAbort.abort();
         state.streamAvatarsAbort.abort();
         state.voiceOverlayAbort.abort();
+        await state.donationTask;
         await state.streamAvatarsStartup;
         await state.streamAvatars?.stop();
         await state.voiceOverlayStartup;

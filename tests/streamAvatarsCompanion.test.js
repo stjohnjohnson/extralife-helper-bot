@@ -1,10 +1,11 @@
+const { publicSession } = require('../src/streamAvatars/protocol');
 const { spawnSync } = require('node:child_process');
 const { resolve, join } = require('node:path');
 const { mkdtempSync, readFileSync, writeFileSync, rmSync } = require('node:fs');
 const { tmpdir } = require('node:os');
 const { createInitialState, reduceObservation } = require('../src/broadcastSession/state');
 const { validateServerMessage } = require('../src/streamAvatars/protocol');
-test.each(['address-ip', 'address-port', 'address-wss', 'address-ipv6', 'invalid-address', 'image-loaded-before-clear', 'image-pending-cap', 'missing-image-host', 'image-load-delay', 'image-load-timeout', 'pending-image-stop', 'host-json-escapes', 'auth', 'movement', 'density', 'cleanup', 'expiry', 'generation', 'crowd', 'invalid', 'missing-image', 'reconnect', 'late-join', 'empty-crowd', 'negative-bounds', 'resized-bounds', 'small-bounds', 'density-rotation', 'same-snapshot', 'new-session', 'stale-control', 'stop', 'close-open-race', 'socket-error', 'async-open', 'backoff', 'mailbox-burst', 'mailbox-overflow', 'malformed-json', 'invalid-snapshot', 'wrong-session', 'heartbeat-expiry', 'elapsed-state', 'crowd-no-extra-config', 'reload', 'invalid-settings', 'invalid-token'])('shipped Lua companion: %s', scenario => {
+test.each(['celebration-pending-cap', 'celebration-stale', 'celebration-density', 'celebration-missing-confetti', 'celebration-missing-heart', 'celebration-delay-cancel', 'ordinary-101', 'milestone-banner', 'goal-banner', 'gear-preservation', 'celebration-faults', 'celebration-expiry', 'celebration-merge', 'celebration-late-join', 'celebration-cancel', 'address-ip', 'address-port', 'address-wss', 'address-ipv6', 'invalid-address', 'image-loaded-before-clear', 'image-pending-cap', 'missing-image-host', 'image-load-delay', 'image-load-timeout', 'pending-image-stop', 'host-json-escapes', 'auth', 'movement', 'density', 'cleanup', 'expiry', 'generation', 'crowd', 'invalid', 'missing-image', 'reconnect', 'late-join', 'empty-crowd', 'negative-bounds', 'resized-bounds', 'small-bounds', 'density-rotation', 'same-snapshot', 'new-session', 'stale-control', 'stop', 'close-open-race', 'socket-error', 'async-open', 'backoff', 'mailbox-burst', 'mailbox-overflow', 'malformed-json', 'invalid-snapshot', 'wrong-session', 'heartbeat-expiry', 'elapsed-state', 'crowd-no-extra-config', 'reload', 'invalid-settings', 'invalid-token'])('shipped Lua companion: %s', scenario => {
     const result = spawnSync(process.env.LUA_BIN || 'lua', [resolve('tests/lua/companionHarness.lua'), resolve('integrations/stream-avatars/companion.lua'), scenario], { encoding: 'utf8', timeout: 5000 });
     if (result.error) throw new Error('Install Lua 5.2+ or set LUA_BIN: ' + result.error.code);
     expect({ status: result.status, stderr: result.stderr, stdout: result.stdout.trim() }).toEqual({ status: 0, stderr: '', stdout: 'OK ' + scenario });
@@ -16,8 +17,8 @@ function run(script, scenario, fixture) {
 test('Lua consumes the actual Node protocol JSON, including nulls and UTF-8 fields', () => {
     const directory = mkdtempSync(join(tmpdir(), 'sa-wire-'));
     try {
-        const session = reduceObservation(createInitialState({ mode: 'rehearsal', channel: 'streamer_é' }), { status: 'online', observedAtMs: 1001, startedAtMs: 1000, streamId: 'fixture' }, { graceMs: 900000, cadenceMs: 60000, newSessionId: () => 'session' });
-        const message = validateServerMessage({ version: 1, type: 'snapshot', mode: 'rehearsal', generation: 1, serverNowMs: 1000, session, elapsedMs: 1, rehearsal: { active: true, crowdIds: [] }, features: ['hearts', 'crowd', 'session'] });
+        const session = reduceObservation(createInitialState({ mode: 'integration', channel: 'streamer_é' }), { status: 'online', observedAtMs: 1001, startedAtMs: 1000, streamId: 'fixture' }, { graceMs: 900000, cadenceMs: 60000, newSessionId: () => 'session_é' });
+        const message = validateServerMessage({ version: 2, type: 'snapshot', mode: 'integration', generation: 1, serverNowMs: 1000, session: publicSession(session), elapsedMs: 1, integration: { active: true, crowdIds: [] }, features: ['hearts', 'crowd', 'session'] });
         const fixture = join(directory, 'snapshot.json'); writeFileSync(fixture, JSON.stringify(message));
         const result = run(resolve('integrations/stream-avatars/companion.lua'), 'wire-contract', fixture);
         expect({ status: result.status, stderr: result.stderr, stdout: result.stdout.trim() }).toEqual({ status: 0, stderr: '', stdout: 'OK wire-contract' });
@@ -33,6 +34,9 @@ test('companion works with Windows CRLF source and a script path containing spac
 });
 // Prove these tests reject plausible defects, rather than merely executing happy paths.
 test.each([
+    ['ordinary-101', 'if i<=101 then', 'if i<=50 then'],
+    ['celebration-pending-cap', 'if pending>=128 then return nil end', 'if false then return nil end'],
+    ['milestone-banner', 'then user.exitState() end', 'then local ignored=true end'],
     ['pending-image-stop', 'entry.object.setScale(0,0)', 'entry.object.setScale(1,1)'],
     ['image-loaded-before-clear', 'status~="loaded"', 'true'],
     ['missing-image-host', 'deadline=elapsed+2', 'deadline=elapsed+20'],
@@ -59,5 +63,16 @@ test.each([
         const script = join(directory, 'companion.lua'); writeFileSync(script, source.replaceAll(original, broken));
         const result = run(script, scenario);
         expect(result.error).toBeUndefined(); expect(result.status).toBe(1); expect(result.stderr).toMatch(scenario === 'host-json-escapes' ? /escape changed value|invalid escape sequence/ : /assertion failed|must|density|disconnect/);
+    } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+
+test.each(['donation','milestone','goal'])('Lua renders actual validated Node celebration JSON: %s', kind => {
+    const directory = mkdtempSync(join(tmpdir(), 'sa-celebration-wire-'));
+    try {
+        const packet = validateServerMessage({ version: 2, type: 'celebration', mode: 'integration', generation: 1, sessionId: 'session', id: 'node-wire', issuedAtMs: 1000, expiresAtMs: 11000,
+            heartsUntilMs: 6000, partyUntilMs: kind === 'goal' ? 21000 : kind === 'milestone' ? 19000 : 0, kind, liveTotalCents: 154350, milestoneCents: kind === 'milestone' ? 150000 : null });
+        const fixture = join(directory, 'celebration.json'); writeFileSync(fixture, JSON.stringify(packet));
+        const result = run(resolve('integrations/stream-avatars/companion.lua'), 'wire-celebration', fixture);
+        expect({ status: result.status, stderr: result.stderr, stdout: result.stdout.trim() }).toEqual({ status: 0, stderr: '', stdout: 'OK wire-celebration' });
     } finally { rmSync(directory, { recursive: true, force: true }); }
 });

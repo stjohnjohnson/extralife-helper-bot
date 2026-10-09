@@ -1,0 +1,36 @@
+const fs = require('node:fs/promises');
+const { tmpdir } = require('node:os'); const { join } = require('node:path');
+const { startStreamAvatars } = require('../src/streamAvatars');
+const { parseAction } = require('../src/streamAvatars/actions');
+let directory; let service; let now;
+beforeEach(async () => { directory = await fs.mkdtemp(join(tmpdir(), 'sa-preview-')); now = 10000000; });
+afterEach(async () => { await service?.stop(); service = null; await fs.rm(directory, { recursive: true, force: true }); });
+async function start() {
+    service = await startStreamAvatars({ config: { twitch: { channel: 'streamer', viewerSampleIntervalSeconds: 60 }, streamAvatars: { config: { host: '127.0.0.1', port: 0, token: 'a'.repeat(32), stateDir: directory, graceMs: 900000 } } }, logger: { info() {}, warn() {} }, realClock: { nowMs: () => now } });
+}
+const command = text => service.dispatch(parseAction(text));
+test.each(['clock advance 1h', 'clock seek 5m', 'scenario reconnect', 'hue on', 'hue off', 'rehearsal reset', 'crowd join 1', 'crowd leave 1', 'crowd -1', 'crowd 101', 'hearts extra', 'rehearsal start extra'])('unsupported control is rejected: %s', input => {
+    expect(() => parseAction(input)).toThrow(/Use|Invalid/);
+});
+test('ordinary online samples do not clear an ongoing production effect', async () => {
+    const WebSocket = require('ws'); const { once } = require('node:events');
+    await start(); const socket = new WebSocket(`ws://127.0.0.1:${service.address.port}/sa/socket`); await once(socket, 'open');
+    const received = []; socket.on('message', raw => received.push(JSON.parse(raw)));
+    const nextSnapshot = () => new Promise(resolve => { const handle = raw => { if (JSON.parse(raw).type === 'snapshot') { socket.removeListener('message', handle); resolve(); } }; socket.on('message', handle); });
+    try {
+        let wait = nextSnapshot(); socket.send(JSON.stringify({ version: 2, type: 'auth', token: 'a'.repeat(32) })); await wait;
+        wait = nextSnapshot(); await service.observeProduction({ status: 'online', observedAtMs: now, startedAtMs: now, streamId: 'real' }); await wait;
+        received.length = 0; now += 1;
+        wait = nextSnapshot(); await service.observeProduction({ status: 'online', observedAtMs: now, startedAtMs: now - 1, streamId: 'real' }); await wait;
+        expect(received.filter(message => message.type === 'clear')).toEqual([]);
+    } finally { socket.terminate(); }
+});
+
+test('production recovery/reset targets are separate and reset requires confirmed offline', async () => {
+    await start(); expect((await command('session reset confirm')).status).toBe('denied');
+    await service.observeProduction({ status: 'online', observedAtMs: now, startedAtMs: now - 3600000, streamId: 'real' });
+    expect((await command('session reset confirm')).status).toBe('denied');
+    now++; await service.observeProduction({ status: 'offline', observedAtMs: now });
+    expect((await command('session reset confirm')).status).toBe('ok'); expect(service.getStatus().state.sessionId).toBeNull();
+    expect((await command('session recover confirm')).status).toBe('ok'); expect(service.getStatus().state.sessionId).not.toBeNull();
+});

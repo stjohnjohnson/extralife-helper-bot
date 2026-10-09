@@ -30,6 +30,15 @@ jest.mock('extra-life-api', () => ({
     getUserInfo: jest.fn()
 }));
 
+// Keep the legacy notification fixtures while exercising the new shared poll boundary.
+jest.mock('../src/donations/source', () => ({ createDonationSource: jest.fn(() => {
+    const controller = new AbortController();
+    return { async poll({ participantId, window, onLatest }) {
+        const data = await Promise.race([require('extra-life-api').getUserDonations(participantId), new Promise((resolve, reject) => controller.signal.addEventListener('abort', () => reject(new Error('aborted')), { once: true }))]);
+        await onLatest(data.donations); return { scan: window ? { complete: true, participantId, fromMs: window.fromMs, throughMs: window.throughMs, donations: [] } : null, campaign: null };
+    }, readCampaign: jest.fn().mockResolvedValue(null), stop() { controller.abort(); } };
+}) }));
+
 jest.mock('discord.js', () => ({
     Client: jest.fn(() => mockDiscordClient),
     GatewayIntentBits: {
@@ -312,6 +321,46 @@ describe('application lifecycle', () => {
         expect(makeTwitchApiRequest).toHaveBeenCalledTimes(2);
     });
 
+    test('hidden donation amount is omitted without suppressing notifications or Hue', async () => {
+        getUserDonations.mockResolvedValueOnce({ donations: [] }).mockResolvedValue({ donations: [{ donationID: 'hidden', amount: null, displayName: 'Donor' }] });
+        application.start({ config: validConfig }); await jest.advanceTimersByTimeAsync(30000);
+        expect(mockTwitchClient.say).toHaveBeenCalledWith('channel-name', 'ExtraLife ExtraLife Donor just donated! ExtraLife ExtraLife');
+        expect(mockHueController.celebrateDonation).toHaveBeenCalledTimes(1);
+    });
+
+    test('avatar accounting failure cannot delay newest-page notifications during catch-up', async () => {
+        const later = deferred();
+        const window = { sessionId: 'session', participantId: 'participant-1', fromMs: 0, throughMs: Date.now() };
+        const service = { getSessionWindow: () => window, acceptDonations: jest.fn().mockRejectedValue(new Error('private store details')), stop: jest.fn().mockResolvedValue() };
+        startStreamAvatars.mockResolvedValue(service);
+        const source = { poll: jest.fn().mockImplementationOnce(async ({ onLatest }) => { onLatest([]); return { scan: null }; }).mockImplementation(async ({ onLatest }) => {
+            onLatest([{ donationID: 'live', amount: 25 }]); return later.promise;
+        }), readCampaign: jest.fn().mockResolvedValue(null), stop: jest.fn() };
+        application.start({ config: { ...validConfig, streamAvatars: { enabled: true, config: {} } }, donationSource: source });
+        await jest.advanceTimersByTimeAsync(0); await jest.advanceTimersByTimeAsync(30000);
+        expect(source.poll.mock.calls[0][0].window).toBeNull();
+        expect(source.poll.mock.calls[1][0].window).toEqual(window);
+        expect(mockTwitchClient.say).toHaveBeenCalledTimes(1); expect(mockHueController.celebrateDonation).toHaveBeenCalledTimes(1);
+        expect(service.acceptDonations).not.toHaveBeenCalled();
+        later.resolve({ scan: { complete: true, donations: [] }, campaign: null }); await jest.advanceTimersByTimeAsync(0);
+        expect(service.acceptDonations).toHaveBeenCalled();
+        expect(mockLogger.warn).toHaveBeenCalledWith('Stream Avatars donation accounting unavailable');
+        expect(mockTwitchClient.say).toHaveBeenCalledTimes(1);
+    });
+
+    test('shutdown cancels source work and fences late accounting and campaign requests', async () => {
+        const later = deferred(); const window = { sessionId: 'session', fromMs: 0, throughMs: Date.now() };
+        const service = { getSessionWindow: () => window, acceptDonations: jest.fn(), stop: jest.fn().mockResolvedValue() };
+        startStreamAvatars.mockResolvedValue(service);
+        const source = { poll: jest.fn().mockResolvedValueOnce({ scan: null }).mockImplementation(() => later.promise), readCampaign: jest.fn(), stop: jest.fn() };
+        application.start({ config: { ...validConfig, streamAvatars: { enabled: true, config: {} } }, donationSource: source });
+        await jest.advanceTimersByTimeAsync(30000);
+        const stopping = application.stop(); expect(source.stop).toHaveBeenCalledTimes(1);
+        expect(source.poll.mock.calls[1][0].signal.aborted).toBe(true);
+        later.resolve({ scan: { complete: true, donations: [] } }); await stopping;
+        expect(service.acceptDonations).not.toHaveBeenCalled(); expect(source.readCampaign).not.toHaveBeenCalled();
+    });
+
     test('disabled markers leave existing donation announcements active', async () => {
         getUserDonations.mockResolvedValueOnce({ donations: [] }).mockResolvedValue({ donations: [
             { donationID: 'd', amount: 1000, displayName: 'Donor' }
@@ -550,19 +599,18 @@ describe('optional Stream Avatars application lifecycle', () => {
     });
 });
 
-describe('Twitch avatar command and automatic live handoff', () => {
+describe('Twitch avatar command forwarding', () => {
     beforeEach(() => { jest.clearAllMocks(); mockDiscordClient.channels.cache.get.mockReturnValue({ id: 'channel', guild: { id: 'guild' }, setName: jest.fn().mockResolvedValue() }); });
     afterEach(async () => { await application.stop(); });
-    test('passes avatar service to Twitch commands and sends the live-stop notice only while active', async () => {
+    test('passes avatar service to Twitch commands without rehearsal controls', async () => {
         const service = { observeProduction: jest.fn(), stop: jest.fn().mockResolvedValue() }; startStreamAvatars.mockResolvedValue(service);
         const startup = application.start({ config: { ...validConfig, streamAvatars: { enabled: true, config: {} } } });
         registeredHandler(mockDiscordClient.once, 'ready')(); await startup; await flushPromises();
         const tags = { username: 'streamer', id: 'message', 'tmi-sent-ts': String(Date.now()) };
         await registeredHandler(mockTwitchClient.on, 'message')('#channel-name', tags, '!sa status', false);
         expect(handleCommand.mock.calls.at(-1)[7]).toBe(service);
-        const onStopped = startStreamAvatars.mock.calls[0][0].onRehearsalStopped;
-        onStopped(); await flushPromises(); expect(mockTwitchClient.say).toHaveBeenCalledTimes(1);
-        await application.stop(); onStopped(); expect(mockTwitchClient.say).toHaveBeenCalledTimes(1);
+        expect(startStreamAvatars.mock.calls[0][0]).not.toHaveProperty('onRehearsalStopped');
+        await application.stop();
     });
 });
 

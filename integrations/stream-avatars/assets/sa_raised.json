@@ -1,0 +1,11 @@
+{
+  "name": "sa_raised",
+  "file": "sa_raised.png",
+  "frameWidth": 359,
+  "frameHeight": 23,
+  "frames": 1,
+  "rows": 1,
+  "framesPerSecond": 1,
+  "loop": true,
+  "transparent": true
+}

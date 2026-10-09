@@ -232,15 +232,17 @@ Missing or invalid colors get usage guidance. Disabled controls and unavailable 
 
 The `color` command name is reserved even when chat light control is disabled; rename any existing custom response using that name before upgrading.
 
-### Stream Avatars controls (optional, Twitch admins)
+### Stream Avatars donations (optional)
 
-Enable the LAN bridge with `STREAM_AVATARS_ENABLED=true` and a private `STREAM_AVATARS_TOKEN`. The companion settings need only the bot address and matching token. Screen bounds and packaged heart dimensions are automatic.
+Enable `STREAM_AVATARS_ENABLED=true` and a private `STREAM_AVATARS_TOKEN`, then import the v2 companion ZIP. Eligible session gifts trigger five-second shared hearts/jump/Thank you!; each $500 of live money starts an 18-second gold crowd party, and a live campaign-goal crossing gets a distinct 20-second bonus. Set `STREAM_AVATARS_DONATION_INTERVAL_CENTS` to change the $500 interval. Persist session state across restarts; interruptions/offline grace count and startup history reconciles silently.
 
-In the configured Twitch channel, admins can use `!sa status`, `!sa rehearsal start`, `!sa crowd 20`, `!sa hearts`, and `!sa rehearsal stop`. Starting rehearsal requires a fresh successful offline Twitch sample. Real live status stops rehearsal automatically. The `sa` name is reserved from custom responses.
+Twitch admins retain `!sa status` and `!sa session reset|recover confirm` while offline. The `sa` namespace is reserved. Interactive rehearsal is replaced by a temporary development subsystem:
 
-`npm run sa:rehearse` provides a temporary local preview without Twitch, Discord, or Extra Life credentials. Use `crowd 20`, `hearts`, `clear`, and `quit`. Run `npm run sa:package` to generate an import ZIP with the companion, current image catalog, and animation settings. See [setup and commands](docs/stream-avatars-setup.md) and [verification status](docs/stream-avatars-verification.md). A real Stream Avatars/OBS preview remains required for issue #65 acceptance.
+```sh
+WEB_PORT=3010 npm run sa:integration -- --scenario all --crowd 20
+```
 
-Run `npm run sa:package` to generate `dist/stream-avatars/sa-helper-bridge.zip` for **Import & Export → Select Import** on another computer. It bundles the companion and all image manifests with their frame/FPS/loop settings, using placeholder credentials. See [package import and adding images](docs/stream-avatars-setup.md#generate-and-import-the-zip); reimporting replaces the bridge's local settings, so preserve them before updating.
+Supply only the private token/listener, point Stream Avatars at that test port and select Custom Lua. The runner uses synthetic donations and its own temporary state without Discord/Twitch/Extra Life network clients or markers. Add `--hue` only to test physical lights. Run `npm run sa:package` to generate `dist/stream-avatars/sa-helper-bridge.zip`; preserve private companion settings before reimporting. See [setup and visual acceptance](docs/stream-avatars-setup.md) and [verification evidence](docs/stream-avatars-verification.md). Deployment visual testing remains required.
 
 ### Custom Commands
 You can create your own custom commands using the `CUSTOM_RESPONSES` environment variable. Custom commands:
@@ -265,7 +267,7 @@ Some commands are restricted to admin users only for security purposes. Admin us
 
 **Admin-only commands:**
 - `!promote` - Voice channel management (moves users from waiting room to live chat)
-- `!sa` - Stream Avatars rehearsal and session recovery (Twitch only)
+- `!sa` - Stream Avatars status and session recovery (Twitch only)
 - `!testlights` - Test Philips Hue light celebration (verifies connection and triggers a demo light show)
 
 **Admin Configuration Examples:**

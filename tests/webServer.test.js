@@ -1,3 +1,4 @@
+const { publicSession } = require('../src/streamAvatars/protocol');
 const http = require('node:http');
 const net = require('node:net');
 const { once, EventEmitter } = require('node:events');
@@ -8,9 +9,9 @@ const { startBridgeServer } = require('../src/streamAvatars/server');
 const { createInitialState } = require('../src/broadcastSession/state');
 const config = { host: '127.0.0.1', port: 0 };
 const token = 'a'.repeat(32);
-const snapshot = () => ({ version: 1, type: 'snapshot', mode: 'production', generation: 1, serverNowMs: 100,
-    session: createInitialState({ mode: 'production', channel: 'test' }), elapsedMs: 0,
-    rehearsal: { active: false, crowdIds: [] }, features: ['hearts'] });
+const snapshot = () => ({ version: 2, type: 'snapshot', mode: 'production', generation: 1, serverNowMs: 100,
+    session: publicSession(createInitialState({ mode: 'production', channel: 'test' })), elapsedMs: 0,
+    integration: { active: false, crowdIds: [] }, features: ['hearts'] });
 function request(port, path) {
     return new Promise((resolve, reject) => {
         const req = http.get({ host: config.host, port, path }, response => {
@@ -38,7 +39,7 @@ async function attachVoice() {
 async function attachBridge() { bridge = await startBridgeServer({ config: { ...config, token }, webServer: web, getSnapshot: snapshot }); }
 async function authenticated() {
     const socket = await connect(); const received = once(socket, 'message');
-    socket.send(JSON.stringify({ version: 1, type: 'auth', token }));
+    socket.send(JSON.stringify({ version: 2, type: 'auth', token }));
     expect(JSON.parse((await received)[0]).type).toBe('snapshot'); return socket;
 }
 async function sse() {
@@ -75,7 +76,7 @@ test('bridge shutdown removes its upgrade route while existing SSE keeps receivi
 });
 test('bad authentication and unknown upgrade paths cannot disrupt voice routes', async () => {
     await attachVoice(); await attachBridge(); const socket = await connect(); const closed = once(socket, 'close');
-    socket.send(JSON.stringify({ version: 1, type: 'auth', token: 'wrong' })); expect((await closed)[0]).toBe(1008);
+    socket.send(JSON.stringify({ version: 2, type: 'auth', token: 'wrong' })); expect((await closed)[0]).toBe(1008);
     await expect(connect('/voice')).rejects.toThrow(); await expect(connect('/sa/socket?token=wrong')).rejects.toThrow();
     expect((await request(web.address.port, '/voice')).status).toBe(200);
 });

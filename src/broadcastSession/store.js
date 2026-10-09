@@ -1,7 +1,7 @@
 const defaultFs = require('node:fs/promises');
 const { resolve, dirname, join } = require('node:path');
 const { randomUUID } = require('node:crypto');
-const { createInitialState, validateSessionState } = require('./state');
+const { createInitialState, validateSessionState, migrateSessionState } = require('./state');
 
 async function identity(path) {
     const absolute = resolve(path);
@@ -18,7 +18,7 @@ async function assertDistinctPaths(first, second) {
         throw new Error('Production and rehearsal stores must be separate');
     }
 }
-function createSessionStore({ path, mode, channel, fs = defaultFs }) {
+function createSessionStore({ path, mode, channel, participantId, intervalCents, fs = defaultFs }) {
     const file = resolve(path);
     const lock = file + '.lock';
     const recovery = file + '.recovery-required';
@@ -26,14 +26,14 @@ function createSessionStore({ path, mode, channel, fs = defaultFs }) {
     let closed = false;
     let lastRevision = -1;
     let tail = Promise.resolve();
-    const validate = value => validateSessionState(value, { mode, channel });
+    const validate = value => validateSessionState(value, { mode, channel, participantId, intervalCents });
     const enqueue = operation => {
         const result = tail.then(operation);
         tail = result.catch(() => {});
         return result;
     };
     const assertOwner = () => { if (closed) throw new Error('Session store closed'); if (!owned) throw new Error('Session store requires its owner'); };
-    const read = async source => validate(JSON.parse(await fs.readFile(source, 'utf8')));
+    const read = async source => migrateSessionState(JSON.parse(await fs.readFile(source, 'utf8')), { mode, channel, participantId, intervalCents });
     const syncDirectory = async () => {
         if (process.platform !== 'linux') return;
         const directory = await fs.open(dirname(file), 'r');
@@ -93,7 +93,7 @@ function createSessionStore({ path, mode, channel, fs = defaultFs }) {
         async archiveAndReset() {
             await tail; assertOwner();
             try { await fs.copyFile(file, file + '.archive-' + randomUUID()); } catch (error) { if (error.code !== 'ENOENT') throw error; }
-            const initial = { ...createInitialState({ mode, channel }), revision: Math.max(0, lastRevision + 1) };
+            const initial = { ...createInitialState({ mode, channel, participantId, intervalCents }), revision: Math.max(0, lastRevision + 1) };
             await save(initial); await clearRecovery(); return initial;
         },
         async recoverLastBackup() {
