@@ -44,3 +44,27 @@ test('abort during readiness closes partial resources and rejects late success',
     await expect(starting).rejects.toThrow();
     expect(s.controller.stop).toHaveBeenCalled(); expect(s.client.listenerCount('voiceStateUpdate')).toBe(0);
 });
+
+
+test('failed voice readiness removes voice routes while preserving the application listener', async () => {
+    const http = require('node:http'); const { startWebServer } = require('../src/webServer');
+    const webServer = await startWebServer({ config: { host: '127.0.0.1', port: 0 } });
+    webServer.registerHttp(['/other'], (req, res) => { res.end('available'); });
+    const s = setup(); let begun; let fail;
+    const connected = new Promise(resolve => { begun = resolve; });
+    s.controller.ready = new Promise((resolve, reject) => { fail = reject; });
+    startOverlayConnection.mockImplementation(() => { begun(); return s.controller; });
+    const starting = startVoiceOverlay({ ...s, webServer });
+    const request = path => new Promise((resolve, reject) => {
+        const req = http.get({ host: '127.0.0.1', port: webServer.address.port, path }, res => {
+            res.resume(); res.once('end', () => resolve(res.statusCode));
+        }); req.on('error', reject);
+    });
+    try {
+        await connected; expect(await request('/voice')).toBe(200);
+        const rejected = expect(starting).rejects.toThrow('voice unavailable');
+        fail(new Error('voice unavailable')); await rejected;
+        expect(await request('/voice')).toBe(404); expect(await request('/other')).toBe(200);
+        expect(s.client.listenerCount('voiceStateUpdate')).toBe(0);
+    } finally { fail(new Error('cleanup')); await starting.catch(() => {}); await webServer.stop(); }
+});

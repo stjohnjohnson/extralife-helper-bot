@@ -6,7 +6,7 @@ const { startBridgeServer } = require('./server');
 const { createEventDispatcher } = require('./events');
 const { createVirtualClock } = require('./clock');
 const { createRehearsalController } = require('./rehearsal');
-async function startStreamAvatars({ config, logger, signal, standalone = false, realClock = { nowMs: Date.now }, hue = null, onRehearsalStopped = () => {} }) {
+async function startStreamAvatars({ config, logger, signal, webServer, standalone = false, realClock = { nowMs: Date.now }, hue = null, onRehearsalStopped = () => {} }) {
     const settings = config.streamAvatars.config;
     const productionPath = join(settings.stateDir, 'production', 'state.json');
     const rehearsalPath = join(settings.stateDir, 'rehearsal', 'state.json');
@@ -50,7 +50,7 @@ async function startStreamAvatars({ config, logger, signal, standalone = false, 
             productionStatus: () => lastRealObservation, clock: virtualClock, realClock, graceMs: settings.graceMs, cadenceMs, standalone, notify,
             bridge: { disconnectClients: () => server?.disconnectClients() }, hue: typeof hue === 'function' ? hue : () => hue,
             eventDispatcher: { publishHearts: ({ sessionId }) => events.publishHearts({ mode: 'rehearsal', generation, sessionId }) } });
-        server = await startBridgeServer({ config: settings, getSnapshot: snapshot, logger, signal, onClientMessage: async message => {
+        server = await startBridgeServer({ config: { ...settings, ...config.webServer }, webServer, getSnapshot: snapshot, logger, signal, onClientMessage: async message => {
             if (message.type === 'ready') lastResolution = message.resolution;
             if (message.type === 'diagnostic') logger.warn('Stream Avatars companion diagnostic', { code: message.code });
         } });

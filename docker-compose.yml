@@ -10,9 +10,9 @@ services:
       - stream-avatars-state:/usr/src/app/data/stream-avatars
       # Mount the app for development (optional)
       # - ./app.js:/usr/src/app/app.js:ro
-    # Optional bridge: enable in .env and restrict access to the gaming computer
+    # Shared listener: enable either web integration in .env and restrict LAN access
     # ports:
-    #   - "3001:3001"
+    #   - "3000:3000"
     # Uncomment for development with hot-reload
     # command: npm run dev
 

@@ -8,8 +8,8 @@ Use Node.js 24.15.0 or newer in the 24.x series and `npm ci`. Keep your ordinary
 
 ```dotenv
 STREAM_AVATARS_ENABLED=true
-STREAM_AVATARS_HOST=0.0.0.0
-STREAM_AVATARS_PORT=3001
+WEB_HOST=0.0.0.0
+WEB_PORT=3000
 STREAM_AVATARS_TOKEN=<private-random-token>
 STREAM_AVATARS_STATE_DIR=./data/stream-avatars
 STREAM_AVATARS_OFFLINE_GRACE_SECONDS=900
@@ -22,15 +22,19 @@ STREAM_AVATARS_HEART_OFFSET=16
 TWITCH_ADMIN_USERS=<your-twitch-login>
 ```
 
-Generate a token locally with `node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"`; copy it privately to both configurations. Authentication occurs in the first WebSocket frame, never a URL or chat message. Use `ws://<bot-lan-ip>:3001/sa/socket`. Restrict the listener with your LAN firewall to the gaming computer. Plain WebSocket does not encrypt the connection; for an untrusted network use a TLS reverse proxy and a `wss://` companion URL. Keep port 3001 separate from the existing voice overlay's 3000.
+Generate a token locally with `node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"`; copy it privately to both configurations. Authentication occurs in the first WebSocket frame, never a URL or chat message. Use `ws://<bot-lan-ip>:3000/sa/socket`. Restrict the listener with your LAN firewall to the gaming computer. Plain WebSocket does not encrypt the connection; for an untrusted network use a TLS reverse proxy and a `wss://` companion URL.
+
+The voice overlay's HTTP/SSE routes and this WebSocket route share one listener and port. Publish port 3000 once, even when both integrations are enabled. Set `WEB_HOST`/`WEB_PORT` for both integrations. Existing `VOICE_OVERLAY_HOST`/`VOICE_OVERLAY_PORT` values remain fallback aliases when the corresponding shared setting is absent; explicit shared settings take precedence. Remove the earlier proposed `STREAM_AVATARS_HOST`/`STREAM_AVATARS_PORT` settings and change the companion URL from port 3001 to the shared port.
+
+Each integration can run independently; stopping one removes only its routes and connections. Listener startup does not wait for Discord readiness. A listener bind failure disables both web integrations while the remaining bot services continue.
 
 Strip coordinates and heart offset accept finite decimal game units. Port, grace seconds, and heart count are integers. Invalid bridge settings disable only this integration. A missing/disconnected companion does not queue effects or stop ordinary bot services.
 
 ### Persistent Docker storage
 
-The Compose example mounts `stream-avatars-state` at `/usr/src/app/data/stream-avatars`; uncomment its 3001 port mapping when enabling the bridge. Keep `STREAM_AVATARS_STATE_DIR` at that path (the default relative path resolves there). Restarting or replacing the container retains progress. Do not run `docker compose down -v` when preserving sessions.
+The Compose example mounts `stream-avatars-state` at `/usr/src/app/data/stream-avatars`; uncomment its 3000 port mapping when enabling the bridge. Keep `STREAM_AVATARS_STATE_DIR` at that path (the default relative path resolves there). Restarting or replacing the container retains progress. Do not run `docker compose down -v` when preserving sessions.
 
-For a direct container run, add `-p 3001:3001 -v stream-avatars-state:/usr/src/app/data/stream-avatars` and supply the private `.env`. For bind mounts, create the directory with ownership writable by the image's unprivileged `node` user (UID/GID 1000). Keep the mount private, and do not share it between bot instances.
+For a direct container run, add `-p 3000:3000 -v stream-avatars-state:/usr/src/app/data/stream-avatars` and supply the private `.env`. For bind mounts, create the directory with ownership writable by the image's unprivileged `node` user (UID/GID 1000). Keep the mount private, and do not share it between bot instances.
 
 Production and rehearsal use distinct `production/state.json` and `rehearsal/state.json`. Writes are serialized, fsynced, and atomically renamed; the previous good state remains in `.backup`. Corrupt state is quarantined behind a durable `.recovery-required` gate that survives restarts and requires explicit recovery/reset; do not remove that marker manually. State includes reserved donation IDs, integer-cent totals, and checkpoint fields for future integration slices. Session loading and backup recovery send snapshots without replaying transient animations. The session clock uses the original Twitch start and survives changed IDs/start metadata; only a continuous sequence of successful offline samples spanning the grace period ends it. Unknown/error observations and gaps longer than two sampling intervals interrupt offline confirmation.
 

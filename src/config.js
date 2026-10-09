@@ -1,4 +1,5 @@
 const dotenv = require('dotenv');
+const { parseWebServerConfiguration } = require('./webServerConfig');
 const { parseStreamAvatarsConfiguration } = require('./streamAvatars/config');
 
 /**
@@ -74,16 +75,12 @@ function parseConfiguration() {
         configErrors.push('VOICE_OVERLAY_ENABLED must be true or false');
     }
     const enabled = overlayFlag === 'true';
-    const host = process.env.VOICE_OVERLAY_HOST ?? '0.0.0.0';
-    const rawPort = process.env.VOICE_OVERLAY_PORT ?? '3000';
-    const port = Number(rawPort);
-    if (enabled && (!/^\d+$/.test(rawPort) || !Number.isInteger(port) || port < 1 || port > 65535)) {
-        configErrors.push('VOICE_OVERLAY_PORT must be an integer between 1 and 65535');
-    }
-    if (enabled && !host.trim()) configErrors.push('VOICE_OVERLAY_HOST must not be empty');
+    const webServer = parseWebServerConfiguration(process.env);
+    if (enabled) configErrors.push(...webServer.errors);
     return {
         streamAvatars: parseStreamAvatarsConfiguration(process.env),
-        voiceOverlay: { enabled, host, port },
+        voiceOverlay: { enabled },
+        webServer,
         streamMarkers: { donationThresholdCents: thresholdCents },
         isValid: configErrors.length === 0,
         errors: configErrors,

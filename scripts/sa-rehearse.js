@@ -1,9 +1,11 @@
 const readline = require('node:readline');
+const { parseWebServerConfiguration } = require('../src/webServerConfig');
 const { parseStreamAvatarsConfiguration } = require('../src/streamAvatars/config');
 const { startStreamAvatars } = require('../src/streamAvatars');
 const { parseAction } = require('../src/streamAvatars/rehearsal');
 async function run() {
     require('dotenv').config({ quiet: true });
+    const webServer = parseWebServerConfiguration(process.env);
     const settings = parseStreamAvatarsConfiguration({ ...process.env, STREAM_AVATARS_ENABLED: 'true' });
     if (!settings.enabled) throw new Error(settings.errors.join('; '));
     let hue = null;
@@ -13,7 +15,7 @@ async function run() {
         hue = new HueController({ hue: { username: process.env.HUE_USERNAME, ipAddress: process.env.HUE_IPADDRESS, groupId: process.env.HUE_GROUPID } }, { info() {}, warn() {}, error() {} });
         if (!await hue.initialize()) throw new Error('Hue initialization failed');
     }
-    const service = await startStreamAvatars({ config: { twitch: { channel: process.env.TWITCH_CHANNEL || 'local-rehearsal' }, streamAvatars: settings },
+    const service = await startStreamAvatars({ config: { webServer, twitch: { channel: process.env.TWITCH_CHANNEL || 'local-rehearsal' }, streamAvatars: settings },
         logger: { warn: message => console.error(message) }, standalone: true, hue });
     let lines;
     const shutdown = () => { lines?.close(); void service.stop(); };

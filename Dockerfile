@@ -25,8 +25,8 @@ COPY --chown=node:node scripts/sa-rehearse.js ./scripts/sa-rehearse.js
 # Writable persistent state, owned by the unprivileged runtime user
 RUN mkdir -p data/stream-avatars
 
-# Independent voice-overlay and optional Stream Avatars LAN ports
-EXPOSE 3000 3001
+# Shared HTTP/SSE/WebSocket listener for voice overlay and Stream Avatars
+EXPOSE 3000
 
 # Start the application
 CMD [ "npm", "start" ]

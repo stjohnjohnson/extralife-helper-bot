@@ -4,11 +4,13 @@
 
 The shipped companion is exercised through a Lua stub harness with coroutine/mailbox behavior, authentication, moving positions, density caps, expiry, duplicates, generation changes, synthetic crowd ownership, missing-image handling, reconnects and cleanup. Node integration tests use real localhost WebSocket connections and temporary persistent production/rehearsal stores. They cover authentication failures, current-state reconnects, real-time transient expiry metadata, virtual-clock isolation, real-live preemption, stale observations and shutdown.
 
-Local verification: `npm run lint` passes; complete `npm test -- --runInBand` passes **43 suites / 636 tests** with unchanged coverage thresholds (94.41% statements, 88.41% branches); `npm run audit:prod` reports **zero vulnerabilities**. CI installs Lua 5.4 and builds the Docker image. Local checks use Node 24.19.0 and run all 46 Lua checks under Lua 5.2.4 and 5.5.0. CI adds native Windows and Linux runs under checksum-verified upstream Lua 5.2.4 and 5.4.9; those runtimes are portability checks, not a claim about Stream Avatars' embedded engine version.
+Local verification: `npm run lint` passes; complete `npm test -- --runInBand` passes **45 suites / 664 tests** with unchanged coverage thresholds (94.38% statements, 88.43% branches); `npm run audit:prod` reports **zero vulnerabilities**. CI installs Lua 5.4 and builds the Docker image. Local checks use Node 24.19.0 and run all 46 Lua checks under Lua 5.2.4 and 5.5.0. CI adds native Windows and Linux runs under checksum-verified upstream Lua 5.2.4 and 5.4.9; those runtimes are portability checks, not a claim about Stream Avatars' embedded engine version.
 
 The fresh whole-branch review identified three defects, now covered by failing-then-passing regressions: corrupt-state recovery must remain required across repeated restarts (including a crash before quarantine), coalesced valid client frames must be processed in order, and pending/active rehearsal Hue effects must cancel on preemption, stop, reset or Hue-off while preserving production Hue.
 
-The initial implementation revision passed GitHub CI, including Linux tests with Lua 5.4 and the Docker image build. Required checks are rerun on the review-fix revision before handoff.
+GitHub CI runs the complete Linux suite and Docker image build, plus the native Windows/Linux Lua matrix, for each PR revision. Required checks are rerun before handoff.
+
+The shared-listener refactor adds real concurrent HTTP/SSE/WebSocket tests on a single ephemeral port. They cover independent integration shutdown and re-registration, bad authentication and upgrade routes, duplicate route registration, incomplete HTTP sockets, aborted/bind-failed startup, and late application shutdown. Service-level tests cover failed Discord voice readiness and preservation of another route when Stream Avatars stops. Deliberately removing listener forwarding makes both composition regressions fail; restoring it passes. A fresh focused review found no functional defects and corrected one stale Docker comment.
 
 ## Lua confidence and Windows portability
 

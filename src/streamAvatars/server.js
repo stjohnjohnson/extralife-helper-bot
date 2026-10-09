@@ -1,17 +1,18 @@
-const http = require('node:http');
+const { startWebServer } = require('../webServer');
 const { timingSafeEqual } = require('node:crypto');
 const { WebSocketServer, WebSocket } = require('ws');
 const { decodeClientMessage, validateServerMessage } = require('./protocol');
-async function startBridgeServer({ config, getSnapshot, onClientMessage = async () => {}, logger = { warn() {} }, signal }) {
+async function startBridgeServer({ config, getSnapshot, onClientMessage = async () => {}, logger = { warn() {} }, signal, webServer }) {
     if (signal?.aborted) throw new Error('Stream Avatars startup aborted');
-    const server = http.createServer((req, res) => { res.writeHead(404); res.end(); });
+    const listener = webServer || await startWebServer({ config, signal });
+    let unregister;
     const wss = new WebSocketServer({ noServer: true, maxPayload: 65536, perMessageDeflate: false });
     const clients = new Map();
     let stopping;
-    server.on('upgrade', (req, socket, head) => {
-        if (req.url !== '/sa/socket' || clients.size >= 4 || signal?.aborted) { socket.destroy(); return; }
+    const handleUpgrade = (req, socket, head) => {
+        if (clients.size >= 4 || signal?.aborted) { socket.destroy(); return; }
         wss.handleUpgrade(req, socket, head, connection => wss.emit('connection', connection));
-    });
+    };
     function sendTo(socket, record, message) {
         if (!record.authenticated || socket.readyState !== WebSocket.OPEN) return false;
         const body = JSON.stringify(validateServerMessage(message));
@@ -55,22 +56,20 @@ async function startBridgeServer({ config, getSnapshot, onClientMessage = async 
     const stop = () => {
         if (!stopping) stopping = (async () => {
             signal?.removeEventListener('abort', abort);
+            unregister?.();
             clearInterval(heartbeat); for (const [socket, record] of clients) { record.alive = false; socket.terminate(); }
             await new Promise(resolve => wss.close(resolve));
-            await new Promise(resolve => server.close(resolve)); server.closeAllConnections();
+            if (!webServer) await listener.stop();
         })();
         return stopping;
     };
     const abort = () => { void stop(); };
     signal?.addEventListener('abort', abort, { once: true });
     try {
-        await new Promise((resolve, reject) => {
-            server.once('error', reject);
-            server.listen(config.port, config.host, () => { server.removeListener('error', reject); resolve(); });
-        });
+        unregister = listener.registerUpgrade('/sa/socket', handleUpgrade);
         if (signal?.aborted) throw new Error('Stream Avatars startup aborted');
     } catch (error) { await stop(); throw error; }
-    return { address: server.address(),
+    return { address: listener.address,
         getStatus: () => ({ authenticatedClients: [...clients.values()].filter(record => record.authenticated).length }),
         disconnectClients() { for (const socket of clients.keys()) socket.terminate(); },
         send(message) { validateServerMessage(message); let delivered = false; for (const [socket, record] of clients) delivered = sendTo(socket, record, message) || delivered; return delivered; },
