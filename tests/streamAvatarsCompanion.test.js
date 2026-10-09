@@ -4,7 +4,7 @@ const { mkdtempSync, readFileSync, writeFileSync, rmSync } = require('node:fs');
 const { tmpdir } = require('node:os');
 const { createInitialState, reduceObservation } = require('../src/broadcastSession/state');
 const { validateServerMessage } = require('../src/streamAvatars/protocol');
-test.each(['auth', 'movement', 'density', 'cleanup', 'expiry', 'generation', 'crowd', 'invalid', 'missing-image', 'reconnect', 'late-join', 'empty-crowd', 'negative-bounds', 'density-rotation', 'same-snapshot', 'new-session', 'stale-control', 'stop', 'close-open-race', 'socket-error', 'async-open', 'backoff', 'mailbox-burst', 'mailbox-overflow', 'malformed-json', 'invalid-snapshot', 'wrong-session', 'heartbeat-expiry', 'virtual-clock', 'no-custom-service', 'reload', 'invalid-settings', 'infinite-settings'])('shipped Lua companion: %s', scenario => {
+test.each(['host-json-escapes', 'auth', 'movement', 'density', 'cleanup', 'expiry', 'generation', 'crowd', 'invalid', 'missing-image', 'reconnect', 'late-join', 'empty-crowd', 'negative-bounds', 'density-rotation', 'same-snapshot', 'new-session', 'stale-control', 'stop', 'close-open-race', 'socket-error', 'async-open', 'backoff', 'mailbox-burst', 'mailbox-overflow', 'malformed-json', 'invalid-snapshot', 'wrong-session', 'heartbeat-expiry', 'virtual-clock', 'no-custom-service', 'reload', 'invalid-settings', 'infinite-settings'])('shipped Lua companion: %s', scenario => {
     const result = spawnSync(process.env.LUA_BIN || 'lua', [resolve('tests/lua/companionHarness.lua'), resolve('integrations/stream-avatars/companion.lua'), scenario], { encoding: 'utf8', timeout: 5000 });
     if (result.error) throw new Error('Install Lua 5.2+ or set LUA_BIN: ' + result.error.code);
     expect({ status: result.status, stderr: result.stderr, stdout: result.stdout.trim() }).toEqual({ status: 0, stderr: '', stdout: 'OK ' + scenario });
@@ -33,6 +33,8 @@ test('companion works with Windows CRLF source and a script path containing spac
 });
 // Prove these tests reject plausible defects, rather than merely executing happy paths.
 test.each([
+    ['host-json-escapes', '#slashes % 2 == 1', 'false'],
+    ['host-json-escapes', '#slashes % 2 == 1', 'true'],
     ['auth', 'token=settings.token', 'token="wrong-token"'],
     ['expiry', 'effect={ends=elapsed+5', 'effect={ends=elapsed+50'],
     ['expiry', 'value.expiresAtMs>elapsed*1000+serverOffset', 'true'],
@@ -51,6 +53,6 @@ test.each([
         if (!source.includes(original)) throw new Error('Mutation target moved; update the behavioral mutation');
         const script = join(directory, 'companion.lua'); writeFileSync(script, source.replaceAll(original, broken));
         const result = run(script, scenario);
-        expect(result.error).toBeUndefined(); expect(result.status).toBe(1); expect(result.stderr).toMatch(/assertion failed|must|density|disconnect/);
+        expect(result.error).toBeUndefined(); expect(result.status).toBe(1); expect(result.stderr).toMatch(scenario === 'host-json-escapes' ? /escape changed value|invalid escape sequence/ : /assertion failed|must|density|disconnect/);
     } finally { rmSync(directory, { recursive: true, force: true }); }
 });

@@ -1,6 +1,18 @@
 -- Import as an On Connect script. Private settings belong in this script's JSON file.
 script_trigger_type = "On Connect"
 
+-- Some bundled MoonSharp versions serialize / as \/ but cannot parse it.
+-- get() internally round-trips tables with this codec, including our URL and
+-- queued messages. Normalize only odd backslash runs; preserve literal \\/.
+local parseJson = json.parse
+json.parse = function(text, ...)
+    local compatible = text:gsub("(\\+)(/?)", function(slashes, slash)
+        if slash == "/" and #slashes % 2 == 1 then return slashes:sub(1, -2)..slash end
+        return slashes..slash
+    end)
+    return parseJson(compatible, ...)
+end
+
 function sa_on_socket(title, event, message, code)
     if title ~= "sa_helper_bridge" then return end
     local app = getApp()

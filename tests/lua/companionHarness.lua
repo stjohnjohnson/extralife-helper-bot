@@ -2,6 +2,15 @@ local script, scenario = arg[1], arg[2]
 local shared, packets, users, objects, callbacks = {}, {}, {}, {}, {}
 local codec = dofile("tests/lua/vendor/json.lua")
 local logs = {}
+-- Stream Avatars bundles a MoonSharp codec whose serializer emits \/,
+-- but whose Lua lexer rejects it. get() round-trips tables through that codec.
+local function hostParse(text)
+    for slashes,slash in text:gmatch("(\\+)(/?)") do
+        if slash == "/" and #slashes % 2 == 1 then error("invalid escape sequence near escaped slash") end
+    end
+    return codec.decode(text)
+end
+local function hostSerialize(value) return (codec.encode(value):gsub("/", "\\/")) end
 local function clone(value) if type(value) ~= "table" then return value end local copy={} for k,v in pairs(value) do copy[k]=clone(v) end return copy end
 local connectedCount, leaves, removals = 0, 0, 0
 local config = { url = "ws://127.0.0.1/sa/socket", token = "private-test-token", image = "sa_heart", frameWidth = 32, frameHeight = 32, worldWidth = 32, worldHeight = 32, avatarTopOffset = 40, customService = true }
@@ -22,15 +31,18 @@ app.createGameObject = function()
     ob.destroy = function() ob.removed=true end
     objects[#objects+1]=ob; return ob
 end
-local env = {
+local env; env = {
     getApp = function() return app end,
-    get = function(key) return clone(shared[key]) end, set = function(key,value) shared[key]=clone(value) end,
+    get = function(key)
+        if scenario=="host-json-escapes" and type(shared[key])=="table" then return env.json.parse(hostSerialize(shared[key])) end
+        return clone(shared[key])
+    end, set = function(key,value) shared[key]=clone(value) end,
     load = function() shared.data = config end,
     getUsers = function() local list={} for _,user in pairs(users) do list[#list+1]=user end return list end,
     applyImage = function(ob,name) assert(name=="sa_heart" and not ob.removed); if scenario=="missing-image" then error("missing image") end end,
     log = function(message) logs[#logs+1]=message; assert(not message:find(config.token,1,true)) end,
     yield = function() return coroutine.yield() end,
-    json = { serialize = codec.encode, parse = codec.decode }
+    json = { serialize = scenario=="host-json-escapes" and hostSerialize or codec.encode, parse = scenario=="host-json-escapes" and hostParse or codec.decode }
 }
 -- The companion has no filesystem, shell, package, clock or dynamic-code access.
 for _,name in ipairs({"type","pairs","ipairs","tonumber","tostring","pcall","math","table","string"}) do env[name]=_G[name] end
@@ -54,6 +66,10 @@ local function addUser(id,x,y)
 end
 local function count() local n=0 for _,ob in ipairs(objects) do if not ob.removed then n=n+1 end end return n end
 local function active() for _,ob in ipairs(objects) do if not ob.removed then return ob end end end
+if scenario=="host-json-escapes" then
+    config.token="private/test\\path/token"
+    local ok=pcall(hostParse,hostSerialize(config)); assert(not ok, "must reproduce embedded codec failure")
+end
 if scenario=="no-custom-service" then config.customService=false end
 if scenario=="invalid-settings" then config.worldWidth="invalid" end
 if scenario=="infinite-settings" then config.worldWidth=math.huge end
@@ -62,7 +78,22 @@ if scenario=="invalid-settings" or scenario=="infinite-settings" then
     local ok,err=coroutine.resume(runner); assert(ok,err); assert(coroutine.status(runner)=="dead" and connectedCount==0); print("OK "..scenario); return
 end
 tick()
-if scenario=="auth" then
+if scenario=="host-json-escapes" then
+    assert(packets[1].type=="auth" and packets[1].token==config.token)
+    local message=snapshot(); message.session.channel="viewer/path\\name"
+    send(message); assert(packets[#packets].type=="ready")
+    addUser("real"); send(hearts()); assert(count()==1)
+    -- Even backslashes represent a literal backslash followed by slash, not \/.
+    local values={path="literal\\/slash",url="ws://host/path",backslashes="\\\\/",quote='"/'}
+    local decoded=env.json.parse(hostSerialize(values))
+    for k,v in pairs(values) do assert(decoded[k]==v, "escape changed value: "..k) end
+    decoded=env.json.parse(codec.encode(values))
+    for k,v in pairs(values) do assert(decoded[k]==v, "wire escape changed value: "..k) end
+    -- A valid near-limit JSON string with no slash must not cause quadratic
+    -- pattern retries on every backslash; the harness has a five-second limit.
+    local long={path=string.rep("\\",30000)}
+    assert(env.json.parse(codec.encode(long)).path==long.path)
+elseif scenario=="auth" then
     assert(packets[1].type=="auth" and packets[1].token==config.token)
     send(snapshot()); assert(packets[2].type=="ready" and packets[2].resolution.width==1920)
 elseif scenario=="movement" then
