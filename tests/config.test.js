@@ -459,19 +459,26 @@ describe('optional voice overlay configuration', () => {
     let previous;
     beforeEach(() => {
         previous = { ...process.env };
-        for (const key of ['VOICE_OVERLAY_ENABLED', 'VOICE_OVERLAY_HOST', 'VOICE_OVERLAY_PORT']) delete process.env[key];
+        for (const key of ['VOICE_OVERLAY_ENABLED', 'VOICE_OVERLAY_HOST', 'VOICE_OVERLAY_PORT', 'WEB_HOST', 'WEB_PORT']) delete process.env[key];
     });
     afterEach(() => { process.env = previous; });
     test('defaults off with LAN defaults', () => {
-        expect(parseConfiguration().voiceOverlay).toEqual({ enabled: false, host: '0.0.0.0', port: 3000 });
+        expect(parseConfiguration().voiceOverlay).toEqual({ enabled: false });
+        expect(parseConfiguration().webServer).toEqual({ host: '0.0.0.0', port: 3000, errors: [] });
     });
     test('enabled defaults reuse existing channel and target configuration', () => {
         process.env.VOICE_OVERLAY_ENABLED = 'true';
-        expect(parseConfiguration().voiceOverlay).toEqual({ enabled: true, host: '0.0.0.0', port: 3000 });
+        expect(parseConfiguration().voiceOverlay).toEqual({ enabled: true });
+        expect(parseConfiguration().webServer).toEqual({ host: '0.0.0.0', port: 3000, errors: [] });
     });
     test('accepts explicit host and port', () => {
         Object.assign(process.env, { VOICE_OVERLAY_ENABLED: 'true', VOICE_OVERLAY_HOST: '127.0.0.1', VOICE_OVERLAY_PORT: '4321' });
-        expect(parseConfiguration().voiceOverlay).toEqual({ enabled: true, host: '127.0.0.1', port: 4321 });
+        expect(parseConfiguration().webServer).toEqual({ host: '127.0.0.1', port: 4321, errors: [] });
+    });
+    test('shared settings override legacy aliases for the single listener', () => {
+        Object.assign(process.env, { VOICE_OVERLAY_ENABLED: 'true', VOICE_OVERLAY_HOST: '', VOICE_OVERLAY_PORT: 'invalid', WEB_HOST: '127.0.0.1', WEB_PORT: '4322' });
+        expect(parseConfiguration().webServer).toEqual({ host: '127.0.0.1', port: 4322, errors: [] });
+        expect(parseConfiguration().errors.some(error => error.startsWith('VOICE_OVERLAY_'))).toBe(false);
     });
     test.each(['0', '65536', '3.5', '', 'abc', '1e3'])('rejects invalid enabled port %s', value => {
         Object.assign(process.env, { VOICE_OVERLAY_ENABLED: 'true', VOICE_OVERLAY_PORT: value });
@@ -487,4 +494,10 @@ describe('optional voice overlay configuration', () => {
         Object.assign(process.env, { VOICE_OVERLAY_ENABLED: 'false', VOICE_OVERLAY_HOST: '', VOICE_OVERLAY_PORT: 'abc' });
         expect(parseConfiguration().errors.some(error => error.startsWith('VOICE_OVERLAY'))).toBe(false);
     });
+});
+
+test('sa cannot be shadowed by a custom response and Twitch admin logins ignore case', () => {
+    const { parseCustomResponses, isAdmin } = require('../src/config');
+    expect(parseCustomResponses('sa:"shadow"').customResponseErrors).toHaveLength(1);
+    expect(isAdmin('twitch', 'admin', { twitch: { admins: ['AdMiN'] } })).toBe(true);
 });

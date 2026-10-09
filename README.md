@@ -232,6 +232,16 @@ Missing or invalid colors get usage guidance. Disabled controls and unavailable 
 
 The `color` command name is reserved even when chat light control is disabled; rename any existing custom response using that name before upgrading.
 
+### Stream Avatars controls (optional, Twitch admins)
+
+Enable the LAN bridge with `STREAM_AVATARS_ENABLED=true` and a private `STREAM_AVATARS_TOKEN`. The companion settings need only the bot address and matching token. Screen bounds and packaged heart dimensions are automatic.
+
+In the configured Twitch channel, admins can use `!sa status`, `!sa rehearsal start`, `!sa crowd 20`, `!sa hearts`, and `!sa rehearsal stop`. Starting rehearsal requires a fresh successful offline Twitch sample. Real live status stops rehearsal automatically. The `sa` name is reserved from custom responses.
+
+`npm run sa:rehearse` provides a temporary local preview without Twitch, Discord, or Extra Life credentials. Use `crowd 20`, `hearts`, `clear`, and `quit`. Run `npm run sa:package` to generate an import ZIP with the companion, current image catalog, and animation settings. See [setup and commands](docs/stream-avatars-setup.md) and [verification status](docs/stream-avatars-verification.md). A real Stream Avatars/OBS preview remains required for issue #65 acceptance.
+
+Run `npm run sa:package` to generate `dist/stream-avatars/sa-helper-bridge.zip` for **Import & Export → Select Import** on another computer. It bundles the companion and all image manifests with their frame/FPS/loop settings, using placeholder credentials. See [package import and adding images](docs/stream-avatars-setup.md#generate-and-import-the-zip); reimporting replaces the bridge's local settings, so preserve them before updating.
+
 ### Custom Commands
 You can create your own custom commands using the `CUSTOM_RESPONSES` environment variable. Custom commands:
 - Work on both Discord and Twitch
@@ -255,6 +265,7 @@ Some commands are restricted to admin users only for security purposes. Admin us
 
 **Admin-only commands:**
 - `!promote` - Voice channel management (moves users from waiting room to live chat)
+- `!sa` - Stream Avatars rehearsal and session recovery (Twitch only)
 - `!testlights` - Test Philips Hue light celebration (verifies connection and triggers a demo light show)
 
 **Admin Configuration Examples:**
@@ -323,7 +334,7 @@ Voice samples occur at startup, on relevant count/channel changes, and periodica
 
 ### OBS voice overlay
 
-The optional voice overlay uses the configured live room and excludes the game-update target and helper bot. Enable it with `VOICE_OVERLAY_ENABLED=true`; `VOICE_OVERLAY_HOST` defaults to `0.0.0.0` for LAN access and `VOICE_OVERLAY_PORT` to `3000`. The helper joins self-muted only while `DISCORD_GAME_UPDATE_USER_ID` is in the live room, and leaves as soon as that user disconnects or moves to another room. It observes speaking activity without recording audio. The helper is excluded from voice participation counts.
+The optional voice overlay uses the configured live room and excludes the game-update target and helper bot. Enable it with `VOICE_OVERLAY_ENABLED=true`; `WEB_HOST` defaults to `0.0.0.0` for LAN access and `WEB_PORT` to `3000`. This HTTP listener serves both the voice overlay (including SSE at `/voice/events`) and the Stream Avatars WebSocket at `/sa/socket`. The legacy `VOICE_OVERLAY_HOST` and `VOICE_OVERLAY_PORT` settings remain fallbacks when the corresponding `WEB_*` setting is absent. The helper joins self-muted only while `DISCORD_GAME_UPDATE_USER_ID` is in the live room, and leaves as soon as that user disconnects or moves to another room. It observes speaking activity without recording audio. The helper is excluded from voice participation counts.
 
 Add a Browser Source in OBS using `http://<bot-lan-ip>:3000/voice`. Set its dimensions to **460 × 64** for the compact camera scenes, or **540 × 64** below the right-side camera. Use independent source instances for different dimensions rather than scaling a larger browser canvas down. The avatars stay centered inside the source, grow no larger than 48 pixels, and shrink to fit larger groups. Idle avatars fade to 60% and use a static image; animated avatars animate only while speaking, alongside the cyan ring. They return to the static image after the existing 180 ms speaking release delay.
 

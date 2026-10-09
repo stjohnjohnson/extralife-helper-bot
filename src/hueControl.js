@@ -219,11 +219,13 @@ class HueController {
         try {
             if (previous) await previous.done;
             if (this.colorWrite) await this.colorWrite.catch(() => {});
+            if (effect.abort.signal.aborted && !previous?.savedStates) return;
             if (previous?.savedStates) {
                 effect.lights = previous.lights;
                 effect.savedStates = previous.savedStates;
             } else {
                 effect.lights = await this.getGroupLights();
+                if (effect.abort.signal.aborted) return;
                 if (!effect.lights.length) {
                     this.logger.warn('No lights found in group, skipping celebration');
                     return;

@@ -7,7 +7,14 @@ services:
     env_file: .env
     restart: unless-stopped
     volumes:
+      - stream-avatars-state:/usr/src/app/data/stream-avatars
       # Mount the app for development (optional)
       # - ./app.js:/usr/src/app/app.js:ro
+    # Shared listener: enable either web integration in .env and restrict LAN access
+    # ports:
+    #   - "3000:3000"
     # Uncomment for development with hot-reload
     # command: npm run dev
+
+volumes:
+  stream-avatars-state:

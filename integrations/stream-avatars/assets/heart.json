@@ -1,0 +1,11 @@
+{
+  "name": "sa_heart",
+  "file": "heart.png",
+  "frameWidth": 32,
+  "frameHeight": 32,
+  "frames": 8,
+  "rows": 1,
+  "framesPerSecond": 12,
+  "loop": true,
+  "transparent": true
+}

@@ -87,6 +87,11 @@ const { HueController } = require('../src/hueControl.js');
 const { startVoiceMonitoring, stopVoiceMonitoring } = require('../src/voiceMonitoring.js');
 jest.mock('../src/voiceOverlay', () => ({ startVoiceOverlay: jest.fn() }));
 const { startVoiceOverlay } = require('../src/voiceOverlay');
+jest.mock('../src/streamAvatars', () => ({ startStreamAvatars: jest.fn() }), { virtual: true });
+const { startStreamAvatars } = require('../src/streamAvatars');
+const mockWebServer = { address: { port: 3000 }, stop: jest.fn().mockResolvedValue() };
+jest.mock('../src/webServer', () => ({ startWebServer: jest.fn(async () => mockWebServer) }), { virtual: true });
+const { startWebServer } = require('../src/webServer');
 const application = require('../app.js');
 
 const validConfig = {
@@ -192,7 +197,7 @@ describe('application lifecycle', () => {
         expect(tmi.Client).toHaveBeenCalledTimes(1);
         expect(connect).toHaveBeenCalledTimes(1);
         expect(HueController).toHaveBeenCalledWith(validConfig, mockLogger);
-        expect(startViewerCountMonitoring).toHaveBeenCalledWith(validConfig, mockLogger);
+        expect(startViewerCountMonitoring).toHaveBeenCalledWith(validConfig, mockLogger, { onObservation: expect.any(Function) });
         expect(getUserDonations).toHaveBeenCalledWith('participant-1');
         expect(() => application.start({ config: validConfig })).toThrow('Application already started');
     });
@@ -520,5 +525,96 @@ describe('optional overlay application integration', () => {
         const stopping = application.stop();
         expect(signal.aborted).toBe(true); finish(service); await stopping;
         expect(service.stop).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe('optional Stream Avatars application lifecycle', () => {
+    beforeEach(() => { jest.clearAllMocks(); mockDiscordClient.channels.cache.get.mockReturnValue({ id: 'channel', guild: { id: 'guild' }, setName: jest.fn().mockResolvedValue() }); });
+    afterEach(async () => { await application.stop(); });
+    test('starts before Discord ready, forwards observations, and stops cleanly', async () => {
+        const service = { observeProduction: jest.fn().mockResolvedValue(), stop: jest.fn().mockResolvedValue() };
+        startStreamAvatars.mockResolvedValue(service);
+        const startup = application.start({ config: { ...validConfig, streamAvatars: { enabled: true, config: {} } } });
+        await flushPromises(); await flushPromises(); expect(startStreamAvatars).toHaveBeenCalledTimes(1);
+        const callback = startViewerCountMonitoring.mock.calls[0][2].onObservation;
+        await callback({ status: 'offline', observedAtMs: 1 }); expect(service.observeProduction).toHaveBeenCalledTimes(1);
+        registeredHandler(mockDiscordClient.once, 'ready')(); await startup; await application.stop();
+        expect(service.stop).toHaveBeenCalledTimes(1);
+        await callback({ status: 'offline', observedAtMs: 2 }); expect(service.observeProduction).toHaveBeenCalledTimes(1);
+    });
+    test('optional failure cannot stop existing services or expose secrets in log', async () => {
+        startStreamAvatars.mockRejectedValue(new Error('secret token'));
+        const startup = application.start({ config: { ...validConfig, streamAvatars: { enabled: true, config: {} } } });
+        registeredHandler(mockDiscordClient.once, 'ready')(); await startup; await flushPromises();
+        expect(mockDiscordClient.destroy).not.toHaveBeenCalled(); expect(mockLogger.error).toHaveBeenCalledWith('Stream Avatars unavailable');
+    });
+});
+
+describe('Twitch avatar command and automatic live handoff', () => {
+    beforeEach(() => { jest.clearAllMocks(); mockDiscordClient.channels.cache.get.mockReturnValue({ id: 'channel', guild: { id: 'guild' }, setName: jest.fn().mockResolvedValue() }); });
+    afterEach(async () => { await application.stop(); });
+    test('passes avatar service to Twitch commands and sends the live-stop notice only while active', async () => {
+        const service = { observeProduction: jest.fn(), stop: jest.fn().mockResolvedValue() }; startStreamAvatars.mockResolvedValue(service);
+        const startup = application.start({ config: { ...validConfig, streamAvatars: { enabled: true, config: {} } } });
+        registeredHandler(mockDiscordClient.once, 'ready')(); await startup; await flushPromises();
+        const tags = { username: 'streamer', id: 'message', 'tmi-sent-ts': String(Date.now()) };
+        await registeredHandler(mockTwitchClient.on, 'message')('#channel-name', tags, '!sa status', false);
+        expect(handleCommand.mock.calls.at(-1)[7]).toBe(service);
+        const onStopped = startStreamAvatars.mock.calls[0][0].onRehearsalStopped;
+        onStopped(); await flushPromises(); expect(mockTwitchClient.say).toHaveBeenCalledTimes(1);
+        await application.stop(); onStopped(); expect(mockTwitchClient.say).toHaveBeenCalledTimes(1);
+    });
+});
+
+
+describe('shared web listener application lifecycle', () => {
+    beforeEach(() => {
+        jest.clearAllMocks();
+        startWebServer.mockResolvedValue(mockWebServer);
+        mockTwitchClient.connect = jest.fn().mockResolvedValue();
+        mockWebServer.stop.mockResolvedValue();
+        startVoiceOverlay.mockResolvedValue({ stop: jest.fn().mockResolvedValue() });
+        startStreamAvatars.mockResolvedValue({ stop: jest.fn().mockResolvedValue() });
+        mockDiscordClient.channels.cache.get.mockReturnValue({ id: 'channel', guild: { id: 'guild' }, setName: jest.fn().mockResolvedValue() });
+    });
+    afterEach(async () => { await application.stop(); });
+    const config = { ...validConfig, webServer: { host: '127.0.0.1', port: 3000, errors: [] }, voiceOverlay: { enabled: true }, streamAvatars: { enabled: true, config: {} } };
+    test('both integrations receive the same single listener while avatars start before Discord ready', async () => {
+        const startup = application.start({ config }); await flushPromises(); await flushPromises();
+        expect(startWebServer).toHaveBeenCalledTimes(1);
+        expect(startStreamAvatars).toHaveBeenCalledWith(expect.objectContaining({ webServer: mockWebServer }));
+        expect(startVoiceOverlay).not.toHaveBeenCalled();
+        registeredHandler(mockDiscordClient.once, 'ready')(); await startup; await flushPromises(); await flushPromises();
+        expect(startVoiceOverlay).toHaveBeenCalledWith(expect.objectContaining({ webServer: mockWebServer }));
+        await application.stop(); expect(mockWebServer.stop).toHaveBeenCalledTimes(1);
+    });
+    test.each(['voiceOverlay', 'streamAvatars'])('one enabled integration still starts one listener: %s', async enabled => {
+        const startup = application.start({ config: { ...config, voiceOverlay: { enabled: enabled === 'voiceOverlay' }, streamAvatars: { enabled: enabled === 'streamAvatars', config: {} } } });
+        registeredHandler(mockDiscordClient.once, 'ready')(); await startup; await flushPromises(); await flushPromises();
+        expect(startWebServer).toHaveBeenCalledTimes(1);
+        expect(startVoiceOverlay).toHaveBeenCalledTimes(enabled === 'voiceOverlay' ? 1 : 0);
+        expect(startStreamAvatars).toHaveBeenCalledTimes(enabled === 'streamAvatars' ? 1 : 0);
+    });
+    test('disabled integrations do not open a listener', async () => {
+        const startup = application.start({ config: validConfig }); registeredHandler(mockDiscordClient.once, 'ready')(); await startup;
+        expect(startWebServer).not.toHaveBeenCalled();
+    });
+    test('bind failure disables web integrations while ordinary bot services continue', async () => {
+        startWebServer.mockRejectedValue(new Error('EADDRINUSE secret'));
+        const connect = mockTwitchClient.connect;
+        const startup = application.start({ config }); registeredHandler(mockDiscordClient.once, 'ready')(); await startup;
+        await flushPromises(); await flushPromises();
+        expect(startVoiceOverlay).not.toHaveBeenCalled(); expect(startStreamAvatars).not.toHaveBeenCalled();
+        expect(mockDiscordClient.destroy).not.toHaveBeenCalled(); expect(connect).toHaveBeenCalled();
+        expect(mockLogger.error).toHaveBeenCalledWith('Web listener unavailable; web integrations disabled');
+    });
+    test('shutdown aborts pending listen and closes a late listener without starting integrations', async () => {
+        const pending = deferred(); let signal;
+        startWebServer.mockImplementation(options => { signal = options.signal; return pending.promise; });
+        const startup = application.start({ config }); registeredHandler(mockDiscordClient.once, 'ready')(); await startup;
+        const stopping = application.stop(); expect(signal.aborted).toBe(true);
+        pending.resolve(mockWebServer); await stopping;
+        expect(mockWebServer.stop).toHaveBeenCalledTimes(1);
+        expect(startVoiceOverlay).not.toHaveBeenCalled(); expect(startStreamAvatars).not.toHaveBeenCalled();
     });
 });

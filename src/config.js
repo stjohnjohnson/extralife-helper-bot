@@ -1,4 +1,6 @@
 const dotenv = require('dotenv');
+const { parseWebServerConfiguration } = require('./webServerConfig');
+const { parseStreamAvatarsConfiguration } = require('./streamAvatars/config');
 
 /**
  * Validates and parses environment configuration
@@ -73,15 +75,12 @@ function parseConfiguration() {
         configErrors.push('VOICE_OVERLAY_ENABLED must be true or false');
     }
     const enabled = overlayFlag === 'true';
-    const host = process.env.VOICE_OVERLAY_HOST ?? '0.0.0.0';
-    const rawPort = process.env.VOICE_OVERLAY_PORT ?? '3000';
-    const port = Number(rawPort);
-    if (enabled && (!/^\d+$/.test(rawPort) || !Number.isInteger(port) || port < 1 || port > 65535)) {
-        configErrors.push('VOICE_OVERLAY_PORT must be an integer between 1 and 65535');
-    }
-    if (enabled && !host.trim()) configErrors.push('VOICE_OVERLAY_HOST must not be empty');
+    const webServer = parseWebServerConfiguration(process.env);
+    if (enabled) configErrors.push(...webServer.errors);
     return {
-        voiceOverlay: { enabled, host, port },
+        streamAvatars: parseStreamAvatarsConfiguration(process.env),
+        voiceOverlay: { enabled },
+        webServer,
         streamMarkers: { donationThresholdCents: thresholdCents },
         isValid: configErrors.length === 0,
         errors: configErrors,
@@ -141,7 +140,7 @@ function parseAdminUsers(adminString) {
 function parseCustomResponses(customResponseString) {
     const customResponses = new Map();
     const errors = [];
-    const builtInCommands = ['goal', 'promote', 'color']; // List of built-in commands
+    const builtInCommands = ['goal', 'promote', 'color', 'sa']; // List of built-in commands
 
     if (!customResponseString) {
         return { customResponses, customResponseErrors: errors };
@@ -242,7 +241,7 @@ function isAdmin(platform, userId, config) {
     if (platform === 'discord') {
         return config.discord.admins.includes(userId);
     } else if (platform === 'twitch') {
-        return config.twitch.admins.includes(userId.toLowerCase());
+        return config.twitch.admins.some(admin => admin.toLowerCase() === userId.toLowerCase());
     }
     return false;
 }

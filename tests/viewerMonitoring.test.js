@@ -117,10 +117,10 @@ describe('Viewer Monitoring Module', () => {
 
             await logViewerCount(mockConfig, mockLogger);
 
-            expect(getValidAccessToken).toHaveBeenCalledWith(mockConfig, mockLogger);
+            expect(getValidAccessToken).toHaveBeenCalledWith(mockConfig, mockLogger, expect.any(AbortSignal));
             expect(makeTwitchApiRequest).toHaveBeenCalledWith(
                 '/streams?user_login=testchannel',
-                {},
+                { signal: expect.any(AbortSignal) },
                 'test-client-id',
                 'mock-access-token'
             );
@@ -184,7 +184,7 @@ describe('Viewer Monitoring Module', () => {
             });
 
             // Verify initial call is made
-            expect(getValidAccessToken).toHaveBeenCalledWith(mockConfig, mockLogger);
+            expect(getValidAccessToken).toHaveBeenCalledWith(mockConfig, mockLogger, expect.any(AbortSignal));
 
             // Verify interval is set correctly (5 minutes = 300000ms)
             expect(setInterval).toHaveBeenCalledWith(expect.any(Function), 60000);
@@ -271,7 +271,7 @@ describe('Viewer Monitoring Module', () => {
             });
 
             // Verify initial call was made
-            expect(getValidAccessToken).toHaveBeenCalledWith(mockConfig, mockLogger);
+            expect(getValidAccessToken).toHaveBeenCalledWith(mockConfig, mockLogger, expect.any(AbortSignal));
 
             // Stop monitoring
             stopViewerCountMonitoring(interval, mockLogger);
@@ -299,12 +299,50 @@ describe('viewer lifecycle safety', () => {
         let finish;
         getValidAccessToken.mockImplementation(() => new Promise(resolve => { finish = resolve; }));
         makeTwitchApiRequest.mockResolvedValue({ data: [] });
-        const monitor = startViewerCountMonitoring(config, logger);
-        await jest.advanceTimersByTimeAsync(180000);
+        const monitor = startViewerCountMonitoring({ ...config, twitch: { ...config.twitch, viewerSampleIntervalSeconds: 1 } }, logger);
+        await jest.advanceTimersByTimeAsync(3000);
         expect(getValidAccessToken).toHaveBeenCalledTimes(1);
         stopViewerCountMonitoring(monitor, logger);
         finish('token');
         for (let index = 0; index < 8; index++) await Promise.resolve();
         expect(logger.info.mock.calls.filter(([message]) => message === 'Stream offline')).toHaveLength(0);
+    });
+});
+
+describe('typed broadcast observations', () => {
+    const config = { twitch: { channel: 'streamer', clientId: 'c', viewerSampleIntervalSeconds: 1 } };
+    let logger;
+    beforeEach(() => { jest.clearAllMocks(); jest.useFakeTimers(); logger = { info: jest.fn(), error: jest.fn() }; getValidAccessToken.mockResolvedValue('token'); });
+    afterEach(() => jest.useRealTimers());
+    test.each([
+        [{ data: [] }, { status: 'offline', observedAtMs: 1000 }],
+        [{ data: [{ id: 'stream-id', started_at: '1970-01-01T00:00:00.000Z', viewer_count: 1 }] }, { status: 'online', observedAtMs: 1000, streamId: 'stream-id', startedAtMs: 0 }],
+        [{ data: [{ id: 'stream-id', started_at: 'invalid' }] }, { status: 'unknown', observedAtMs: 1000 }],
+        [{}, { status: 'unknown', observedAtMs: 1000 }]
+    ])('emits typed observation from response %j', async (response, expected) => {
+        makeTwitchApiRequest.mockResolvedValue(response);
+        const observed = []; await logViewerCount(config, logger, () => true, { onObservation: value => observed.push(value), nowMs: () => 1000 });
+        expect(observed).toEqual([expected]);
+    });
+    test('a subscriber failure does not convert successful offline status into another observation', async () => {
+        makeTwitchApiRequest.mockResolvedValue({ data: [] });
+        const observed = [];
+        await logViewerCount(config, logger, () => true, { onObservation: value => { observed.push(value); throw new Error('listener'); }, nowMs: () => 1000 });
+        expect(observed).toEqual([{ status: 'offline', observedAtMs: 1000 }]);
+        expect(logger.error).toHaveBeenCalledWith('Broadcast observer failed');
+    });
+    test('network errors and timeout are unknown and stop cancels the outstanding sample', async () => {
+        makeTwitchApiRequest.mockRejectedValueOnce(new Error('network'));
+        const observed = []; const options = { onObservation: value => observed.push(value), nowMs: () => 1000 };
+        await logViewerCount(config, logger, () => true, options);
+        expect(observed).toEqual([{ status: 'unknown', observedAtMs: 1000 }]);
+        getValidAccessToken.mockImplementation(() => new Promise(() => {}));
+        const monitor = startViewerCountMonitoring(config, logger, options);
+        await jest.advanceTimersByTimeAsync(10000);
+        expect(observed).toHaveLength(2);
+        expect(observed[1].status).toBe('unknown');
+        stopViewerCountMonitoring(monitor, logger);
+        await jest.advanceTimersByTimeAsync(20000);
+        expect(observed).toHaveLength(2);
     });
 });

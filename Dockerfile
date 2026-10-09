@@ -20,8 +20,12 @@ RUN npm ci --omit=dev
 # Copy application code
 COPY --chown=node:node *.js .
 COPY --chown=node:node src ./src
+COPY --chown=node:node scripts/sa-rehearse.js ./scripts/sa-rehearse.js
 
-# Expose port for health checks if needed
+# Writable persistent state, owned by the unprivileged runtime user
+RUN mkdir -p data/stream-avatars
+
+# Shared HTTP/SSE/WebSocket listener for voice overlay and Stream Avatars
 EXPOSE 3000
 
 # Start the application
