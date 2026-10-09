@@ -64,6 +64,10 @@ local env; env = {
         else list[#list+1]=user end end return list end,
     applyImage = function(ob,name) assert(type(name)=="string" and name:match("^sa_") and not ob.removed); ob.asset=name; ob.name=name; if (scenario=="celebration-missing-confetti" and name=="sa_confetti") or (scenario=="celebration-missing-heart" and name=="sa_heart") then error("missing layer") end; if scenario=="missing-image" then error("missing image") end
         if scenario=="theme-missing-backdrop" and name:find("backdrop") then error("missing backdrop") end
+        if scenario=="theme-missing-prop" and name:find("scenery_one") then error("missing prop") end
+        if scenario=="theme-backdrop-timeout" and name:find("backdrop") then
+            while not allowImageCompletion do coroutine.yield() end
+        end
         if (scenario=="theme-load-timeout" or scenario=="theme-pending-cap") and name~="sa_heart" then while true do coroutine.yield() end end
         if scenario=="theme-stale-load" and name~="sa_heart" then ob.imageLoaded=true; coroutine.yield() end; if scenario=="missing-image" then error("missing image") end
         if (scenario=="missing-image-host" or scenario=="image-pending-cap") then error("CLR missing image") end
@@ -321,24 +325,59 @@ if themeScenario then
     local function themes() local n=0 for _,ob in ipairs(objects) do if ob.name and ob.name~="sa_heart" and not ob.removed and ob.scale>0 then n=n+1 end end return n end
     local function captions() local list={} for _,ob in ipairs(objects) do if ob.caption and not ob.removed then list[#list+1]=ob end end return list end
     local function themeObject() for _,ob in ipairs(objects) do if ob.name and ob.name~="sa_heart" and not ob.removed and ob.scale>0 then return ob end end end
+    local worldFailure=scenario=="theme-missing-backdrop" or scenario=="theme-missing-prop" or scenario=="theme-backdrop-timeout" or scenario=="theme-load-timeout"
+    local function worldDiagnostics(expected)
+        local n=0
+        for _,packet in ipairs(packets) do if packet.type=="diagnostic" then
+            assert(packet.code=="missing-theme-image", "world failure must report a dedicated diagnostic without unrelated gear errors")
+            local fields=0; for _ in pairs(packet) do fields=fields+1 end
+            assert(fields==3 and packet.version==1, "world diagnostic must contain only bounded allowlisted vocabulary")
+            n=n+1
+        end end
+        assert(n==expected, "world failure must emit one diagnostic per cooldown without a tile/reload flood")
+    end
     if scenario:match("^theme%-density%-") then
         local n=tonumber(scenario:match("(%d+)$")); for i=1,n do addUser(i,i*5,20) end
-    else addUser(1) end
+    elseif not worldFailure then addUser(1) end
+    if scenario=="theme-backdrop-timeout" then allowImageCompletion=false end
     send(themed()); tick()
     if scenario=="theme-stale-load" then
         allowImageCompletion=false; send(themed(string.rep("c",64),string.rep("d",64))); assert(themes()==0)
         send(themed()); assert(themes()==0); allowImageCompletion=true; tick(); tick(); assert(themes()==8)
         for i=1,8 do assert(objects[i].removed and objects[i].scale==0, "stale theme must stay invisible and be discarded") end
     elseif scenario=="theme-load-timeout" then
+        assert(next(users)==nil, "timeout diagnostic regression must start with zero viewers")
         assert(themes()==0); tick(2.1); tick(); assert(themes()==0 and shared.sa_pending_images==8)
+        worldDiagnostics(1)
+        for _=1,10 do tick(0.1) end; worldDiagnostics(1)
         send({version=3,type="heartbeat",serverNowMs=4000}); assert(packets[#packets].type=="heartbeat")
     elseif scenario=="theme-pending-cap" then
         for i=1,15 do send(themed(nil,string.rep("d",64))); send(themed()); tick(2.1); tick() end
         assert(#objects==100 and shared.sa_pending_images==100, "theme must cap pending loads")
         send({version=3,type="heartbeat",serverNowMs=4000}); assert(packets[#packets].type=="heartbeat")
-    elseif scenario=="theme-missing-backdrop" then
-        tick(); assert(themes()==4, "missing backdrop must preserve props")
-        send(hearts()); assert(count()==5); send({version=3,type="heartbeat",serverNowMs=1200}); assert(packets[#packets].type=="heartbeat"); callbacks.websocket("sa_helper_bridge","OnClose","",""); tick(); assert(themes()==0, "missing component must not leak surviving props on disconnect")
+    elseif scenario=="theme-missing-backdrop" or scenario=="theme-missing-prop" or scenario=="theme-backdrop-timeout" then
+        assert(next(users)==nil, "world diagnostic regression must start with zero viewers")
+        local survivors=scenario=="theme-missing-prop" and 7 or 4
+        if scenario=="theme-backdrop-timeout" then tick(2.1) end
+        tick(); assert(themes()==survivors, "missing world image must preserve unaffected tiles/props")
+        worldDiagnostics(1)
+        for _=1,10 do tick(0.1) end; send(themed()); worldDiagnostics(1)
+        addUser(1); send(hearts()); assert(count()==survivors+1, "world image failure must preserve hearts")
+        local heart=objects[#objects]
+        -- Trigger a second set of failed loads while the heart remains active.
+        send(themed(nil,nil,"kitchen")); tick(); send(themed()); tick()
+        if scenario=="theme-backdrop-timeout" then tick(2.1); tick() end
+        assert(themes()==survivors and count()==survivors+1 and not heart.removed, "world reload failure must preserve the heart owner")
+        worldDiagnostics(1)
+        if scenario=="theme-backdrop-timeout" then
+            allowImageCompletion=true; tick(); tick()
+            assert(shared.sa_pending_images==0 and next(loaders)==nil, "cancelled callbacks must finish without leaked pending loads")
+            assert(themes()==4, "timed-out backdrop callbacks must never become visible")
+        end
+        tick(30); tick(); send(themed(nil,nil,"kitchen")); tick(); send(themed()); tick()
+        if scenario~="theme-backdrop-timeout" then worldDiagnostics(2) else worldDiagnostics(1); assert(themes()==8) end
+        send({version=3,type="heartbeat",serverNowMs=40000}); assert(packets[#packets].type=="heartbeat")
+        callbacks.websocket("sa_helper_bridge","OnClose","",""); tick(); assert(themes()==0, "missing component must not leak surviving props on disconnect")
     elseif scenario=="theme-small-bounds" then
         app.convertPercentToPosition=function(x,y) return {x=x*10,y=y*0.1} end; tick(); assert(themes()==0)
         app.convertPercentToPosition=function(x,y) return {x=x*1000,y=y*200} end; tick(); assert(themes()==8)

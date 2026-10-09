@@ -96,6 +96,7 @@ return function()
     local snapshot, effect = nil, nil
     local themeObjects, chapterObjects = {}, {} -- Chapter owner reserved; no chapter art.
     local themeLoadToken, themeKey, themeLayout, entrance = 0, nil, nil, nil
+    local themeDiagnosticAt = 0
     local catalog = THEME_CATALOG_JSON and json.parse(THEME_CATALOG_JSON) or {themes={}}
     local gearOwned, gearQueue, gearCursor, gearRefreshAt, gearEpoch, gearDiagnosticAt = {}, {}, 1, 0, 0, 0
     local gearNow, gearClockFailed = nil, false
@@ -116,6 +117,10 @@ return function()
     end
     local function send(value) app.sendWebsocketMessage(socket, json.serialize(value)) end
     local function diagnostic(code) send({version=3,type="diagnostic",code=code}) end
+    local function themeDiagnostic()
+        -- Coalesce repeated tiles and rapid theme reloads across world owners.
+        if elapsed>=themeDiagnosticAt then diagnostic("missing-theme-image"); themeDiagnosticAt=elapsed+30 end
+    end
     local function release(entry)
         local status=get(entry.key)
         if not entry.loaded and status~="failed" and status~="loaded" then
@@ -680,7 +685,7 @@ return function()
             if entry and not entry.skipped and entry.token==themeLoadToken then
                 if not entry.loaded then
                     if get(entry.key)=="loaded" then entry.loaded=true; set(entry.key,nil)
-                    elseif get(entry.key)=="failed" or elapsed>=entry.deadline then release(entry); entry.skipped=true end
+                    elseif get(entry.key)=="failed" or elapsed>=entry.deadline then release(entry); entry.skipped=true; themeDiagnostic() end
                 end
                 if not entry.skipped then
                     if fits and entry.loaded then

@@ -8,6 +8,13 @@ test('accepts only finite typed protocol vocabulary', () => {
     expect(validateServerMessage(snapshot)).toEqual(snapshot);
     expect(validateServerMessage({ version: 3, type: 'clear', mode: 'production', generation: 1 }).type).toBe('clear');
 });
+test('accepts the bounded missing-world diagnostic without image paths or extra metadata', () => {
+    const diagnostic = { version: 3, type: 'diagnostic', code: 'missing-theme-image' };
+    expect(decodeClientMessage(JSON.stringify(diagnostic))).toEqual(diagnostic);
+    for (const patch of [{ image: 'sa_block_world_backdrop_minimal_strip' }, { path: '/private/images/missing.png' }, { code: 'missing-theme-image:/private/images/missing.png' }, { code: 'loadstring()' }]) {
+        expect(() => decodeClientMessage(JSON.stringify({ ...diagnostic, ...patch }))).toThrow('Invalid Stream Avatars message');
+    }
+});
 test.each(['{bad', JSON.stringify({ version: 3, type: 'command', text: 'loadstring' }), JSON.stringify({ version: 2, type: 'heartbeat' }), JSON.stringify({ version: 3, type: 'auth', token: 'secret', lua: 'execute' }), JSON.stringify({ version: 3, type: 'diagnostic', code: 'secret token' }), JSON.stringify({ version: 3, type: 'ready', capabilities: ['arbitrary-script'], resolution: { width: 0, height: 1 } })])('rejects malformed or executable client payload', raw => { expect(() => decodeClientMessage(raw)).toThrow('Invalid Stream Avatars message'); });
 test.each([{ ...snapshot, elapsedMs: NaN }, { ...snapshot, generation: -1 }, { ...snapshot, campaign: { ...snapshot.campaign, totalCents: -1 } }, { version: 3, type: 'hearts', mode: 'production', generation: 1, campaignId: 's', id: 'i', issuedAtMs: 1000, expiresAtMs: 900, durationMs: 5000 }, { version: 3, type: 'crowd', mode: 'production', generation: 1, crowdIds: ['arbitrary user'] }])('rejects invalid server payload', value => { expect(() => validateServerMessage(value)).toThrow(/message/i); });
 

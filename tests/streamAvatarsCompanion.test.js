@@ -97,7 +97,7 @@ test.each(['donation','milestone','goal','hidden','goal-only'])('Lua renders act
 
 const { buildThemeCatalog, buildThemeLayout } = require('../src/streamAvatars/themeLayout');
 const { candidate } = require('./fixtures/themeCandidates');
-const themeScenarios = ['theme-stale-load', 'theme-shared-game', 'theme-neutral', 'theme-missing-backdrop', 'theme-resize', 'theme-small-bounds', 'theme-heart-coexistence', 'theme-reconnect-no-entrance', 'theme-production-gate', 'theme-revision', 'theme-load-timeout', 'theme-pending-cap', 'theme-scope-cancellation', 'entrance-timing', 'entrance-obsolete', 'entrance-caption', 'entrance-neutral', 'entrance-supersession', 'theme-density-0', 'theme-density-20', 'theme-density-100', 'theme-kitchen', 'entrance-caption-error', 'entrance-position-error', 'entrance-unicode'];
+const themeScenarios = ['theme-stale-load', 'theme-shared-game', 'theme-neutral', 'theme-missing-backdrop', 'theme-missing-prop', 'theme-backdrop-timeout', 'theme-resize', 'theme-small-bounds', 'theme-heart-coexistence', 'theme-reconnect-no-entrance', 'theme-production-gate', 'theme-revision', 'theme-load-timeout', 'theme-pending-cap', 'theme-scope-cancellation', 'entrance-timing', 'entrance-obsolete', 'entrance-caption', 'entrance-neutral', 'entrance-supersession', 'theme-density-0', 'theme-density-20', 'theme-density-100', 'theme-kitchen', 'entrance-caption-error', 'entrance-position-error', 'entrance-unicode'];
 function themeSource() {
     const manifest = candidate();
     for (const asset of Object.values(manifest.assets)) {
@@ -130,7 +130,10 @@ test.each([
     ['theme-shared-game', 'layer="behindBackground",order=0', 'layer="background",order=0'],
     ['theme-resize', 'local scale=width/REFERENCE_WIDTH', 'local scale=1000/REFERENCE_WIDTH'],
     ['theme-pending-cap', 'if pending<100 then', 'if true then'],
-    ['theme-missing-backdrop', 'release(entry); entry.skipped=true', 'clearTheme(); return'],
+    ['theme-missing-backdrop', 'release(entry); entry.skipped=true; themeDiagnostic()', 'clearTheme(); return'],
+    ['theme-missing-backdrop', 'diagnostic("missing-theme-image")', 'do end'],
+    ['theme-missing-backdrop', 'if elapsed>=themeDiagnosticAt then', 'if true then'],
+    ['theme-backdrop-timeout', 'get(entry.key)=="failed" or elapsed>=entry.deadline then release(entry); entry.skipped=true', 'get(entry.key)=="failed" then release(entry); entry.skipped=true'],
     ['entrance-timing', 'ends=elapsed+6', 'ends=elapsed+60'],
     ['entrance-timing', 'value.expiresAtMs>elapsed*1000+serverOffset and value.durationMs==6000', 'true and value.durationMs==6000'],
     ['entrance-timing', 'and not seen[value.id] and', 'and'],
