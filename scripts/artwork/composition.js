@@ -4,7 +4,7 @@ function sceneLayout(cards, width = 1920) {
     const themes = [...new Set(cards.map(c => c.brief.theme))];
     for (const theme of themes) {
         const latest = new Map();
-        cards.filter(c => c.brief.theme === theme && c.validation.valid).sort((a, b) => a.createdAt.localeCompare(b.createdAt)).forEach(c => latest.set(c.assetId, c));
+        cards.filter(c => c.brief.theme === theme && !c.brief.retired && c.validation.valid).sort((a, b) => a.createdAt.localeCompare(b.createdAt)).forEach(c => latest.set(c.assetId, c));
         const backdrop = [...latest.values()].find(c => c.brief.kind === 'backdrop');
         if (backdrop) {
             for (let x = 0; x < width; x += backdrop.brief.frame.width) backdrops.push({ ...backdrop, previewX: x });

@@ -43,14 +43,16 @@ class ArtworkWorkflow {
         try { fs.linkSync(temp, file); } finally { fs.unlinkSync(temp); }
         return value;
     }
-    briefs() {
+    briefs({ includeRetired = false } = {}) {
         const { themes, requiredKinds, assets } = this.inventory;
         if (!Array.isArray(themes) || !themes.length || new Set(themes).size !== themes.length || !requiredKinds || Object.values(requiredKinds).some(n => !Number.isInteger(n) || n < 1)) throw new Error('Malformed inventory contract');
         const expected = themes.length * Object.values(requiredKinds).reduce((sum, n) => sum + n, 0);
         if (!Array.isArray(assets) || assets.length !== expected) throw new Error(`Inventory must contain ${expected} assets (duplicate or missing IDs)`);
         if (assets.some(a => !themes.includes(a.theme) || !(a.kind in requiredKinds) || a.required !== true) || themes.some(theme => Object.entries(requiredKinds).some(([kind, count]) => assets.filter(a => a.theme === theme && a.kind === kind).length !== count))) throw new Error('Inventory theme/kind contract mismatch');
+        const retiredAssets = this.inventory.retiredAssets || [];
+        if (!Array.isArray(retiredAssets) || retiredAssets.some(a => !themes.includes(a.theme) || !(a.kind in requiredKinds))) throw new Error('Malformed retired inventory');
         const seen = new Set();
-        return this.inventory.assets.map(asset => {
+        const briefs = [...assets, ...retiredAssets].map(asset => {
             identifier(asset.id);
             if (seen.has(asset.id)) throw new Error('duplicate inventory ID');
             seen.add(asset.id);
@@ -63,12 +65,20 @@ class ArtworkWorkflow {
                 if (hash(fs.readFileSync(file)) !== ref.sha256) throw new Error('Changed reference checksum');
                 return { id, file: ref.file, sha256: ref.sha256 };
             });
-            return { ...asset, styleRevision: this.style.revision, exactPrompt: recipe.exactPrompt, references, recipeHash: hash(JSON.stringify({ asset, recipe, style: this.style, references })) };
+            const brief = { ...asset, styleRevision: this.style.revision, exactPrompt: recipe.exactPrompt, references, recipeHash: hash(JSON.stringify({ asset, recipe, style: this.style, references })) };
+            // Retirement is review metadata, never part of a historical recipe hash.
+            return retiredAssets.includes(asset) ? { ...brief, retired: true } : brief;
         });
+        return includeRetired ? briefs : briefs.filter(b => !b.retired);
     }
     brief(id) {
-        const brief = this.briefs().find(b => b.id === id);
+        const brief = this.briefs({ includeRetired: true }).find(b => b.id === id);
         if (!brief) throw new Error(`Unknown asset ${id}`);
+        return brief;
+    }
+    activeBrief(id) {
+        const brief = this.brief(id);
+        if (brief.retired) throw new Error('Retired asset is review-only');
         return brief;
     }
     files(dir) { return fs.readdirSync(this.local(dir)).filter(f => f.endsWith('.json')).sort(); }
@@ -100,7 +110,7 @@ class ArtworkWorkflow {
         return this.immutable(`jobs/${jobId}.json`, { schemaVersion: 1, jobId, assetId: brief.id, createdAt: new Date().toISOString(), status: 'planned', brief, styleRevision: brief.styleRevision, recipeHash: brief.recipeHash, exactPrompt: brief.exactPrompt, references: brief.references, ...extras });
     }
     prepare({ asset, theme } = {}) {
-        if (asset) this.brief(asset);
+        if (asset) this.activeBrief(asset);
         if (theme && !this.inventory.assets.some(b => b.theme === theme)) throw new Error('Unknown theme');
         const records = this.records();
         const jobs = this.jobs();
@@ -207,6 +217,7 @@ class ArtworkWorkflow {
     }
     select({ asset, attempt, approve, proof = null }) {
         if (approve !== true) throw new Error('Explicit visual approval required (--approve)');
+        this.activeBrief(asset);
         const record = this.attempt(attempt);
         if (record.assetId !== asset) throw new Error('Cross-asset selection rejected');
         const validation = this.validate(attempt);
@@ -233,7 +244,10 @@ class ArtworkWorkflow {
     releaseCheck() {
         const errors = [];
         const selections = this.selections();
-        for (const brief of this.briefs()) {
+        const briefs = this.briefs();
+        for (const id of Object.keys(selections)) if (!briefs.some(b => b.id === id)) errors.push(id + ': retired or unknown selection cannot enter release');
+        for (const brief of briefs) {
+            if (brief.kind === 'gear' && (brief.gearSlot !== 'head' || /backpack|goggles/i.test(brief.id + ' ' + brief.subject))) errors.push(brief.id + ': active gear must be a head-mounted hat or helmet');
             const selection = selections[brief.id];
             if (!selection) { errors.push(`${brief.id}: missing selection (unapproved)`); continue; }
             const result = this.validate(selection.attemptId);
@@ -242,7 +256,7 @@ class ArtworkWorkflow {
             if (selection.sha256 !== record.sha256 || selection.recipeHash !== brief.recipeHash) errors.push(`${brief.id}: stale selection/checksum`);
             if (!validImportProof(selection.importProof, record)) errors.push(`${brief.id}: missing or invalid checksum-bound native import proof`);
         }
-        return { valid: !errors.length, requiredAssets: this.briefs().length, selectedAssets: Object.keys(selections).length, errors };
+        return { valid: !errors.length, requiredAssets: briefs.length, selectedAssets: briefs.filter(b => selections[b.id]).length, errors };
     }
     review({ theme } = {}) {
         if (theme && !this.inventory.assets.some(b => b.theme === theme)) throw new Error('Unknown theme');

@@ -514,3 +514,87 @@ test('artWorkflowRetainsFoundationScriptsAndCatalog', () => {
     expect(Buffer.from(entries['scripts/sa_helper_bridge/sa_heart.png']))
         .toEqual(fs.readFileSync(path.join(integrationDir, 'assets/heart.png')));
 });
+
+const retiredHats = [
+    ['outdoor.gear.backpack', 'outdoor.gear.trail-cap', '96ca30540cde7d6e22e6443a6b9455ea1895ebd2fc357bf828311e364be861bf'],
+    ['puzzle.gear.technician-goggles', 'puzzle.gear.technician-cap', '634ed0e1276aefe5eb3a352ec59ea3846fc84f36b99430022f0521816ab53491'],
+    ['space-salvage.gear.work-goggles', 'space-salvage.gear.utility-hardhat', '3613b4e481ab6ea93287318c82546a25fa59dc8d4fb5661ab415881791d0cfb8']
+];
+function historicalHat(select = false) {
+    const current = workflow.inventory;
+    const oldId = retiredHats[0][0];
+    workflow.inventory = { ...current, assets: current.assets.map(a => a.id === retiredHats[0][1] ? current.retiredAssets.find(r => r.id === oldId) : a), retiredAssets: current.retiredAssets.filter(a => a.id !== oldId) };
+    const record = candidate(oldId, { fit: true });
+    if (select) workflow.select({ asset: oldId, attempt: record.attemptId, approve: true });
+    workflow.inventory = current;
+    return record;
+}
+test('replacement hats retain exact retired brief hashes and original inventory definitions', () => {
+    expect(workflow.inventory.retiredAssets).toHaveLength(3);
+    expect(workflow.briefs()).toHaveLength(42);
+    for (const [oldId, newId, originalHash] of retiredHats) {
+        expect(workflow.brief(oldId)).toMatchObject({ id: oldId, retired: true, recipeHash: originalHash });
+        expect(workflow.inventory.retiredAssets.find(a => a.id === oldId)).not.toHaveProperty('retired');
+        expect(workflow.briefs().map(b => b.id)).not.toContain(oldId);
+        expect(workflow.brief(newId)).toMatchObject({ gearSlot: 'head', required: true });
+        expect(() => workflow.prepare({ asset: oldId })).toThrow(/retired/i);
+    }
+    expect(workflow.briefs().filter(b => b.kind === 'gear')).toHaveLength(12);
+    expect(workflow.briefs().filter(b => b.kind === 'gear').every(b => b.gearSlot === 'head')).toBe(true);
+    expect(workflow.prepare()).toHaveLength(42);
+    expect(workflow.selections()).toEqual({});
+});
+test('historical candidates remain valid and labeled in review but cannot be selected', () => {
+    const record = historicalHat();
+    expect(workflow.validate(record.attemptId).valid).toBe(true);
+    expect(() => workflow.select({ asset: record.assetId, attempt: record.attemptId, approve: true })).toThrow(/retired/i);
+    const { JSDOM } = require('jsdom');
+    const doc = new JSDOM(workflow.review()).window.document;
+    expect(doc.querySelector('article').textContent).toContain('Retired');
+    expect(doc.querySelector('article').dataset.asset).toBe(record.assetId);
+    expect(doc.querySelectorAll('#overview .overview-tile')).toHaveLength(0);
+    expect(doc.querySelector('.strip').innerHTML).not.toContain(record.assetId);
+});
+test('historical selections cannot satisfy or count toward the active release gate', () => {
+    const record = historicalHat(true);
+    expect(workflow.selections()[record.assetId].attemptId).toBe(record.attemptId);
+    const result = workflow.releaseCheck();
+    expect(result.requiredAssets).toBe(42);
+    expect(result.selectedAssets).toBe(0);
+    expect(result.valid).toBe(false);
+    expect(result.errors.join(' ')).toMatch(/retired/i);
+    expect(result.errors.join(' ')).toContain('outdoor.gear.trail-cap: missing selection');
+});
+test('rejects duplicate IDs across active and retired history', () => {
+    workflow.inventory.retiredAssets = [workflow.inventory.assets[0]];
+    expect(() => workflow.briefs()).toThrow(/duplicate/i);
+});
+test('composition excludes retired scenery even when its historical export is valid', () => {
+    const { sceneLayout } = require('../scripts/artwork/composition');
+    const record = candidate();
+    const card = { ...record, brief: { ...workflow.brief(asset), retired: true }, validation: workflow.validate(record.attemptId) };
+    expect(sceneLayout([card])).toEqual({ scenery: [], backdrops: [] });
+});
+test('release rejects body-worn or standalone face gear even with a head slot label', () => {
+    const gear = workflow.inventory.assets.find(a => a.kind === 'gear');
+    gear.gearSlot = 'back';
+    expect(workflow.releaseCheck().errors.join(' ')).toContain('head-mounted hat or helmet');
+    gear.gearSlot = 'head';
+    gear.subject = 'Standalone goggles';
+    expect(workflow.releaseCheck().errors.join(' ')).toContain('head-mounted hat or helmet');
+});
+test('stream-scale mockup switches between light and dark test scenes', () => {
+    candidate();
+    const { JSDOM } = require('jsdom');
+    const dom = new JSDOM(workflow.review(), { runScripts: 'dangerously' });
+    const select = dom.window.document.getElementById('scene');
+    expect(Array.from(select.options).some(o => o.value === 'light')).toBe(true);
+    select.value = 'light';
+    select.dispatchEvent(new dom.window.Event('change'));
+    const scene = dom.window.document.querySelector('.scene');
+    expect(scene.style.backgroundColor).toBe('rgb(238, 234, 223)');
+    expect(scene.style.backgroundImage).toBe('');
+    select.value = '';
+    select.dispatchEvent(new dom.window.Event('change'));
+    expect(scene.style.backgroundColor).toBe('rgb(17, 19, 26)');
+});

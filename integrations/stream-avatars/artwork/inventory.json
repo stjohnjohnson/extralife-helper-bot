@@ -342,10 +342,10 @@
       "referenceIds": []
     },
     {
-      "id": "outdoor.gear.backpack",
+      "id": "outdoor.gear.trail-cap",
       "theme": "outdoor",
       "kind": "gear",
-      "subject": "Small backpack",
+      "subject": "Trail cap",
       "sizeClass": "gear",
       "required": true,
       "frame": {
@@ -358,7 +358,7 @@
         "x": 16,
         "y": 30
       },
-      "gearSlot": "back",
+      "gearSlot": "head",
       "referenceIds": []
     },
     {
@@ -462,10 +462,10 @@
       "referenceIds": []
     },
     {
-      "id": "puzzle.gear.technician-goggles",
+      "id": "puzzle.gear.technician-cap",
       "theme": "puzzle",
       "kind": "gear",
-      "subject": "Technician goggles",
+      "subject": "Technician cap",
       "sizeClass": "gear",
       "required": true,
       "frame": {
@@ -582,10 +582,10 @@
       "referenceIds": []
     },
     {
-      "id": "space-salvage.gear.work-goggles",
+      "id": "space-salvage.gear.utility-hardhat",
       "theme": "space-salvage",
       "kind": "gear",
-      "subject": "Work goggles",
+      "subject": "Utility hardhat",
       "sizeClass": "gear",
       "required": true,
       "frame": {
@@ -860,5 +860,67 @@
     "scenery": 4,
     "gear": 2,
     "backdrop": 1
-  }
+  },
+  "retiredAssets": [
+    {
+      "id": "outdoor.gear.backpack",
+      "theme": "outdoor",
+      "kind": "gear",
+      "subject": "Small backpack",
+      "sizeClass": "gear",
+      "required": true,
+      "frame": {
+        "width": 32,
+        "height": 32,
+        "padding": 2
+      },
+      "visibleHeightLimit": 16,
+      "anchor": {
+        "x": 16,
+        "y": 30
+      },
+      "gearSlot": "back",
+      "referenceIds": []
+    },
+    {
+      "id": "puzzle.gear.technician-goggles",
+      "theme": "puzzle",
+      "kind": "gear",
+      "subject": "Technician goggles",
+      "sizeClass": "gear",
+      "required": true,
+      "frame": {
+        "width": 32,
+        "height": 32,
+        "padding": 2
+      },
+      "visibleHeightLimit": 16,
+      "anchor": {
+        "x": 16,
+        "y": 30
+      },
+      "gearSlot": "head",
+      "referenceIds": []
+    },
+    {
+      "id": "space-salvage.gear.work-goggles",
+      "theme": "space-salvage",
+      "kind": "gear",
+      "subject": "Work goggles",
+      "sizeClass": "gear",
+      "required": true,
+      "frame": {
+        "width": 32,
+        "height": 32,
+        "padding": 2
+      },
+      "visibleHeightLimit": 16,
+      "anchor": {
+        "x": 16,
+        "y": 30
+      },
+      "gearSlot": "head",
+      "referenceIds": []
+    }
+  ]
 }
