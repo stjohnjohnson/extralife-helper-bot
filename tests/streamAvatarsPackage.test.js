@@ -47,8 +47,7 @@ describe('portable Stream Avatars packages', () => {
             } }
         });
         expect(json(entries, `${commandPath}sa_helper_bridge_settings.json`)).toEqual({
-            url: 'ws://BOT_LAN_IP:3000/sa/socket', token: 'REPLACE_WITH_PRIVATE_TOKEN', customService: false,
-            worldWidth: 32, worldHeight: 32, avatarTopOffset: 40
+            address: 'BOT_LAN_IP', token: 'REPLACE_WITH_PRIVATE_TOKEN'
         });
     });
 
@@ -167,11 +166,13 @@ describe('portable Stream Avatars packages', () => {
         expect(() => buildPackage({ integrationDir })).toThrow(/regular file/);
     });
 
-    test('validates image world dimensions independently of connection placeholders', () => {
-        const file = path.join(integrationDir, 'settings.example.json');
-        const settings = JSON.parse(fs.readFileSync(file));
-        fs.writeFileSync(file, JSON.stringify({ ...settings, worldWidth: 0 }));
-        expect(() => buildPackage({ integrationDir })).toThrow(/worldWidth/);
+    test('derives heart dimensions from the manifest without exposing geometry in settings', () => {
+        const png = PNG.sync.write({ width: 512, height: 64, data: Buffer.alloc(512 * 64 * 4) });
+        fs.writeFileSync(path.join(integrationDir, 'assets/heart.png'), png);
+        changeManifest({ frameWidth: 64, frameHeight: 64 });
+        const entries = decode(buildPackage({ integrationDir }).archive);
+        expect(strFromU8(entries[`${commandPath}sa_helper_bridge.lua`])).toContain('local HEART_WIDTH, HEART_HEIGHT = 64, 64');
+        expect(Object.keys(json(entries, `${commandPath}sa_helper_bridge_settings.json`)).sort()).toEqual(['address', 'token']);
     });
 
     test('rejects an empty catalog and missing or invalid PNGs', () => {

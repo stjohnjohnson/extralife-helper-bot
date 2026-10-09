@@ -234,13 +234,13 @@ The `color` command name is reserved even when chat light control is disabled; r
 
 ### Stream Avatars controls (optional, Twitch admins)
 
-Enable the authenticated LAN bridge with `STREAM_AVATARS_ENABLED=true` and configure its private token, persistent storage, and measured strip bounds. The companion runs in Stream Avatars on the gaming computer; it renders a transparent moving-heart preview and supports offline simulated crowds.
+Enable the LAN bridge with `STREAM_AVATARS_ENABLED=true` and a private `STREAM_AVATARS_TOKEN`. The companion settings need only the bot address and matching token. Screen bounds and packaged heart dimensions are automatic.
 
 In the configured Twitch channel, admins can use `!sa status`, `!sa rehearsal start`, `!sa crowd 20`, `!sa hearts`, and `!sa rehearsal stop`. Starting rehearsal requires a fresh successful offline Twitch sample. Real live status stops rehearsal automatically. The `sa` name is reserved from custom responses.
 
-`npm run sa:rehearse` provides the same controls locally without Twitch, Discord, or Extra Life credentials. Rehearsal has separate state and a virtual clock; physical Hue output requires explicit opt-in. See [setup, Docker storage, and the complete command reference](docs/stream-avatars-setup.md) and [verification status](docs/stream-avatars-verification.md). A real Stream Avatars/OBS preview remains required for issue #65 acceptance.
+`npm run sa:rehearse` provides a temporary local preview without Twitch, Discord, or Extra Life credentials. Use `crowd 20`, `hearts`, `clear`, and `quit`. Run `npm run sa:package` to generate an import ZIP with the companion, current image catalog, and animation settings. See [setup and commands](docs/stream-avatars-setup.md) and [verification status](docs/stream-avatars-verification.md). A real Stream Avatars/OBS preview remains required for issue #65 acceptance.
 
-Run `npm run sa:package` to generate `dist/stream-avatars/sa-helper-bridge.zip` for **Import & Export → Select Import** on another computer. It bundles the companion and all image manifests with their frame/FPS/loop settings, using placeholder credentials. See [package import and adding images](docs/stream-avatars-setup.md#generate-and-import-a-package); reimporting replaces the bridge's local settings, so preserve them before updating.
+Run `npm run sa:package` to generate `dist/stream-avatars/sa-helper-bridge.zip` for **Import & Export → Select Import** on another computer. It bundles the companion and all image manifests with their frame/FPS/loop settings, using placeholder credentials. See [package import and adding images](docs/stream-avatars-setup.md#generate-and-import-the-zip); reimporting replaces the bridge's local settings, so preserve them before updating.
 
 ### Custom Commands
 You can create your own custom commands using the `CUSTOM_RESPONSES` environment variable. Custom commands:

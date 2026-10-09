@@ -4,7 +4,7 @@ const { mkdtempSync, readFileSync, writeFileSync, rmSync } = require('node:fs');
 const { tmpdir } = require('node:os');
 const { createInitialState, reduceObservation } = require('../src/broadcastSession/state');
 const { validateServerMessage } = require('../src/streamAvatars/protocol');
-test.each(['image-loaded-before-clear', 'image-pending-cap', 'missing-image-host', 'image-load-delay', 'image-load-timeout', 'pending-image-stop', 'host-json-escapes', 'auth', 'movement', 'density', 'cleanup', 'expiry', 'generation', 'crowd', 'invalid', 'missing-image', 'reconnect', 'late-join', 'empty-crowd', 'negative-bounds', 'density-rotation', 'same-snapshot', 'new-session', 'stale-control', 'stop', 'close-open-race', 'socket-error', 'async-open', 'backoff', 'mailbox-burst', 'mailbox-overflow', 'malformed-json', 'invalid-snapshot', 'wrong-session', 'heartbeat-expiry', 'virtual-clock', 'no-custom-service', 'reload', 'invalid-settings', 'infinite-settings'])('shipped Lua companion: %s', scenario => {
+test.each(['address-ip', 'address-port', 'address-wss', 'address-ipv6', 'invalid-address', 'image-loaded-before-clear', 'image-pending-cap', 'missing-image-host', 'image-load-delay', 'image-load-timeout', 'pending-image-stop', 'host-json-escapes', 'auth', 'movement', 'density', 'cleanup', 'expiry', 'generation', 'crowd', 'invalid', 'missing-image', 'reconnect', 'late-join', 'empty-crowd', 'negative-bounds', 'resized-bounds', 'small-bounds', 'density-rotation', 'same-snapshot', 'new-session', 'stale-control', 'stop', 'close-open-race', 'socket-error', 'async-open', 'backoff', 'mailbox-burst', 'mailbox-overflow', 'malformed-json', 'invalid-snapshot', 'wrong-session', 'heartbeat-expiry', 'elapsed-state', 'crowd-no-extra-config', 'reload', 'invalid-settings', 'invalid-token'])('shipped Lua companion: %s', scenario => {
     const result = spawnSync(process.env.LUA_BIN || 'lua', [resolve('tests/lua/companionHarness.lua'), resolve('integrations/stream-avatars/companion.lua'), scenario], { encoding: 'utf8', timeout: 5000 });
     if (result.error) throw new Error('Install Lua 5.2+ or set LUA_BIN: ' + result.error.code);
     expect({ status: result.status, stderr: result.stderr, stdout: result.stdout.trim() }).toEqual({ status: 0, stderr: '', stdout: 'OK ' + scenario });
@@ -17,7 +17,7 @@ test('Lua consumes the actual Node protocol JSON, including nulls and UTF-8 fiel
     const directory = mkdtempSync(join(tmpdir(), 'sa-wire-'));
     try {
         const session = reduceObservation(createInitialState({ mode: 'rehearsal', channel: 'streamer_é' }), { status: 'online', observedAtMs: 1001, startedAtMs: 1000, streamId: 'fixture' }, { graceMs: 900000, cadenceMs: 60000, newSessionId: () => 'session' });
-        const message = validateServerMessage({ version: 1, type: 'snapshot', mode: 'rehearsal', generation: 1, serverNowMs: 1000, session, elapsedMs: 1, strip: { x: 0, y: 0, width: 1000, height: 200 }, render: { maxHearts: 50, heartOffset: 16 }, rehearsal: { active: true, crowdIds: [] }, features: ['hearts', 'crowd', 'session', 'clock'] });
+        const message = validateServerMessage({ version: 1, type: 'snapshot', mode: 'rehearsal', generation: 1, serverNowMs: 1000, session, elapsedMs: 1, rehearsal: { active: true, crowdIds: [] }, features: ['hearts', 'crowd', 'session'] });
         const fixture = join(directory, 'snapshot.json'); writeFileSync(fixture, JSON.stringify(message));
         const result = run(resolve('integrations/stream-avatars/companion.lua'), 'wire-contract', fixture);
         expect({ status: result.status, stderr: result.stderr, stdout: result.stdout.trim() }).toEqual({ status: 0, stderr: '', stdout: 'OK wire-contract' });
@@ -46,7 +46,7 @@ test.each([
     ['invalid', 'and not seen[value.id]', ''],
     ['stale-control', 'value.generation<generationFloor', 'false'],
     ['close-open-race', 'get("sa_disconnect_pending") or', 'false or'],
-    ['density-rotation', 'rotation=rotation+snapshot.render.maxHearts', 'rotation=0'],
+    ['density-rotation', 'rotation=rotation+MAX_HEARTS', 'rotation=0'],
     ['cleanup', 'pcall(entry.object.destroy)', 'pcall(function() end)'],
     ['movement', 'object.image.anchor("center",true)', 'object.image.anchor("bottom left",true)'],
     ['crowd', 'app.platformServiceSettings.SetUserLeave(id)', 'app.platformServiceSettings.SetUserLeave(900099)'],

@@ -30,7 +30,7 @@ test('rehearsal expires effects in wall time, clears on real live, and reconnect
     let pending = waitFor('snapshot'); socket.send(JSON.stringify({ version: 1, type: 'auth', token: 't'.repeat(32) }));
     expect((await pending).mode).toBe('production');
     pending = waitFor('snapshot', message => message.mode === 'rehearsal' && message.session.sessionId !== null); await dispatch('rehearsal start'); const rehearsal = await pending;
-    await dispatch('crowd 100'); await dispatch('clock advance 7h');
+    await dispatch('crowd 100');
     pending = waitFor('hearts'); expect((await dispatch('hearts')).status).toBe('ok'); const effect = await pending;
     expect(effect).toMatchObject({ mode: 'rehearsal', issuedAtMs: now, expiresAtMs: now + 10000, durationMs: 5000, sessionId: rehearsal.session.sessionId });
     expect(await fs.readFile(productionFile, 'utf8')).toBe(before);

@@ -13,12 +13,18 @@ end
 local function hostSerialize(value) return (codec.encode(value):gsub("/", "\\/")) end
 local function clone(value) if type(value) ~= "table" then return value end local copy={} for k,v in pairs(value) do copy[k]=clone(v) end return copy end
 local connectedCount, leaves, removals = 0, 0, 0
-local config = { url = "ws://127.0.0.1/sa/socket", token = "private-test-token", image = "sa_heart", frameWidth = 32, frameHeight = 32, worldWidth = 32, worldHeight = 32, avatarTopOffset = 40, customService = true }
+local config = { url = "ws://127.0.0.1/sa/socket", token = "private-test-token", image = "sa_heart" }
+local expectedUrl=config.url
+if scenario=="address-ip" then config={address="192.168.1.42",token=config.token}; expectedUrl="ws://192.168.1.42:3000/sa/socket" end
+if scenario=="address-port" then config={address="192.168.1.42:4444",token=config.token}; expectedUrl="ws://192.168.1.42:4444/sa/socket" end
+if scenario=="address-wss" then config={address="wss://bridge.example/sa/socket",token=config.token}; expectedUrl=config.address end
+if scenario=="address-ipv6" then config={address="[::1]",token=config.token}; expectedUrl="ws://[::1]:3000/sa/socket" end
+if scenario=="invalid-address" then config={address=" ",token=config.token} end
 local app = {}
 app.getResolution = function() return { x = 1920, y = 1080 } end
 app.convertPercentToPosition = function(x,y) return { x = x * 1000, y = y * 200 } end
 app.removeWebSocket = function(title) assert(title=="sa_helper_bridge"); removals=removals+1 end
-app.createWebsocket = function(title,url) assert(title=="sa_helper_bridge" and url==config.url); connectedCount = connectedCount + 1; if scenario~="async-open" and scenario~="backoff" then callbacks.websocket(title,"OnOpen","","") end end
+app.createWebsocket = function(title,url) assert(title=="sa_helper_bridge" and url==expectedUrl); connectedCount = connectedCount + 1; if scenario~="async-open" and scenario~="backoff" then callbacks.websocket(title,"OnOpen","","") end end
 app.sendWebsocketMessage = function(title,message) assert(title=="sa_helper_bridge" and type(message)=="string"); packets[#packets+1] = codec.decode(message) end
 app.platformServiceSettings = {
     SetStreamer = function(id,name) assert(id==900000 and name=="sa_rehearsal_host") end,
@@ -90,7 +96,7 @@ end
 local function raw(message) callbacks.websocket("sa_helper_bridge","OnMessage",message,"") end
 local function send(message) raw(codec.encode(message)); tick() end
 local function snapshot(mode,generation,ids)
-    return {version=1,type="snapshot",mode=mode or "rehearsal",generation=generation or 1,serverNowMs=1000,session={sessionId="session"},elapsedMs=0,strip={x=0,y=0,width=1000,height=200},render={maxHearts=50,heartOffset=16},rehearsal={active=mode~="production",crowdIds=ids or {}},features={"hearts","crowd","session","clock"}}
+    return {version=1,type="snapshot",mode=mode or "rehearsal",generation=generation or 1,serverNowMs=1000,session={sessionId="session"},elapsedMs=0,rehearsal={active=mode~="production",crowdIds=ids or {}},features={"hearts","crowd","session"}}
 end
 local function hearts(id,generation)
     return {version=1,type="hearts",mode="rehearsal",generation=generation or 1,sessionId="session",id=id or "effect",issuedAtMs=1000,expiresAtMs=11000,durationMs=5000}
@@ -105,11 +111,10 @@ if scenario=="host-json-escapes" then
     config.token="private/test\\path/token"
     local ok=pcall(hostParse,hostSerialize(config)); assert(not ok, "must reproduce embedded codec failure")
 end
-if scenario=="no-custom-service" then config.customService=false end
-if scenario=="invalid-settings" then config.worldWidth="invalid" end
-if scenario=="infinite-settings" then config.worldWidth=math.huge end
+if scenario=="invalid-settings" then config.url=42 end
+if scenario=="invalid-token" then config.token=math.huge end
 if scenario=="reload" then shared.sa_owned_ids={900001,900002}; users["900001"]={id=900001}; users["900002"]={id=900002} end
-if scenario=="invalid-settings" or scenario=="infinite-settings" then
+if scenario=="invalid-settings" or scenario=="invalid-token" or scenario=="invalid-address" then
     local ok,err=coroutine.resume(runner); assert(ok,err); assert(coroutine.status(runner)=="dead" and connectedCount==0); print("OK "..scenario); return
 end
 tick()
@@ -159,7 +164,7 @@ elseif scenario=="host-json-escapes" then
     -- pattern retries on every backslash; the harness has a five-second limit.
     local long={path=string.rep("\\",30000)}
     assert(env.json.parse(codec.encode(long)).path==long.path)
-elseif scenario=="auth" then
+elseif scenario=="auth" or scenario:match("^address%-") then
     assert(packets[1].type=="auth" and packets[1].token==config.token)
     send(snapshot()); assert(packets[2].type=="ready" and packets[2].resolution.width==1920)
 elseif scenario=="movement" then
@@ -202,7 +207,8 @@ elseif scenario=="empty-crowd" then
     send(snapshot()); send(hearts()); assert(count()==0)
     addUser(1); tick(); assert(count()==1)
 elseif scenario=="negative-bounds" then
-    local user=addUser(1,-500,-500); local value=snapshot(); value.strip={x=-100,y=-100,width=200,height=100}; send(value); send(hearts())
+    app.convertPercentToPosition=function(x,y) return {x=-100+x*200,y=-100+y*100} end
+    local user=addUser(1,-500,-500); send(snapshot()); send(hearts())
     assert(active().x==-84 and active().y==-84); user.x=500; user.y=500; tick(); assert(active().x==84 and active().y==-16)
 elseif scenario=="density-rotation" then
     for i=1,100 do addUser(i,100+i*5,20) end
@@ -245,19 +251,26 @@ elseif scenario=="malformed-json" then
     addUser(1); send(snapshot()); raw('{broken'); raw('null'); raw('42'); raw('["command"]'); tick(); assert(count()==0)
     send(hearts()); assert(count()==1,"malformed input must not kill the renderer")
 elseif scenario=="invalid-snapshot" then
-    addUser(1); local bad=snapshot(); bad.strip.width=0; send(bad); send(hearts()); assert(count()==0)
-    bad=snapshot(); bad.render.maxHearts=1.5; send(bad); send(hearts("fractional")); assert(count()==0)
+    addUser(1); local bad=snapshot(); bad.serverNowMs="invalid"; send(bad); send(hearts()); assert(count()==0)
+    bad=snapshot(); bad.rehearsal.crowdIds={"arbitrary-user"}; send(bad); send(hearts("fractional")); assert(count()==0)
     send(snapshot()); send(hearts("good")); assert(count()==1)
 elseif scenario=="wrong-session" then
     addUser(1); send(snapshot()); local value=hearts(); value.sessionId="wrong"; send(value); assert(count()==0)
 elseif scenario=="heartbeat-expiry" then
     addUser(1); send(snapshot()); send({version=1,type="heartbeat",serverNowMs=20000}); send(hearts()); assert(count()==0)
-elseif scenario=="virtual-clock" then
+elseif scenario=="elapsed-state" then
     addUser(1); local value=snapshot(); value.elapsedMs=25200000; send(value); send(hearts()); assert(count()==1)
     value.elapsedMs=300000; send(value); tick(5); assert(count()==0)
-elseif scenario=="no-custom-service" then
-    addUser(42); send(snapshot("rehearsal",1,{"sa_rehearsal_1"})); assert(not users["900001"] and users["42"] and leaves==0)
-    assert(packets[#packets-1].code=="custom-service-required")
+elseif scenario=="crowd-no-extra-config" then
+    addUser(42); send(snapshot("rehearsal",1,{"sa_rehearsal_1"})); assert(users["900001"] and users["42"] and leaves==0)
+elseif scenario=="resized-bounds" then
+    local user=addUser(1,900,500); send(snapshot()); send(hearts()); assert(active().x==900 and active().y==184)
+    app.convertPercentToPosition=function(x,y) return {x=-200+x*400,y=y*100} end
+    tick(); assert(active().x==184 and active().y==84)
+elseif scenario=="small-bounds" then
+    app.convertPercentToPosition=function(x,y) return {x=x*10,y=y*10} end
+    addUser(1); send(snapshot()); send(hearts()); assert(count()==0)
+    assert(packets[#packets].code=="render-error")
 elseif scenario=="reload" then
     assert(not users["900001"] and not users["900002"] and leaves==2)
     send(snapshot("rehearsal",1,{"sa_rehearsal_3"})); assert(users["900003"] and #shared.sa_owned_ids==1)

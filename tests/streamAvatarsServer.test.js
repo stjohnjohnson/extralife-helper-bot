@@ -3,7 +3,7 @@ const WebSocket = require('ws');
 const { startBridgeServer } = require('../src/streamAvatars/server');
 const { createInitialState } = require('../src/broadcastSession/state');
 const token = 'a'.repeat(32);
-const snapshot = () => ({ version: 1, type: 'snapshot', mode: 'production', generation: 1, serverNowMs: Date.now(), session: createInitialState({ mode: 'production', channel: 'x' }), elapsedMs: 0, strip: { x: 0, y: 0, width: 100, height: 100 }, rehearsal: { active: false, crowdIds: [] }, render: { maxHearts: 50, heartOffset: 16 }, features: ['hearts'] });
+const snapshot = () => ({ version: 1, type: 'snapshot', mode: 'production', generation: 1, serverNowMs: Date.now(), session: createInitialState({ mode: 'production', channel: 'x' }), elapsedMs: 0, rehearsal: { active: false, crowdIds: [] }, features: ['hearts'] });
 let server; let clients;
 beforeEach(() => { clients = []; });
 afterEach(async () => { clients.forEach(client => client.terminate()); await server?.stop(); server = null; });

@@ -1,6 +1,10 @@
 -- Import as an On Connect script. Private settings belong in this script's JSON file.
 script_trigger_type = "On Connect"
 
+-- The package generator updates these dimensions from the sa_heart manifest.
+local HEART_WIDTH, HEART_HEIGHT = 32, 32
+local MAX_HEARTS, AVATAR_TOP = 50, 40
+
 -- Some bundled MoonSharp versions serialize / as \/ but cannot parse it.
 -- get() internally round-trips tables with this codec, including our URL and
 -- queued messages. Normalize only odd backslash runs; preserve literal \\/.
@@ -45,8 +49,8 @@ end
 return function()
     load()
     local settings = get("data")
-    if type(settings) ~= "table" or type(settings.url) ~= "string" or type(settings.token) ~= "string" or #settings.token < 16 then
-        log("SA bridge: configure private URL/token in the script JSON settings")
+    if type(settings) ~= "table" or type(settings.address or settings.url) ~= "string" or type(settings.token) ~= "string" or #settings.token < 16 then
+        log("SA bridge: configure private address/token in the script JSON settings")
         return
     end
     local function number(value) return type(value)=="number" and value==value and value~=math.huge and value~=-math.huge end
@@ -59,10 +63,17 @@ return function()
     local loadSequence = get("sa_load_sequence") or 0
     local elapsed, serverOffset, updateElapsed = 0, 0, 0
     local retryAt, retryDelay, rotation, wasConnected = 0, 1, 0, false
-    local worldWidth = settings.worldWidth or 32
-    local worldHeight = settings.worldHeight or 32
-    local avatarTop = settings.avatarTopOffset or 40
-    if not number(worldWidth) or not number(worldHeight) or not number(avatarTop) or worldWidth <= 0 or worldHeight <= 0 or avatarTop < 0 then log("SA bridge: invalid measured image geometry"); return end
+    local address = settings.address or settings.url
+    if #address==0 or address:find("%s") then log("SA bridge: invalid connection address"); return end
+    settings.url = address:match("^wss?://") and address or ("ws://"..address..(address:match(":%d+$") and "" or ":3000").."/sa/socket")
+    local previewHostSet = false
+    local function gameBounds()
+        local bottom=app.convertPercentToPosition(0,0); local top=app.convertPercentToPosition(1,1)
+        if not number(bottom.x) or not number(bottom.y) or not number(top.x) or not number(top.y) then return nil end
+        local width, height = top.x-bottom.x, top.y-bottom.y
+        if width<HEART_WIDTH or height<HEART_HEIGHT then return nil end
+        return {x=bottom.x,y=bottom.y,width=width,height=height}
+    end
     local function send(value) app.sendWebsocketMessage(socket, json.serialize(value)) end
     local function diagnostic(code) send({version=1,type="diagnostic",code=code}) end
     local function release(entry)
@@ -78,10 +89,6 @@ return function()
         objects = {}; effect = nil
     end
     local function reconcileCrowd(ids)
-        if not settings.customService then
-            if #ids > 0 then diagnostic("custom-service-required") end
-            return
-        end
         local desired = {}
         for _,name in ipairs(ids) do
             local index = tonumber(string.match(name, "^sa_rehearsal_(%d+)$"))
@@ -104,11 +111,8 @@ return function()
         return true
     end
     local function validSnapshot(value)
-        return type(value.session)=="table" and type(value.strip)=="table" and type(value.render)=="table" and
-            number(value.serverNowMs) and number(value.strip.x) and number(value.strip.y) and number(value.strip.width) and number(value.strip.height) and
-            value.strip.width>=worldWidth and value.strip.height>=worldHeight and type(value.rehearsal)=="table" and validCrowd(value.rehearsal.crowdIds) and
-            integer(value.render.maxHearts) and value.render.maxHearts>=1 and value.render.maxHearts<=100 and
-            number(value.render.heartOffset) and value.render.heartOffset>=0
+        return type(value.session)=="table" and number(value.serverNowMs) and type(value.rehearsal)=="table" and
+            type(value.rehearsal.active)=="boolean" and validCrowd(value.rehearsal.crowdIds)
     end
     local function handleMessage(value)
         if type(value)~="table" or value.version~=1 then diagnostic("unsupported-message"); return end
@@ -122,9 +126,11 @@ return function()
         elseif value.type=="snapshot" and validSnapshot(value) then
             if not snapshot or snapshot.generation~=value.generation or snapshot.mode~=value.mode or snapshot.session.sessionId~=value.session.sessionId then clearObjects() end
             generationFloor=value.generation; snapshot=value; serverOffset=value.serverNowMs-elapsed*1000; retryDelay=1
+            if value.mode=="rehearsal" and not previewHostSet then app.platformServiceSettings.SetStreamer(900000,"sa_rehearsal_host"); previewHostSet=true end
+            if value.mode=="production" then previewHostSet=false end
             reconcileCrowd(value.mode=="rehearsal" and value.rehearsal.crowdIds or {})
             local resolution=app.getResolution()
-            send({version=1,type="ready",capabilities={"hearts","crowd","session","clock"},resolution={width=resolution.x,height=resolution.y}})
+            send({version=1,type="ready",capabilities={"hearts","crowd","session"},resolution={width=resolution.x,height=resolution.y}})
         elseif value.type=="crowd" and snapshot and snapshot.mode=="rehearsal" and value.mode==snapshot.mode and value.generation==snapshot.generation and validCrowd(value.crowdIds) then
             reconcileCrowd(value.crowdIds)
         elseif value.type=="hearts" and snapshot and value.mode==snapshot.mode and value.generation==snapshot.generation and value.sessionId==snapshot.session.sessionId and
@@ -133,14 +139,15 @@ return function()
             clearObjects()
             seen[value.id]=true; seenOrder[#seenOrder+1]=value.id
             if #seenOrder>256 then seen[table.remove(seenOrder,1)]=nil end
-            effect={ends=elapsed+5,offset=rotation}; rotation=rotation+snapshot.render.maxHearts
+            effect={ends=elapsed+5,offset=rotation}; rotation=rotation+MAX_HEARTS
         else diagnostic("unsupported-message") end
     end
     local function renderTick()
         if not effect or not snapshot then return end
         if elapsed>=effect.ends then clearObjects(); return end
+        local strip=gameBounds(); if not strip then clearObjects(); diagnostic("render-error"); return end
         local users=getUsers(); table.sort(users,function(a,b) return tostring(a.id)<tostring(b.id) end)
-        local selected={}; local count=math.min(#users,snapshot.render.maxHearts)
+        local selected={}; local count=math.min(#users,MAX_HEARTS)
         for i=1,count do local user=users[((i-1+effect.offset)%#users)+1]; selected[tostring(user.id)]=user end
         for id,entry in pairs(objects) do if not selected[id] then
             release(entry); objects[id]=nil
@@ -165,18 +172,15 @@ return function()
                 if get(entry.key)=="loaded" then entry.loaded=true; set(entry.key,nil)
                 elseif get(entry.key)=="failed" or elapsed>=entry.deadline then clearObjects(); diagnostic("missing-heart-image"); return end
             end
-            local pos=user.getPosition(); local strip=snapshot.strip
-            local x=math.max(strip.x+worldWidth/2,math.min(strip.x+strip.width-worldWidth/2,pos.x))
-            local y=math.max(strip.y+worldHeight/2,math.min(strip.y+strip.height-worldHeight/2,pos.y+avatarTop+snapshot.render.heartOffset))
+            local pos=user.getPosition()
+            local x=math.max(strip.x+HEART_WIDTH/2,math.min(strip.x+strip.width-HEART_WIDTH/2,pos.x))
+            local y=math.max(strip.y+HEART_HEIGHT/2,math.min(strip.y+strip.height-HEART_HEIGHT/2,pos.y+AVATAR_TOP+HEART_HEIGHT/2))
             entry.object.setPosition(x,y)
             if entry.loaded then entry.object.setScale(1,1) end
         end
     end
     -- Reload cleanup uses only IDs this companion previously created, never real viewers.
-    if settings.customService then
-        for _,id in ipairs(get("sa_owned_ids") or {}) do if id>=900001 and id<=900100 then app.platformServiceSettings.SetUserLeave(id) end end
-        app.platformServiceSettings.SetStreamer(900000,"sa_rehearsal_host")
-    end
+    for _,id in ipairs(get("sa_owned_ids") or {}) do if id>=900001 and id<=900100 then app.platformServiceSettings.SetUserLeave(id) end end
     set("sa_pending_images",0)
     set("sa_settings",settings); set("sa_mailbox",{}); set("sa_connected",false); set("sa_disconnect_pending",false)
     app.removeWebSocket(socket); addEvent("websocket","sa_on_socket")

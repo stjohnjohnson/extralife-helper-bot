@@ -137,7 +137,6 @@ function start({ config = parseConfiguration() } = {}) {
         state.streamAvatarsStartup = state.webServerStartup.then(webServer => {
             if (!webServer || !state.active) return;
             return startStreamAvatars({ config, webServer, logger: log, signal: state.streamAvatarsAbort.signal,
-                hue: () => state.hueController,
                 onRehearsalStopped: () => {
                     if (state.active && state.twitchClient) Promise.resolve(state.twitchClient.say(config.twitch.channel,
                         'Rehearsal stopped because Twitch reports live. Restore Stream Avatars normal streaming service.'))

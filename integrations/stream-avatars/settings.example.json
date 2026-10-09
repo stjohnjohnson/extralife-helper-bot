@@ -1,8 +1,4 @@
 {
-  "url": "ws://BOT_LAN_IP:3000/sa/socket",
-  "token": "REPLACE_WITH_PRIVATE_TOKEN",
-  "customService": false,
-  "worldWidth": 32,
-  "worldHeight": 32,
-  "avatarTopOffset": 40
+  "address": "BOT_LAN_IP",
+  "token": "REPLACE_WITH_PRIVATE_TOKEN"
 }

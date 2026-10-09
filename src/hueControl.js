@@ -149,14 +149,13 @@ class HueController {
     /**
      * Perform celebration light show
      */
-    async celebrateDonation({ signal } = {}) {
-        if (signal?.aborted) return;
+    async celebrateDonation() {
         if (this.stopped || !this.connected) {
             this.logger.warn('Hue Bridge not connected, skipping celebration');
             return;
         }
 
-        if (this.isCelebrating && (signal || this.activeEffect?.kind !== 'rehearsal')) {
+        if (this.isCelebrating) {
             this.logger.info('Hue celebration already in progress, skipping');
             return;
         }
@@ -164,12 +163,7 @@ class HueController {
         const previous = this.activeEffect;
         this.isCelebrating = true;
         this.logger.info('Starting Hue celebration light show');
-        const effect = this.createEffect(signal ? 'rehearsal' : 'donation');
-        if (signal) {
-            const cancel = () => { effect.abort.abort(); effect.resolveReady({ status: 'busy' }); };
-            signal.addEventListener('abort', cancel, { once: true });
-            effect.detachOwner = () => signal.removeEventListener('abort', cancel);
-        }
+        const effect = this.createEffect('donation');
         if (previous) {
             previous.restore = false;
             previous.abort.abort();
@@ -253,7 +247,6 @@ class HueController {
                 : started ? 'Celebration animation failed' : 'Failed to start Hue celebration';
             this.logger.error(message, { error: error.message });
         } finally {
-            effect.detachOwner?.();
             effect.resolveReady({ status: effect.abort.signal.aborted ? 'busy' : 'unavailable' });
             if (effect.restore && effect.savedStates) {
                 try {

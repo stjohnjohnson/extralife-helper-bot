@@ -1,35 +1,30 @@
 const { join } = require('node:path');
 const { createSessionController } = require('../broadcastSession');
 const { createInitialState, validObservation } = require('../broadcastSession/state');
-const { createSessionStore, assertDistinctPaths } = require('../broadcastSession/store');
+const { createSessionStore } = require('../broadcastSession/store');
 const { startBridgeServer } = require('./server');
 const { createEventDispatcher } = require('./events');
-const { createVirtualClock } = require('./clock');
 const { createRehearsalController } = require('./rehearsal');
-async function startStreamAvatars({ config, logger, signal, webServer, standalone = false, realClock = { nowMs: Date.now }, hue = null, onRehearsalStopped = () => {} }) {
+async function startStreamAvatars({ config, logger, signal, webServer, standalone = false, realClock = { nowMs: Date.now }, onRehearsalStopped = () => {} }) {
     const settings = config.streamAvatars.config;
     const productionPath = join(settings.stateDir, 'production', 'state.json');
-    const rehearsalPath = join(settings.stateDir, 'rehearsal', 'state.json');
-    await assertDistinctPaths(productionPath, rehearsalPath);
     const channel = config.twitch.channel;
     const cadenceMs = (config.twitch.viewerSampleIntervalSeconds || 60) * 1000;
     const createSession = (mode, path, clock) => createSessionController({ store: createSessionStore({ path, mode, channel }), clock, mode, channel, graceMs: settings.graceMs, cadenceMs });
     const production = standalone ? null : await createSession('production', productionPath, realClock);
-    const virtualClock = createVirtualClock({ nowMs: realClock.nowMs() });
     let server; let events; let rehearsal; let active = true; let generation = 1; let stopping; let lastRealObservation = null;
     let renderedIdentity = ''; let lastResolution = null;
     const context = () => {
         const simulated = rehearsal?.getStatus(); const mode = simulated?.active ? 'rehearsal' : 'production';
         const state = mode === 'rehearsal' ? simulated.state : production?.getSnapshot() || createInitialState({ mode: 'production', channel });
-        const now = mode === 'rehearsal' ? virtualClock.nowMs() : realClock.nowMs();
+        const now = realClock.nowMs();
         return { mode, state, now, simulated };
     };
     const snapshot = () => {
         const { mode, state, now, simulated } = context();
         return { version: 1, type: 'snapshot', mode, generation, serverNowMs: realClock.nowMs(), session: state,
-            elapsedMs: state.startedAtMs === null ? 0 : Math.max(0, (state.endedAtMs ?? now) - state.startedAtMs), strip: settings.strip,
-            rehearsal: { active: mode === 'rehearsal', crowdIds: mode === 'rehearsal' ? simulated.crowdIds : [] }, features: ['hearts', 'crowd', 'session', 'clock'],
-            render: { maxHearts: settings.maxHearts, heartOffset: settings.heartOffset } };
+            elapsedMs: state.startedAtMs === null ? 0 : Math.max(0, (state.endedAtMs ?? now) - state.startedAtMs),
+            rehearsal: { active: mode === 'rehearsal', crowdIds: mode === 'rehearsal' ? simulated.crowdIds : [] }, features: ['hearts', 'crowd', 'session'] };
     };
     const notify = invalidate => {
         if (!active) return;
@@ -46,9 +41,7 @@ async function startStreamAvatars({ config, logger, signal, webServer, standalon
     };
     try {
         events = createEventDispatcher({ realClock, send: message => server?.send(message) || false });
-        rehearsal = await createRehearsalController({ createSession: () => createSession('rehearsal', rehearsalPath, virtualClock),
-            productionStatus: () => lastRealObservation, clock: virtualClock, realClock, graceMs: settings.graceMs, cadenceMs, standalone, notify,
-            bridge: { disconnectClients: () => server?.disconnectClients() }, hue: typeof hue === 'function' ? hue : () => hue,
+        rehearsal = createRehearsalController({ channel, productionStatus: () => lastRealObservation, realClock, cadenceMs, standalone, notify,
             eventDispatcher: { publishHearts: ({ sessionId }) => events.publishHearts({ mode: 'rehearsal', generation, sessionId }) } });
         server = await startBridgeServer({ config: { ...settings, ...config.webServer }, webServer, getSnapshot: snapshot, logger, signal, onClientMessage: async message => {
             if (message.type === 'ready') lastResolution = message.resolution;
@@ -68,8 +61,8 @@ async function startStreamAvatars({ config, logger, signal, webServer, standalon
         },
         getStatus() {
             const current = context(); const state = current.state;
-            return { mode: current.mode, state, crowdCount: current.simulated?.active ? current.simulated.crowdIds.length : 0, hueEnabled: current.simulated?.hueEnabled || false,
-                elapsedMs: state.startedAtMs === null ? 0 : Math.max(0, current.now - state.startedAtMs), recoveryRequired: production?.getStatus().recoveryRequired || current.simulated?.recoveryRequired,
+            return { mode: current.mode, state, crowdCount: current.simulated?.active ? current.simulated.crowdIds.length : 0,
+                elapsedMs: state.startedAtMs === null ? 0 : Math.max(0, current.now - state.startedAtMs), recoveryRequired: production?.getStatus().recoveryRequired,
                 companionConnected: server.getStatus().authenticatedClients > 0, resolution: lastResolution };
         },
         async dispatch(action, commandContext) {
@@ -88,6 +81,6 @@ async function startStreamAvatars({ config, logger, signal, webServer, standalon
             }
             return rehearsal.dispatch(action, commandContext);
         },
-        registerScenario: rehearsal.registerScenario, stop };
+        stop };
 }
 module.exports = { startStreamAvatars };

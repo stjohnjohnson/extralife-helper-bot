@@ -9,8 +9,8 @@ const { createInitialState } = require('../src/broadcastSession/state');
 const config = { host: '127.0.0.1', port: 0 };
 const token = 'a'.repeat(32);
 const snapshot = () => ({ version: 1, type: 'snapshot', mode: 'production', generation: 1, serverNowMs: 100,
-    session: createInitialState({ mode: 'production', channel: 'test' }), elapsedMs: 0, strip: { x: 0, y: 0, width: 100, height: 100 },
-    rehearsal: { active: false, crowdIds: [] }, render: { maxHearts: 50, heartOffset: 16 }, features: ['hearts'] });
+    session: createInitialState({ mode: 'production', channel: 'test' }), elapsedMs: 0,
+    rehearsal: { active: false, crowdIds: [] }, features: ['hearts'] });
 function request(port, path) {
     return new Promise((resolve, reject) => {
         const req = http.get({ host: config.host, port, path }, response => {

@@ -96,14 +96,9 @@ function buildPackage({ integrationDir = DEFAULT_INTEGRATION_DIR } = {}) {
         entries[name] = [contents, { mtime: ZIP_DATE }];
     };
     const scriptPath = `scripts/${SCRIPT_NAME}/`;
-    add(`${scriptPath}${SCRIPT_NAME}.lua`, readFile(path.join(integrationDir, 'companion.lua'), 1024 * 1024));
-    const example = readJson(path.join(integrationDir, 'settings.example.json'));
-    for (const field of ['worldWidth', 'worldHeight', 'avatarTopOffset']) {
-        if (!Number.isFinite(example[field]) || example[field] < 0 || (field !== 'avatarTopOffset' && example[field] === 0)) throw new Error(`settings.example.json: invalid ${field}`);
-    }
+    const source = readFile(path.join(integrationDir, 'companion.lua'), 1024 * 1024).toString('utf8');
     add(`${scriptPath}${SCRIPT_NAME}_settings.json`, Buffer.from(JSON.stringify({
-        url: 'ws://BOT_LAN_IP:3000/sa/socket', token: 'REPLACE_WITH_PRIVATE_TOKEN', customService: false,
-        worldWidth: example.worldWidth, worldHeight: example.worldHeight, avatarTopOffset: example.avatarTopOffset
+        address: 'BOT_LAN_IP', token: 'REPLACE_WITH_PRIVATE_TOKEN'
     }, null, 2) + '\n'));
     for (const filename of manifests) {
         const manifest = readJson(path.join(assetsDir, filename));
@@ -118,6 +113,11 @@ function buildPackage({ integrationDir = DEFAULT_INTEGRATION_DIR } = {}) {
         add(`${scriptPath}${manifest.name}.png`, image);
     }
     if (!Object.hasOwn(scriptImages, 'sa_heart')) throw new Error('The companion requires an image named sa_heart');
+    const marker = 'local HEART_WIDTH, HEART_HEIGHT = 32, 32';
+    if (!source.includes(marker)) throw new Error('Companion image-dimension marker is missing');
+    const heart = scriptImages.sa_heart;
+    add(`${scriptPath}${SCRIPT_NAME}.lua`, Buffer.from(source.replace(marker, `local HEART_WIDTH, HEART_HEIGHT = ${heart.width}, ${heart.height}`)));
+
     const command = {
         name: SCRIPT_NAME, scriptName: SCRIPT_NAME, enabled: true, showInEditor: true,
         restriction: { type: '' }, restrictionType: 0, advancedSettings: true, runMode: 1,

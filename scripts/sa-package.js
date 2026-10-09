@@ -11,7 +11,7 @@ function run(args = process.argv.slice(2)) {
     const { archive, imageCount } = buildPackage();
     fs.mkdirSync(path.dirname(output), { recursive: true });
     fs.writeFileSync(output, archive);
-    console.log(`Created ${output} (${imageCount} image${imageCount === 1 ? '' : 's'}). Configure the private URL/token after import.`);
+    console.log(`Created ${output} (${imageCount} image${imageCount === 1 ? '' : 's'}). Configure the private address/token after import.`);
 }
 
 if (require.main === module) {
