@@ -90,3 +90,13 @@ test('participant change archives progress; legacy broadcast state is untouched'
     const next=store({participantId:'13'});expect(await next.load()).toMatchObject({participantId:'13',donationCheckpointCount:0});
     expect(await fs.readFile(legacy,'utf8')).toBe('private-legacy-fixture');expect((await fs.readdir(dir)).some(name=>name.includes('archive'))).toBe(true);
 });
+test('primary and recovery backup strictly migrate version1 ledgers in memory', async () => {
+    const legacy = { ...state(5), schemaVersion: 1, chapter: 2, reachedDonationCheckpoints: [25], campaignGoalReached: true }; delete legacy.game;
+    const file = join(dir, 'state.json'); await fs.writeFile(file, JSON.stringify(legacy));
+    const primary = store(); expect(await primary.load()).toEqual({ ...legacy, schemaVersion: 2, game: null }); await primary.close();
+    expect(JSON.parse(await fs.readFile(file, 'utf8'))).toEqual(legacy);
+    await fs.writeFile(file + '.backup', JSON.stringify(legacy)); await fs.writeFile(file, '{bad');
+    const recovering = store(); await expect(recovering.load()).rejects.toThrow(/recovery/i);
+    const restored = await recovering.recoverLastBackup(); expect(restored).toMatchObject({ schemaVersion: 2, game: null, chapter: 2, liveTotalCents: 2500, processedDonationIds: ['donation-1'], reachedDonationCheckpoints: [25], campaignGoalReached: true });
+    expect(JSON.parse(await fs.readFile(file, 'utf8'))).toMatchObject({ schemaVersion: 2, game: null });
+});

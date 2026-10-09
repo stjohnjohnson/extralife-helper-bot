@@ -1,0 +1,43 @@
+{
+  "games": {
+    "Minecraft": "block-world",
+    "PlateUp!": "kitchen",
+    "Big Walk": "outdoor",
+    "PEAK": "outdoor",
+    "Valheim": "outdoor",
+    "Raft": "outdoor",
+    "Enshrouded": "outdoor",
+    "Core Keeper": "outdoor",
+    "How to Fish": "outdoor",
+    "RV There Yet?": "outdoor",
+    "Escape Simulator 2": "puzzle",
+    "We Were Here": "puzzle",
+    "Keep Talking and Nobody Explodes": "puzzle",
+    "Helldivers 2": "space-salvage",
+    "Deep Rock Galactic": "space-salvage",
+    "Void Crew": "space-salvage",
+    "Jump Space": "space-salvage",
+    "Arc Raiders": "space-salvage",
+    "R.E.P.O.": "space-salvage",
+    "Call of Duty": "space-salvage",
+    "Party Animals": "party",
+    "Ultimate Chicken Horse": "party",
+    "MECCHA CHAMELEON": "party",
+    "Heave Ho 2": "party",
+    "Tricky Towers": "party",
+    "Make Way": "party",
+    "Goat Simulator 3": "party",
+    "Moving Out 2": "party",
+    "Gamble With Your Friends": "party",
+    "Jackbox Party Packs": "party",
+    "Golf with Your Friends": "party",
+    "Wobbly Life": "party"
+  },
+  "aliases": {
+    "Minecraft Bedrock": "Minecraft",
+    "Minecraft: Bedrock Edition": "Minecraft",
+    "The Jackbox Survey Scramble": "Jackbox Party Packs",
+    "The Jackbox Party Pack 11": "Jackbox Party Packs",
+    "Golf with Friends": "Golf with Your Friends"
+  }
+}

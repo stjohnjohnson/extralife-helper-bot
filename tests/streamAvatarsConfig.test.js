@@ -27,3 +27,8 @@ test('donation intervals use bounded integer cents', () => {
 });
 
 test('retired offline grace values have no effect on campaign integration',()=>{const r=parseStreamAvatarsConfiguration({...enabled,STREAM_AVATARS_OFFLINE_GRACE_SECONDS:'invalid'});expect(r.enabled).toBe(true);expect(r.config).not.toHaveProperty('graceMs');});
+test('invalid theme override keeps listener and heart configuration enabled with no path disclosure', () => {
+    const result = parseStreamAvatarsConfiguration({ ...enabled, STREAM_AVATARS_THEME_CONFIG: '/missing/FAKE_SECRET/config.json' });
+    expect(result).toMatchObject({ enabled: true, errors: [], config: { themes: { enabled: false, config: null, errors: ['Invalid Stream Avatars theme configuration'] } } });
+    expect(JSON.stringify(result)).not.toContain('FAKE_SECRET');
+});

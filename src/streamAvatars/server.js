@@ -24,12 +24,18 @@ async function startBridgeServer({ config, getSnapshot, onClientMessage = async 
     function sendTo(socket, record, message) {
         if (!record.authenticated || socket.readyState !== WebSocket.OPEN || (message.type === 'celebration' && !record.capabilities?.includes('donation-recognition'))) return false;
         if (message.type === 'celebration' && (message.phase === 'party' ? message.partyStartedAtMs : message.recognitionStartedAtMs) < record.readyAtMs) return false;
+        if (message.type === 'game-entrance' && !record.capabilities?.includes('themes')) return false;
+        // Older v3 companions validate exact snapshot keys before advertising capabilities.
+        if (message.type === 'snapshot' && !record.capabilities?.includes('themes')) {
+            const { theme: _theme, ...base } = message;
+            message = { ...base, features: base.features.filter(feature => feature !== 'themes') };
+        }
         const body = JSON.stringify(validateServerMessage(message));
         if (socket.bufferedAmount + Buffer.byteLength(body) > 65536 || record.pending >= 32) { socket.terminate(); return false; }
         record.pending++; socket.send(body, () => { record.pending--; }); return true;
     }
     wss.on('connection', socket => {
-        const record = { socket, authenticated: false, pending: 0, lastSeen: clock.nowMs(), alive: true, incoming: 0, inboundTail: Promise.resolve() };
+        const record = { socket, authenticated: false, capabilities: [], pending: 0, lastSeen: clock.nowMs(), alive: true, incoming: 0, inboundTail: Promise.resolve() };
         clients.set(socket, record);
         const timeout = setTimeout(() => { if (!record.authenticated) socket.close(1008, 'Authentication required'); }, config.authTimeoutMs ?? 5000);
         socket.on('error', () => {});
@@ -58,6 +64,7 @@ async function startBridgeServer({ config, getSnapshot, onClientMessage = async 
                             if (!message.capabilities.includes('campaign') || !message.capabilities.includes('celebrations') || !message.capabilities.includes('donation-recognition')) throw new Error('Import latest companion v3');
                             const previouslyReady = isReady(record); reportReadinessLoss();
                             record.capabilities = message.capabilities; if (!previouslyReady) record.readyAtMs = clock.nowMs(); hadReady = true;
+                            if (message.capabilities.includes('themes')) sendTo(socket, record, getSnapshot());
                         }
                         await onClientMessage(message);
                     }

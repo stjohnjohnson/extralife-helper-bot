@@ -210,7 +210,7 @@ async function getBroadcasterIdFromChannel(channelName, clientId, accessToken, s
  * @param {Object} logger - Logger instance
  * @returns {Promise<string|null>} Game ID or null if not found
  */
-async function searchGameCategory(gameName, clientId, accessToken, logger) {
+async function searchGameCategory(gameName, clientId, accessToken, logger, onMatch = () => {}) {
     try {
         const response = await makeTwitchApiRequest(`/search/categories?query=${encodeURIComponent(gameName)}`, {}, clientId, accessToken);
         if (!response.data || response.data.length === 0) {
@@ -231,6 +231,7 @@ async function searchGameCategory(gameName, clientId, accessToken, logger) {
             logger.warn('No game match found', { searchTerm: gameName });
         }
 
+        if (bestMatch) onMatch(bestMatch);
         return bestMatch ? bestMatch.id : null;
     } catch (err) {
         throw new Error(`Failed to search for game "${gameName}": ${err.message}`, { cause: err });
@@ -338,7 +339,7 @@ async function updateChannelGame(broadcasterId, gameId, clientId, accessToken) {
  * @param {Object} logger - Logger instance
  * @returns {Promise<boolean>} True if a game update was processed
  */
-async function handlePresenceUpdate(oldPresence, newPresence, config, twitchClient, logger) {
+async function handlePresenceUpdate(oldPresence, newPresence, config, twitchClient, logger, onCategoryUpdated) {
     try {
         // Only monitor the specified user
         if (newPresence.userId !== config.gameUpdates.userId) {
@@ -363,7 +364,7 @@ async function handlePresenceUpdate(oldPresence, newPresence, config, twitchClie
 
         // Send notification for game changes (including stopping game -> Just Chatting)
         if (newGame || oldGame) {
-            await sendGameUpdateNotification(newGame, config, twitchClient, logger);
+            await sendGameUpdateNotification(newGame, config, twitchClient, logger, onCategoryUpdated);
             return true;
         }
 
@@ -397,7 +398,7 @@ function getGameFromActivities(activities) {
  * @param {Object} logger - Logger instance
  * @returns {Promise<void>}
  */
-async function sendGameUpdateNotification(gameName, config, twitchClient, logger) {
+async function sendGameUpdateNotification(gameName, config, twitchClient, logger, onCategoryUpdated) {
     try {
         // Use "Just Chatting" as fallback when no game is specified
         const displayName = gameName || 'Just Chatting';
@@ -429,11 +430,13 @@ async function sendGameUpdateNotification(gameName, config, twitchClient, logger
         );
 
         // Search for the game category
+        let categoryName;
         const gameId = await searchGameCategory(
             searchName,
             config.twitch.clientId,
             accessToken,
-            logger
+            logger,
+            match => { categoryName = match.name; }
         );
 
         if (!gameId) {
@@ -441,6 +444,8 @@ async function sendGameUpdateNotification(gameName, config, twitchClient, logger
             return;
         }
 
+        // Record request-start time so delayed responses cannot replace newer confirmed categories.
+        const observedAtMs = Date.now();
         // Update the channel's game category
         await updateChannelGame(
             broadcasterId,
@@ -448,6 +453,11 @@ async function sendGameUpdateNotification(gameName, config, twitchClient, logger
             config.twitch.clientId,
             accessToken
         );
+
+        if (onCategoryUpdated && typeof categoryName === 'string' && categoryName.trim()) {
+            try { await onCategoryUpdated({ gameName: categoryName, observedAtMs, source: 'discord-category' }); }
+            catch { logger.warn('Stream Avatars category observer failed'); }
+        }
 
         // Send chat message notification using the configured template
         const messageTemplate = config.gameUpdates.messageTemplate || 'Now playing {game}!';

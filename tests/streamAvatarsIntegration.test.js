@@ -65,3 +65,69 @@ test('production keeps default randomness independently of developer action sett
         expect(draw).toHaveBeenCalledTimes(1);
     } finally { draw.mockRestore(); }
 });
+
+async function connectThemes() {
+    socket = new WebSocket(`ws://127.0.0.1:${service.address.port}/sa/socket`); await once(socket, 'open');
+    const pending = waitFor('snapshot'); socket.send(JSON.stringify({ version: 3, type: 'auth', token: 't'.repeat(32) })); await pending;
+    socket.send(JSON.stringify({ version: 3, type: 'ready', capabilities: ['campaign','celebrations','donation-recognition','themes'], resolution: { width: 1920, height: 1080 } }));
+    // A subsequent heartbeat reaches the same serialized inbound tail after capability registration.
+    await new Promise(resolve => setImmediate(resolve));
+}
+const observeGame = (gameName, at = now, source = 'twitch') => service.observeGame({ gameName, observedAtMs: at, source });
+const online = () => service.observeProduction({ status: 'online', observedAtMs: now, startedAtMs: now - 1000, streamId: 'stream' });
+test('first reconciliation persists without entrance; a shared-theme change sends snapshot then one entrance', async () => {
+    await online(); await connectThemes(); const received = []; socket.on('message', raw => received.push(JSON.parse(raw)));
+    let pending = waitFor('snapshot', value => value.theme?.gameName === 'Minecraft'); await observeGame('Minecraft'); await pending;
+    expect(received.map(value => value.type)).toEqual(['snapshot']);
+    now++; pending = waitFor('game-entrance'); await observeGame('Raft'); const entrance = await pending;
+    const durable = JSON.parse(await fs.readFile(join(directory, 'production/state.json'), 'utf8'));
+    expect(entrance).toMatchObject({ gameIdentity: durable.game.identity, themeId: 'outdoor', durationMs: 6000, expiresAtMs: now + 10000, campaignId: '123' });
+    now++; pending = waitFor('game-entrance'); await observeGame('PEAK'); await pending;
+    expect(received.filter(value => value.type === 'game-entrance')).toHaveLength(2);
+    now++; await observeGame('PEAK'); await observeGame('Minecraft', now - 1); expect(service.getStatus().game.displayName).toBe('PEAK');
+    expect(received.filter(value => value.type === 'game-entrance')).toHaveLength(2);
+});
+test('PATCH ordering beats late old polls; ties prefer Twitch and newer manual categories win', async () => {
+    await online(); await observeGame('Minecraft'); now += 10; await observeGame('PlateUp!', now, 'discord-category');
+    await observeGame('Minecraft', now - 5); expect(service.getStatus().game.displayName).toBe('PlateUp!');
+    await observeGame('Raft', now); await observeGame('PlateUp!', now, 'discord-category'); expect(service.getStatus().game.displayName).toBe('Raft');
+    now++; await observeGame('Just Chatting'); expect(service.getStatus().game).toMatchObject({ displayName: 'Just Chatting', themeId: null });
+    now++; await observeGame(''); expect(service.getStatus().game.displayName).toBe('Just Chatting');
+});
+test('offline, stale live and rehearsal cannot write production games or send entrances', async () => {
+    await observeGame('Minecraft'); expect(service.getStatus().game).toBeNull();
+    await service.observeProduction({ status: 'offline', observedAtMs: now }); await dispatch('rehearsal start');
+    await observeGame('Raft'); expect(service.getStatus().game).toBeNull();
+    now++; await online(); await observeGame('Minecraft');
+    now += 120001; await observeGame('Raft'); expect(service.getStatus().game.displayName).toBe('Minecraft');
+    await service.observeProduction({ status: 'offline', observedAtMs: now }); await observeGame('Raft'); expect(service.getStatus().game.displayName).toBe('Minecraft');
+});
+test('restart and reconnect restore latest game with no entrance; first reconciliation stays quiet', async () => {
+    await online(); await observeGame('Minecraft'); now++; await observeGame('Raft');
+    await service.stop();
+    service = await startStreamAvatars({ webServer, config: { twitch: { channel: 'streamer' }, streamAvatars: { config: { token: 't'.repeat(32), stateDir: directory, graceMs: 900000 } } }, logger: { warn() {} }, realClock: { nowMs: () => now } });
+    await connectThemes(); const received = []; socket.on('message', raw => received.push(JSON.parse(raw))); now++;
+    await online(); const pending = waitFor('snapshot', value => value.theme?.gameName === 'PlateUp!'); await observeGame('PlateUp!'); await pending;
+    expect(received.every(value => ['snapshot', 'clear'].includes(value.type))).toBe(true);
+});
+test('disconnected transitions restore snapshot on reconnect without queued entrance; reset clears game', async () => {
+    await online(); await observeGame('Minecraft'); now++; await observeGame('Raft');
+    socket = new WebSocket(`ws://127.0.0.1:${service.address.port}/sa/socket`); await once(socket, 'open');
+    const received = []; socket.on('message', raw => received.push(JSON.parse(raw)));
+    let pending = waitFor('snapshot'); socket.send(JSON.stringify({ version: 3, type: 'auth', token: 't'.repeat(32) })); const snapshot = await pending;
+    expect(snapshot.theme).toMatchObject({ gameName: 'Raft', themeId: 'outdoor' }); expect(received.map(value => value.type)).toEqual(['snapshot']);
+    now++; await service.observeProduction({ status: 'offline', observedAtMs: now });
+    pending = waitFor('snapshot', value => value.theme === null); expect((await dispatch('session reset confirm')).status).toBe('ok'); await pending;
+    expect(service.getStatus().game).toBeNull(); expect(received.some(value => value.type === 'game-entrance')).toBe(false);
+});
+test('invalid theme configuration keeps production hearts available', async () => {
+    await service.stop();
+    service = await startStreamAvatars({ webServer, config: { twitch: { channel: 'streamer' }, streamAvatars: { config: { token: 't'.repeat(32), stateDir: directory, graceMs: 900000, themes: { enabled: false, config: null, errors: ['Invalid Stream Avatars theme configuration'] } } } }, logger: { warn() {} }, realClock: { nowMs: () => now } });
+    await online(); await connectThemes(); await observeGame('Minecraft'); expect(service.getStatus().game).toBeNull();
+    const pending = waitFor('hearts'); expect((await dispatch('hearts')).status).toBe('ok'); expect((await pending).durationMs).toBe(5000);
+});
+test('reset admission is serialized after an already queued live observation', async () => {
+    await service.observeProduction({ status: 'offline', observedAtMs: now }); now++;
+    const becomingLive = online(); const reset = dispatch('session reset confirm'); await becomingLive;
+    expect((await reset).status).toBe('denied'); expect(service.getStatus().state.sessionId).not.toBeNull();
+});

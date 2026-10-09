@@ -87,3 +87,17 @@ test('old companion readiness regression detects a removed capability gate', asy
     mutated._compile(source.replace(gate, ''), file);
     await expect(rejectsOldCompanion(mutated.exports.startBridgeServer)).rejects.toThrow(/toMatchObject/);
 });
+
+test('entrances require themes ready capability per connection while hearts retain older support', async () => {
+    let ready; const readyHandled = new Promise(resolve => { ready = resolve; });
+    server = await startBridgeServer({ config: { host: '127.0.0.1', port: 0, token }, getSnapshot: snapshot, onClientMessage: async message => { if (message.type === 'ready') ready(); } });
+    const old = await connect(); let pending = once(old, 'message'); old.send(JSON.stringify({ version: 3, type: 'auth', token })); await pending;
+    const modern = await connect(); pending = once(modern, 'message'); modern.send(JSON.stringify({ version: 3, type: 'auth', token })); await pending;
+    const value = { version: 3, type: 'game-entrance', mode: 'production', generation: 1, campaignId: 's', id: 'e', gameIdentity: 'a'.repeat(64), themeId: 'party', issuedAtMs: 1000, expiresAtMs: 11000, durationMs: 6000 };
+    expect(server.send(value)).toBe(false);
+    modern.send(JSON.stringify({ version: 3, type: 'ready', capabilities: ['campaign','celebrations','donation-recognition','themes'], resolution: { width: 1920, height: 1080 } })); await readyHandled;
+    const oldMessages = []; old.on('message', raw => oldMessages.push(JSON.parse(raw))); pending = once(modern, 'message');
+    expect(server.send(value)).toBe(true); expect(JSON.parse((await pending)[0]).type).toBe('game-entrance');
+    pending = once(old, 'message'); server.send({ version: 3, type: 'hearts', mode: 'production', generation: 1, campaignId: 's', id: 'h', issuedAtMs: 1000, expiresAtMs: 11000, durationMs: 5000 }); await pending;
+    expect(oldMessages.map(value => value.type)).toEqual(['hearts']);
+});

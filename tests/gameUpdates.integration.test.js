@@ -1,5 +1,5 @@
 const { EventEmitter } = require('events');
-const https = require('https');
+let https = require('https');
 
 jest.mock('https', () => ({ request: jest.fn() }));
 
@@ -287,5 +287,32 @@ describe('Twitch API integration boundaries', () => {
 
         expect(logger.warn).toHaveBeenCalledWith('Game category not found on Twitch', { game: 'Unknown Game' });
         expect(twitchClient.say).not.toHaveBeenCalled();
+    });
+});
+describe('successful category observation boundary', () => {
+    const config = { twitch: { channel: 'streamer', clientId: 'client', clientSecret: 'secret', refreshToken: 'refresh' }, gameUpdates: { userId: 'user' } };
+    const logger = { debug() {}, info() {}, warn() {}, error() {} };
+    beforeEach(() => { jest.resetModules(); https = require('https'); https.request.mockReset(); });
+    test('observes the actual matched category after PATCH with its request-start time, before isolated chat failure', async () => {
+        let now = 1000; const observations = []; const spy = jest.spyOn(Date, 'now').mockImplementation(() => now);
+        try {
+            queueResponses({ body: '{"access_token":"token","expires_in":3600}' }, { body: '{"data":[{"id":"streamer"}]}' }, { body: '{"data":[{"id":"game","name":"Minecraft"}]}' });
+            https.request.mockImplementationOnce((options, callback) => {
+                const request = new EventEmitter(); request.write = () => {}; request.end = () => { now = 3000; const response = new EventEmitter(); response.statusCode = 204; callback(response); response.emit('end'); }; return request;
+            });
+            await require('../src/gameUpdates').handlePresenceUpdate(null, { userId: 'user', activities: [{ type: 0, name: 'Minecraft Bedrock' }] }, config, { say: async () => { throw new Error('chat offline'); } }, logger, observation => observations.push(observation));
+            expect(observations).toEqual([{ gameName: 'Minecraft', observedAtMs: 1000, source: 'discord-category' }]);
+        } finally { spy.mockRestore(); }
+    });
+    test('failed PATCH emits no category observation and successful callback errors do not suppress chat', async () => {
+        const run = async (patch, callback, client) => {
+            jest.resetModules(); https = require('https'); https.request.mockReset();
+            queueResponses({ body: '{"access_token":"token","expires_in":3600}' }, { body: '{"data":[{"id":"streamer"}]}' }, { body: '{"data":[{"id":"game","name":"Raft"}]}' }, patch);
+            await require('../src/gameUpdates').sendGameUpdateNotification('Raft', config, client, logger, callback);
+        };
+        const observations = [];
+        await run({ statusCode: 500, body: '{"message":"failure"}' }, value => observations.push(value), null); expect(observations).toEqual([]);
+        const messages = []; await run({ statusCode: 204 }, () => { throw new Error('disk failure'); }, { say: async (channel, message) => messages.push({ channel, message }) });
+        expect(messages).toEqual([{ channel: 'streamer', message: 'Now playing Raft!' }]);
     });
 });
