@@ -16,7 +16,7 @@ function parseStreamAvatarsConfiguration(env = process.env) {
     const token = env.STREAM_AVATARS_TOKEN ?? '';
     if (requested && !stateDir.trim()) errors.push('Stream Avatars state directory must not be empty');
     if (requested && (token.length < 16 || token.length > 256)) errors.push('STREAM_AVATARS_TOKEN must contain 16 to 256 characters');
-    const config = { token, stateDir: resolve(stateDir), graceMs: integer('OFFLINE_GRACE_SECONDS', 900, 1, 86400) * 1000 };
+    const config = { token, stateDir: resolve(stateDir), graceMs: integer('OFFLINE_GRACE_SECONDS', 900, 1, 86400) * 1000, donationIntervalCents: integer('DONATION_INTERVAL_CENTS', 50000, 1, 100000000) };
     return { enabled: requested && errors.length === 0, config, errors };
 }
 module.exports = { parseStreamAvatarsConfiguration };

@@ -18,3 +18,10 @@ test('bridge settings have no independent host or port', () => {
     const settings = parseStreamAvatarsConfiguration(enabled).config;
     expect(settings).not.toHaveProperty('host'); expect(settings).not.toHaveProperty('port');
 });
+
+test('donation intervals use bounded integer cents', () => {
+    expect(parseStreamAvatarsConfiguration(enabled).config.donationIntervalCents).toBe(50000);
+    for (const value of ['0', '-1', '1.5', '100000001', '9007199254740992', 'NaN']) expect(parseStreamAvatarsConfiguration({ ...enabled, STREAM_AVATARS_DONATION_INTERVAL_CENTS: value }).enabled).toBe(false);
+    expect(parseStreamAvatarsConfiguration({ ...enabled, STREAM_AVATARS_DONATION_INTERVAL_CENTS: '1' }).config.donationIntervalCents).toBe(1);
+    expect(parseStreamAvatarsConfiguration({ STREAM_AVATARS_DONATION_INTERVAL_CENTS: 'invalid' }).errors).toEqual([]);
+});
