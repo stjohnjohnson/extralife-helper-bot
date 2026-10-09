@@ -57,7 +57,7 @@ test.each([
 });
 test('state validation protects mode, channel, version, money and ledger fields', () => {
     expect(validateSessionState(live(), { mode: 'production', channel: 'streamer' })).toEqual(live());
-    for (const patch of [{ schemaVersion: 2 }, { mode: 'rehearsal' }, { channel: 'other' }, { liveTotalCents: 1.5 }, { reachedTimeCheckpoints: [-1] }, { processedDonationIds: [1] }, { startedAtMs: null }]) {
+    for (const patch of [{ schemaVersion: 3 }, { mode: 'rehearsal' }, { channel: 'other' }, { liveTotalCents: 1.5 }, { reachedTimeCheckpoints: [-1] }, { processedDonationIds: [1] }, { startedAtMs: null }]) {
         expect(() => validateSessionState({ ...live(), ...patch }, { mode: 'production', channel: 'streamer' })).toThrow(/state/i);
     }
 });
