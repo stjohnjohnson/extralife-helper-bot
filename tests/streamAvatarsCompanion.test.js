@@ -97,7 +97,7 @@ test.each(['donation','milestone','goal','hidden','goal-only'])('Lua renders act
 
 const { buildThemeCatalog, buildThemeLayout } = require('../src/streamAvatars/themeLayout');
 const { candidate } = require('./fixtures/themeCandidates');
-const themeScenarios = ['theme-stale-load', 'theme-shared-game', 'theme-neutral', 'theme-missing-backdrop', 'theme-resize', 'theme-small-bounds', 'theme-heart-coexistence', 'theme-reconnect-no-entrance', 'theme-production-gate', 'theme-revision', 'theme-load-timeout', 'theme-pending-cap', 'theme-scope-cancellation', 'entrance-timing', 'entrance-obsolete', 'entrance-caption', 'entrance-neutral', 'entrance-supersession', 'theme-density-0', 'theme-density-20', 'theme-density-100', 'theme-kitchen', 'entrance-caption-error', 'entrance-position-error'];
+const themeScenarios = ['theme-stale-load', 'theme-shared-game', 'theme-neutral', 'theme-missing-backdrop', 'theme-resize', 'theme-small-bounds', 'theme-heart-coexistence', 'theme-reconnect-no-entrance', 'theme-production-gate', 'theme-revision', 'theme-load-timeout', 'theme-pending-cap', 'theme-scope-cancellation', 'entrance-timing', 'entrance-obsolete', 'entrance-caption', 'entrance-neutral', 'entrance-supersession', 'theme-density-0', 'theme-density-20', 'theme-density-100', 'theme-kitchen', 'entrance-caption-error', 'entrance-position-error', 'entrance-unicode'];
 function themeSource() {
     const manifest = candidate();
     for (const asset of Object.values(manifest.assets)) {
@@ -136,7 +136,7 @@ test.each([
     ['entrance-timing', 'and not seen[value.id] and', 'and'],
     ['entrance-obsolete', 'value.themeId==snapshot.theme.themeId', 'true'],
     ['entrance-obsolete', 'value.gameIdentity==snapshot.theme.gameIdentity', 'true'],
-    ['entrance-caption', 'value:gsub("[<>]", "")', 'value'],
+    ['entrance-caption', 'local keep=valid and code>=32 and code~=127 and code~=60 and code~=62', 'local keep=valid'],
     ['entrance-position-error', 'if not positioned then clearEntrance(); diagnostic("render-error") end', 'if not positioned then clearTheme(); clearEntrance(); diagnostic("render-error") end'],
     ['entrance-supersession', 'then clearEntrance() end', 'then end']
 ])('theme/entrance regression detects mutation %s / %s', (scenario, original, broken) => {
@@ -145,4 +145,39 @@ test.each([
         return source.replaceAll(original, broken);
     });
     expect(result.error).toBeUndefined(); expect(result.status).toBe(1); expect(result.stderr).toMatch(/assertion failed|must|requires active rehearsal/);
+});
+
+function runGear(scenario, mutate = source => source) {
+    const setName = 'sa_helper_theme_hats';
+    const gear = { small: { 'block-world': { slot: 'head', primary: { setName, pieceName: 'block_world_gear_mining_helmet' }, alternate: { setName, pieceName: 'block_world_gear_explorer_cap' }, fitRevision: 'b'.repeat(64) }, kitchen: { slot: 'head', primary: { setName, pieceName: 'kitchen_gear_chef_hat' }, fitRevision: 'b'.repeat(64) } } };
+    const directory = mkdtempSync(join(tmpdir(), 'sa-gear-'));
+    try {
+        const source = readFileSync(resolve('integrations/stream-avatars/companion.lua'), 'utf8').replace('local THEME_CATALOG_JSON = nil', `local THEME_CATALOG_JSON = [[${JSON.stringify({ previewOnly: true, packRevision: 'a'.repeat(64), themes: {}, gear: { setName, avatars: gear } })}]]`);
+        const script = join(directory, 'companion.lua'); writeFileSync(script, mutate(source)); return run(script, scenario);
+    } finally { rmSync(directory, { recursive: true, force: true }); }
+}
+test.each(['gear-lifecycle', 'gear-alternate', 'gear-foreign', 'gear-avatar', 'gear-generation', 'gear-renew', 'gear-failure-expiry', 'gear-expired-owner', 'gear-disconnect', 'gear-gates', 'gear-large-list', 'gear-native-wrappers', 'gear-initial-occupied', 'gear-wall-pause', 'gear-clock-backwards', 'gear-clock-invalid', 'gear-permission', 'gear-host-error', 'gear-unsupported-read', 'gear-reload'])('owned finite head hats: %s', scenario => {
+    const result = runGear(scenario); expect({ status: result.status, stderr: result.stderr, stdout: result.stdout.trim() }).toEqual({ status: 0, stderr: '', stdout: 'OK ' + scenario });
+});
+test.each([
+    ['gear-foreign', 'effective[entry.setName]==entry.pieceName', 'true'],
+    ['gear-wall-pause', 'gearNow<entry.expiresAt', 'true'],
+    ['gear-renew', 'candidate.pieceName,30)', 'candidate.pieceName,0)'],
+    ['gear-renew', 'renewAt=gearNow+10', 'renewAt=gearNow+25'],
+    ['gear-gates', 'snapshot.theme.packRevision~=catalog.packRevision', 'false'],
+    ['gear-generation', 'value.generation<generationFloor', 'false'],
+    ['gear-large-list', 'for _,user in ipairs(getUsers()) do current', 'for i,user in ipairs(getUsers()) do if i>100 then break end; current'],
+    ['gear-alternate', 'entry and wearable[entry.pieceName]', 'false and wearable[entry.pieceName]'],
+    ['gear-native-wrappers', 'tostring(user.id)==id', 'user==entry.user'],
+    ['gear-permission', 'if allowed then', 'if true then'],
+    ['gear-renew', 'gearNow<entry.renewAt', 'false'],
+    ['gear-initial-occupied', 'if not owns and occupied and', 'if false and occupied and'],
+    ['gear-clock-backwards', 'now<gearNow', 'false']
+])('temporary hat regression detects mutation %s / %s', (scenario, original, broken) => {
+    const result = runGear(scenario, source => {
+        if (!source.includes(original)) throw new Error('Mutation target moved: ' + original);
+        const mutated = source.replaceAll(original, broken);
+        return scenario === 'gear-wall-pause' ? mutated.replaceAll('gearNow>=entry.expiresAt', 'false') : mutated;
+    });
+    expect(result.error).toBeUndefined(); expect(result.status).toBe(1); expect(result.stderr).toMatch(/assertion failed|must|require|finite|stable/);
 });

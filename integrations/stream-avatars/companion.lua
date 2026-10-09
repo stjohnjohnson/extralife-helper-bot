@@ -97,6 +97,8 @@ return function()
     local themeObjects, chapterObjects = {}, {} -- Chapter owner reserved; no chapter art.
     local themeLoadToken, themeKey, themeLayout, entrance = 0, nil, nil, nil
     local catalog = THEME_CATALOG_JSON and json.parse(THEME_CATALOG_JSON) or {themes={}}
+    local gearOwned, gearQueue, gearCursor, gearRefreshAt, gearEpoch, gearDiagnosticAt = {}, {}, 1, 0, 0, 0
+    local gearNow, gearClockFailed = nil, false
     local generationFloor = -1
     local loadSequence = get("sa_load_sequence") or 0
     local elapsed, serverOffset, updateElapsed = 0, 0, 0
@@ -137,12 +139,91 @@ return function()
         themeObjects={}; themeLayout=nil; themeKey=nil
     end
     local function clearAll()
-        clearObjects(); clearTheme(); clearEntrance()
+        clearObjects(); clearTheme(); clearEntrance(); gearEpoch=gearEpoch+1; gearRefreshAt=0
         for _,entry in pairs(chapterObjects) do release(entry) end; chapterObjects={}
+    end
+    -- There is no native owner token or universal head slot. This set is exclusively
+    -- reserved for this integration. Same-set + same-piece foreign ownership is invisible.
+    local function gearDiagnostic()
+        if elapsed>=gearDiagnosticAt then diagnostic("render-error"); gearDiagnosticAt=elapsed+30 end
+    end
+    local function currentGearTheme()
+        if not snapshot or not snapshot.theme or not catalog.gear then return nil end
+        if catalog.previewOnly and (snapshot.mode~="rehearsal" or not snapshot.rehearsal.active) then return nil end
+        if snapshot.theme.packRevision~=catalog.packRevision then return nil end
+        return snapshot.theme.themeId
+    end
+    local function releaseHat(entry, effective)
+        -- A lease that expired could now be a saved identical piece. Never shorten it.
+        if gearNow<entry.expiresAt and effective[entry.setName]==entry.pieceName then
+            entry.user.setTemporaryGear(entry.setName,entry.pieceName,1)
+        end
+    end
+    local function reconcileHat(user, id)
+        local entry=gearOwned[id]
+        local theme=currentGearTheme()
+        local actor=user or (entry and entry.user)
+        if not actor then return end
+        local avatarKey=actor.avatar
+        local fit=user and user.isActive and theme and catalog.gear.avatars[avatarKey] and catalog.gear.avatars[avatarKey][theme] or nil
+        if not entry and not fit then if user and user.isActive and theme then gearDiagnostic() end; return end
+        local avatar=getAvatar(avatarKey); local allowed=false
+        if avatar then for _,setName in ipairs(avatar.getGear()) do if setName==catalog.gear.setName then allowed=true end end end
+        local candidate=nil
+        if fit and fit.slot=="head" then
+            if allowed then
+                local wearable={}; for _,piece in ipairs(user.getWearableGearSetPieces(catalog.gear.setName)) do wearable[piece]=true end
+                if entry and wearable[entry.pieceName] and entry.theme==theme and entry.avatarKey==avatarKey then candidate={setName=entry.setName,pieceName=entry.pieceName}
+                elseif wearable[fit.primary.pieceName] then candidate=fit.primary
+                elseif fit.alternate and wearable[fit.alternate.pieceName] then candidate=fit.alternate end
+            end
+        end
+        -- Native getGear logs each read. Read effective values only immediately before
+        -- a possible apply/renew/release; no early polling can improve write ownership.
+        if entry and candidate and entry.pieceName==candidate.pieceName and entry.theme==theme and entry.avatarKey==avatarKey and entry.generation==snapshot.generation and entry.epoch==gearEpoch and gearNow<entry.renewAt then return end
+        if not candidate and (not entry or not allowed or gearNow>=entry.expiresAt) then
+            gearOwned[id]=nil; if user and user.isActive and theme then gearDiagnostic() end; return
+        end
+        local effective=actor.getGear()
+        local owns=entry and user and tostring(user.id)==id and gearNow<entry.expiresAt and effective[entry.setName]==entry.pieceName
+        if entry and user then entry.user=user end -- fresh native wrappers share the stable character ID
+        if entry and (not candidate or not owns) then
+            releaseHat(entry,effective); gearOwned[id]=nil; entry=nil; owns=false
+        end
+        if not candidate then if user and user.isActive and theme then gearDiagnostic() end; return end
+        local occupied=effective[candidate.setName]
+        if not owns and occupied and occupied~="" and occupied~="none" then gearDiagnostic(); return end
+        user.setTemporaryGear(candidate.setName,candidate.pieceName,30)
+        gearOwned[id]={user=user,avatarKey=avatarKey,theme=theme,slot="head",generation=snapshot.generation,epoch=gearEpoch,setName=candidate.setName,pieceName=candidate.pieceName,renewAt=gearNow+10,expiresAt=gearNow+30}
+    end
+    local function renderGear()
+        if not catalog.gear or gearClockFailed then return end
+        -- Installed MoonSharp exposes os.time (fractional seconds); floor is conservative
+        -- against native DateTime lease expiry. Unity deltaTime may pause independently.
+        local ok,now=pcall(function() return os.time() end)
+        if not ok or not number(now) or now<0 then gearClockFailed=true; gearOwned={}; gearDiagnostic(); return end
+        now=math.floor(now)
+        if gearNow and now<gearNow then gearClockFailed=true; gearOwned={}; gearDiagnostic(); return end
+        gearNow=now
+        -- Host collections are real 1-based Lua tables. Snapshot enumeration is O(N),
+        -- while native reconciliation work is capped at32 users per tick, with a fair cursor.
+        if gearCursor>#gearQueue and elapsed>=gearRefreshAt then
+            local current={}; for _,user in ipairs(getUsers()) do current[tostring(user.id)]=user end
+            local ids={}; for id,_ in pairs(current) do ids[#ids+1]=id end
+            for id,_ in pairs(gearOwned) do if not current[id] then ids[#ids+1]=id end end
+            table.sort(ids); gearQueue={}; for _,id in ipairs(ids) do gearQueue[#gearQueue+1]={id=id,user=current[id]} end
+            gearCursor=1; gearRefreshAt=elapsed+1
+        end
+        for _=1,32 do
+            local work=gearQueue[gearCursor]; if not work then break end
+            gearCursor=gearCursor+1
+            local ok=pcall(reconcileHat,work.user,work.id)
+            if not ok then gearOwned[work.id]=nil; gearDiagnostic() end -- finite native lease is the failure fallback
+        end
     end
     local function reconcileTheme()
         local theme=snapshot and snapshot.theme
-        local allowed=not catalog.previewOnly or (snapshot and snapshot.mode=="rehearsal" and snapshot.rehearsal.active)
+        local allowed=not catalog.previewOnly or (snapshot and snapshot.mode=="integration" and snapshot.integration.active)
         local layout=allowed and theme and theme.packRevision==catalog.packRevision and catalog.themes[theme.themeId] or nil
         local key=layout and (theme.themeId..":"..theme.packRevision) or nil
         if key==themeKey then return end
@@ -156,10 +237,33 @@ return function()
         return theme.themeId==nil or allowed[theme.themeId]==true
     end
     local function caption(value)
-        local clean=value:gsub("[<>]", ""):gsub("[%z\1-\31\127]", "")
-        local points={}; for point in clean:gmatch("[%z\1-\127\194-\244][\128-\191]*") do points[#points+1]=point end
+        local points, i = {}, 1
+        local nativeUnicode=type(string.unicode)=="function"
+        while i<=#value do
+            local code, width, valid
+            if nativeUnicode then
+                -- Installed MoonSharp strings are UTF16; byte() loses non-ASCII chars.
+                code=string.unicode(value,i); width=1; valid=true
+                if code>=55296 and code<=56319 then
+                    local low=i<#value and string.unicode(value,i+1) or nil
+                    if low and low>=56320 and low<=57343 then width=2 else valid=false end
+                elseif code>=56320 and code<=57343 then valid=false end
+            else
+                -- Standard Lua strings are UTF8 bytes; validate complete scalar sequences.
+                local first=value:byte(i); width=1; code=first; valid=first<128
+                local count=first>=194 and first<=223 and 2 or first>=224 and first<=239 and 3 or first>=240 and first<=244 and 4 or nil
+                if count then
+                    code=first-(count==2 and 192 or count==3 and 224 or 240); valid=true
+                    for j=1,count-1 do local part=value:byte(i+j); if not part or part<128 or part>191 then valid=false; break end; code=code*64+part-128 end
+                    if valid and code>=(count==2 and 128 or count==3 and 2048 or 65536) and code<=1114111 and not (code>=55296 and code<=57343) then width=count else valid=false end
+                end
+            end
+            local keep=valid and code>=32 and code~=127 and code~=60 and code~=62
+            if keep then points[#points+1]=value:sub(i,i+width-1) end
+            i=i+width
+        end
         if #points<=48 then return table.concat(points) end
-        local short={}; for i=1,47 do short[i]=points[i] end
+        local short={}; for j=1,47 do short[j]=points[j] end
         return table.concat(short).."…"
     end
     local function startEntrance()
@@ -486,7 +590,7 @@ return function()
             generationFloor=value.generation; snapshot=value; serverOffset=value.serverNowMs-elapsed*1000; retryDelay=1
             if value.mode=="integration" and not previewHostSet then app.platformServiceSettings.SetStreamer(900000,"sa_integration_host"); previewHostSet=true end
             if value.mode=="production" then previewHostSet=false end
-            reconcileCrowd(value.mode=="integration" and value.integration.crowdIds or {}); reconcileTheme()
+            reconcileCrowd(value.mode=="integration" and value.integration.crowdIds or {}); reconcileTheme(); gearRefreshAt=0
             local resolution=app.getResolution()
             send({version=3,type="ready",capabilities={"hearts","crowd","campaign","celebrations","donation-recognition","themes"},resolution={width=resolution.x,height=resolution.y}})
         elseif value.type=="crowd" and snapshot and snapshot.mode=="integration" and value.mode==snapshot.mode and value.generation==snapshot.generation and validCrowd(value.crowdIds) then
@@ -625,6 +729,7 @@ return function()
             else diagnostic("unsupported-message") end
         end
         if updateElapsed>=0.05 then
+            renderGear()
             local worldOk=pcall(renderWorld); if not worldOk then clearTheme(); clearEntrance(); diagnostic("render-error") end
             local ok=pcall(renderTick); if not ok then clearObjects(); diagnostic("render-error") end
             updateElapsed=0
