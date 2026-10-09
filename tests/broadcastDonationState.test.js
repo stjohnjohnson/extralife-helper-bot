@@ -16,3 +16,18 @@ test('goal startup already met is silent; a live rise crosses once',()=>{const m
 test('late campaign aggregate confirms pending eligible gift; stale or expired observations cannot celebrate',()=>{let s=apply(initial(),[],{reconcile:true,campaign:campaign(90000)}).state;s=apply(s,[gift('a',10000)],{campaign:campaign(90000,100000,200001)}).state;expect(apply(s,[],{observedAtMs:250000,campaign:campaign(100000,100000,250000)}).intent.goalReached).toBe(true);expect(apply(s,[],{observedAtMs:400001,campaign:campaign(100000,100000,400001)}).intent).toBeNull();expect(apply(s,[],{campaign:campaign(100000,100000,199999)}).intent).toBeNull();});
 test('lowered/changed goal, ended session and pre-stream-only gift never create bonus',()=>{const s=apply(initial(),[],{reconcile:true,campaign:campaign(90000)}).state;for(const [state,gifts,obs] of [[s,[gift('a')],campaign(90000,80000,200001)],[{...s,endedAtMs:200000},[gift('a')],campaign(100000,100000,200001)],[s,[gift('old',10000,99999)],campaign(100000,100000,200001)]])expect(apply(state,gifts,{campaign:obs}).intent?.goalReached||false).toBe(false);});
 test('partial scans are not authoritative',()=>expect(()=>reduceDonations(initial(),{scan:{complete:false},intervalCents:50000,observedAtMs:200000})).toThrow());
+
+test.each([false,true])('historical revelation does not suppress a fresh milestone, reverse=%s',reverse=>{
+    const s=apply(initial(),[gift('known',49000),gift('hidden',null)],{reconcile:true}).state;
+    const gifts=[gift('hidden',100),gift('new',1000)];
+    const r=apply(s,reverse?gifts.reverse():gifts);
+    expect(r.intent).toMatchObject({donationIds:['new'],liveTotalCents:50100,milestoneCents:50000});
+    expect(r.state.donationCheckpointCount).toBe(1);
+    expect(apply(r.state,gifts).intent).toBeNull();
+});
+test('revelation-only crossings stay silent in a mixed batch',()=>{
+    const s=apply(initial(),[gift('known',49000),gift('hidden',null)],{reconcile:true}).state;
+    const r=apply(s,[gift('new',1000),gift('hidden',60000)]);
+    expect(r.intent).toMatchObject({donationIds:['new'],liveTotalCents:110000,milestoneCents:null});
+    expect(r.state.donationCheckpointCount).toBe(2);
+});

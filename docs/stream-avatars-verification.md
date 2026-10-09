@@ -12,7 +12,7 @@ CI runs the complete suite, lint, production dependency audit and Docker build o
 
 These checks verify executable logic and host API expectations. Actual application rendering, firewall/LAN access, image imports, chosen avatar spacing, OBS cropping and performance still need a real-environment run.
 
-Local checks pass `npm run lint`, the complete `npm test -- --runInBand` suite (**52 suites / 797 tests**, local Lua 5.5.0 plus 88 companion checks under locally compiled Lua 5.2.4; CI separately verifies 5.4 and 5.2), and `npm run audit:prod` with zero vulnerabilities. The regenerated ZIP passes the installed Stream Avatars ZIP-reader/import-type probe; the shipped parser compatibility code also passes against the installed MoonSharp codec.
+Local checks pass `npm run lint`, the complete `npm test -- --runInBand` suite (**52 suites / 802 tests**, local Lua 5.5.0 plus 88 companion checks under locally compiled Lua 5.2.4; CI separately verifies 5.4 and 5.2), and `npm run audit:prod` with zero vulnerabilities. The regenerated ZIP passes the installed Stream Avatars ZIP-reader/import-type probe; the shipped parser compatibility code also passes against the installed MoonSharp codec.
 
 ## Outstanding verification
 
@@ -77,3 +77,9 @@ The approved temporary subsystem runner replaces issue #67's reference to #65's 
 The automated transport fixture is not a visual pass on the destination deployment. Existing foundation Mac observations above remain historical; they do not establish that the new confetti/captions/actions passed LAN/OBS acceptance. Native command restrictions, animation availability, teleporting, dense performance and persistent-volume deployment remain explicit manual checks.
 
 The v2 ZIP also passes the installed native Stream Avatars ZIP reader/import-type probe: 22 entries, 19 images, the 431×23 goal caption, four confetti frame timings and placeholder credentials. This is import-format evidence, not graphical acceptance. Production audit reports zero vulnerabilities.
+
+## Final branch review
+
+A fresh whole-branch review found two accounting edge cases, both fixed with failing-then-passing regression tests: campaign reconciliation now waits independently for its first fresh observation after startup/recovery, and revealed historical amounts no longer suppress unrelated new-gift milestones. Mixed scans are tested in both input orders; revelation-only crossings remain silent. Production's separate donation-accept/campaign-refresh sequence is covered.
+
+Deferred minor: the source collapses repeated IDs within one scan before reducer conflict diagnostics, so contradictory duplicate rows in that scan retain the first accepted amount without a warning. Conflicts against previously persisted facts are still diagnosed; no duplicate ID adds money twice.

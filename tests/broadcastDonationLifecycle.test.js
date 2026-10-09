@@ -10,3 +10,28 @@ test('concurrent scans accept an ID once and persist before returning effect',as
 test('failed scan cannot establish baseline; stale session after reset cannot account',async()=>{const c=await start();await live(c);await expect(c.acceptDonations({expectedSessionId:'s',scan:{...scan(),complete:false},observedAtMs:200000})).rejects.toThrow();expect((await feed(c,['initial'])).intent).toBeNull();await c.reset();expect((await feed(c,['late'])).accepted).toBe(false);expect(c.getSnapshot().liveTotalCents).toBe(0);});
 test('save failure preserves prior state and gates recovery; notifications do not depend on this result',async()=>{const backing={load:async()=>null,save:jest.fn().mockResolvedValue(),flush:async()=>{},close:async()=>{}};const c=await start({store:backing});await live(c);await feed(c);backing.save.mockRejectedValueOnce(new Error('disk full'));await expect(feed(c,['a'])).rejects.toThrow('disk full');expect(c.getSnapshot().liveTotalCents).toBe(0);expect(c.getStatus().recoveryRequired).toBe(true);});
 test('valid v1 migration preserves progress while v2 participant mismatch requires reset',async()=>{const legacy={...createInitialState({mode:'production',channel:'test'}),schemaVersion:1,sessionId:'s',startedAtMs:100000,liveTotalCents:50000,processedDonationIds:['legacy'],reachedDonationCheckpoints:[50000],reachedTimeCheckpoints:[5],chapter:1};for(const key of ['participantId','currency','donationLedger','unknownAmountCount','donationCheckpointCount','donationIntervalCents','campaignObservation','pendingGoalDonationUntilMs','donationsReconciled'])delete legacy[key];await fs.writeFile(join(dir,'state.json'),JSON.stringify(legacy));const c=await start();expect(c.getSnapshot()).toMatchObject({schemaVersion:2,participantId:'12',liveTotalCents:50000,chapter:1,reachedTimeCheckpoints:[5]});await feed(c,['legacy','new']);expect(c.getSnapshot().liveTotalCents).toBe(52500);await c.stop();const bad=await start({participantId:'13'});expect(bad.getStatus().recoveryRequired).toBe(true);});
+
+test('restart baselines its first campaign refresh after a separate donation accept',async()=>{
+    let c=await start();await live(c);
+    const accept=(controller,campaign,ids=[])=>controller.acceptDonations({expectedSessionId:'s',scan:scan(ids),campaign,observedAtMs:200000});
+    const below={totalCents:90000,goalCents:100000,observedAtMs:190000};
+    await accept(c,below);await accept(c,{...below,observedAtMs:190001},['pending']);
+    expect(c.getSnapshot().pendingGoalDonationUntilMs).toBe(320000);
+    await c.stop();c=await start();
+    expect((await accept(c,null,['pending','restart'])).intent).toBeNull();
+    // Production accepts donation data before its separately paced campaign fetch.
+    const met={totalCents:100000,goalCents:100000,observedAtMs:200001};
+    expect((await accept(c,met,['pending','restart'])).intent).toBeNull();
+    expect(c.getSnapshot().campaignGoalReached).toBe(true);
+    expect(c.getSnapshot().pendingGoalDonationUntilMs).toBeNull();
+});
+test('initial campaign failure stays silent until a fresh baseline then allows a live crossing',async()=>{
+    const c=await start();await live(c);await feed(c);
+    const accept=(campaign,ids=[])=>c.acceptDonations({expectedSessionId:'s',scan:scan(ids),campaign,observedAtMs:200000});
+    await accept(null,['before-campaign']);
+    const below={totalCents:90000,goalCents:100000,observedAtMs:200001};
+    expect((await accept(below,['before-campaign'])).intent).toBeNull();
+    expect(c.getSnapshot().pendingGoalDonationUntilMs).toBeNull();
+    const result=await accept({...below,totalCents:100000,observedAtMs:200002},['before-campaign','live']);
+    expect(result.intent).toMatchObject({donationIds:['live'],goalReached:true});
+});

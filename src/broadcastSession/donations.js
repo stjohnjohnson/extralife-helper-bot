@@ -8,7 +8,7 @@ function donationFields(intervalCents = 50000) {
     return { donationLedger: {}, unknownAmountCount: 0, donationCheckpointCount: 0,
         donationIntervalCents: intervalCents, campaignObservation: null, pendingGoalDonationUntilMs: null };
 }
-function reduceDonations(state, { scan, campaign = null, reconcile = false, intervalCents = 50000, observedAtMs }) {
+function reduceDonations(state, { scan, campaign = null, reconcile = false, reconcileCampaign = reconcile, intervalCents = 50000, observedAtMs }) {
     if (!scan?.complete || !Array.isArray(scan.donations) || !time(scan.fromMs) || !time(scan.throughMs) || scan.throughMs < scan.fromMs || !time(observedAtMs) || !cents(intervalCents) || intervalCents === 0) throw new Error('Invalid authoritative donation scan');
     const next = { ...donationFields(intervalCents), ...structuredClone(state) };
     const diagnostics = new Set(), newIds = [];
@@ -16,7 +16,8 @@ function reduceDonations(state, { scan, campaign = null, reconcile = false, inte
     if (String(scan.participantId) !== String(next.participantId) || scan.fromMs !== next.startedAtMs) throw new Error('Donation scan does not match session');
     const handled = new Set(next.processedDonationIds);
     const changedInterval = next.donationIntervalCents !== intervalCents;
-    let historicalRevelation = false;
+    const previouslyHandled = new Set(handled);
+    let historicalTotalCents = next.liveTotalCents;
     for (const item of scan.donations) {
         if (!item || typeof item.id !== 'string' || !item.id.trim() || item.id.length > 128 || String(item.participantId) !== String(next.participantId) || !time(item.createdAtMs) || (item.amountCents !== null && !cents(item.amountCents))) {
             diagnostics.add('invalid-donation'); continue;
@@ -29,7 +30,8 @@ function reduceDonations(state, { scan, campaign = null, reconcile = false, inte
             if (old.createdAtMs !== item.createdAtMs || (old.amountCents !== null && item.amountCents !== null && old.amountCents !== item.amountCents)) { diagnostics.add('conflicting-donation'); continue; }
             if (old.amountCents === null && item.amountCents !== null) {
                 next.liveTotalCents = addCents(next.liveTotalCents, item.amountCents);
-                old.amountCents = item.amountCents; next.unknownAmountCount--; historicalRevelation = true;
+                old.amountCents = item.amountCents; next.unknownAmountCount--;
+                if (previouslyHandled.has(item.id)) historicalTotalCents = addCents(historicalTotalCents, item.amountCents);
             }
             continue;
         }
@@ -48,18 +50,22 @@ function reduceDonations(state, { scan, campaign = null, reconcile = false, inte
     if (count > 0) checkpoints.add(count * intervalCents);
     next.reachedDonationCheckpoints = [...checkpoints].sort((a,b) => a-b).slice(-1000);
     const silent = reconcile || next.endedAtMs !== null;
+    if (reconcile) next.pendingGoalDonationUntilMs = null;
     if (!silent && newIds.length && scan.donations.some(item => newIds.includes(item.id) && (item.amountCents === null || item.amountCents > 0))) next.pendingGoalDonationUntilMs = observedAtMs + 120000;
     let goalReached = false;
     if (validCampaign(campaign) && (!next.campaignObservation || campaign.observedAtMs > next.campaignObservation.observedAtMs)) {
         const old = next.campaignObservation;
+        if (reconcileCampaign) next.pendingGoalDonationUntilMs = null;
         const met = campaign.totalCents >= campaign.goalCents;
         const changedGoal = old && old.goalCents !== campaign.goalCents;
-        goalReached = !silent && !next.campaignGoalReached && old !== null && !changedGoal &&
+        goalReached = !silent && !reconcileCampaign && !next.campaignGoalReached && old !== null && !changedGoal &&
             old.totalCents < old.goalCents && met && next.pendingGoalDonationUntilMs !== null && observedAtMs <= next.pendingGoalDonationUntilMs;
-        if (met && (silent || !old || changedGoal || goalReached)) next.campaignGoalReached = true;
+        if (met && (silent || reconcileCampaign || !old || changedGoal || goalReached)) next.campaignGoalReached = true;
         next.campaignObservation = structuredClone(campaign);
     }
-    const milestoneCents = !silent && !changedInterval && !historicalRevelation && count > previousCount && newIds.length ? count * intervalCents : null;
+    // Reveal old money silently before attributing any crossing to this batch's fresh gifts.
+    const baselineCount = Math.max(previousCount, Math.floor(historicalTotalCents / intervalCents));
+    const milestoneCents = !silent && !changedInterval && count > baselineCount && newIds.length ? count * intervalCents : null;
     const intent = !silent && (newIds.length || goalReached) ? { sessionId: next.sessionId, donationIds: newIds,
         liveTotalCents: next.liveTotalCents, milestoneCents, goalReached } : null;
     return { state: next, intent, diagnostics: [...diagnostics] };
