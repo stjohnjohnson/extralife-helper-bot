@@ -109,3 +109,39 @@ npm run sa:art -- release --check
 The release check fails until all 42 required designs have fresh, checksum-bound visual selections and native import proof. It rechecks that every proof is bound to the selected attempt and checksum. It does not package speculative runtime assets or update game logic. This workflow currently has zero approved/proven assets; a failing release check is expected until real art review/import work is complete.
 
 The `--workspace /absolute/path` option supports a separate local review workspace. Files created beneath it are fenced against traversal and symlink components; use canonical filesystem paths on macOS. External generated input/reference files are read and copied deliberately; generated working output paths cannot escape the workspace.
+
+## Explicit candidate review pack
+
+The review path consumes a deliberate map of all 42 active asset IDs to exact `attemptId` values. It never auto-picks the latest version or creates selections. Optional supplied export/source/recipe checksums must match the retained record. Retired assets cannot enter this pack. A new destination is required; existing directories and symlink components are rejected.
+
+```sh
+npm run sa:art -- candidate-pack --workspace reports/stream-avatars-artwork \
+  --manifest-file reports/stream-avatars-artwork/reviewed-candidate-manifest.json \
+  --compatibility-file reports/stream-avatars-theme-proof/task6-review-fitting/candidate-gear-compatibility.json \
+  --destination reports/stream-avatars-artwork/rehearsal-pack
+npm run sa:package -- --candidate-pack reports/stream-avatars-artwork/rehearsal-pack \
+  --output reports/stream-avatars-artwork/rehearsal-review.zip
+npm run sa:rehearse -- --candidate-pack reports/stream-avatars-artwork/rehearsal-pack
+```
+
+Omit `--compatibility-file` to leave hats unsupported. The helper's `plan.gearCompatibility` may be saved as the compatibility file for provisional review; it is not a measured fit or a production proof. No private native avatar metadata enters the ZIP. Fresh imported hats still need separately reviewed permissions and pivots in the app. Never apply a fitting plan while Stream Avatars is running. Native UTF-8 BOM settings are accepted; the helper's source checksum and private backup include the original BOM, and explicit apply preserves it and unrelated numeric precision.
+
+The portable pack contains exact PNG exports, a sanitized manifest, catalog, compatibility and checksum provenance. `previewOnly` and `rehearsalOnly` are true. Its derived 64-hex `packRevision` binds asset IDs, hashes, geometry and compatibility, and is shared by the Node snapshots and packaged Lua. The ZIP has 43 PNGs: one heart and all 42 candidate designs. Candidate sources, machine paths, private settings and arbitrary notes are not included. Changing approval booleans cannot authorize production.
+
+## Production promotion after review and native acceptance
+
+After the user approves each exact attempt, select it with checksum-bound native import proof and run `sa:art release --check`. Promotion additionally requires tested canonical import names: world names are `sa_` plus the asset ID with dots/hyphens replaced by underscores; hat names omit the `sa_` prefix and use the reserved `sa_helper_theme_hats` set.
+
+```sh
+npm run sa:art -- promote --workspace reports/stream-avatars-artwork \
+  --destination /local/new-approved-pack --proof-file /local/native-gear-proofs.json
+npm run sa:package -- --theme-pack /local/new-approved-pack --output /local/approved-pack.zip
+```
+
+`gearProofs` has `schemaVersion:1`, `setName:"sa_helper_theme_hats"`, `graphicsVerified:true`, sanitized `compatibility`, and `pieces` keyed by all twelve canonical piece names. Each piece requires its approved `assetId`, `attemptId`, `sha256` and current `selectionId`; `importedAndProven:true`; `restorationProven:true`; an `evidenceSha256` identifying retained native evidence; `avatarKeys`; tested `actions:["idle","run","jump","sit"]`; `directions:[-1,1]`; and `fits[avatarKey]` with matching compatibility `fitRevision`, measured `headPosition:{x,y}` and `scale:{x,y}`. Every compatible primary and alternate must have proof for that avatar. The existing per-selection import proof covers backdrop/prop import, scale/order/joins and gear import. JSON is an operator evidence record; synthetic tests do not establish native acceptance.
+
+Promotion rechecks source/export/reference bytes, recipes, selections and proofs, stages and validates the complete pack, then atomically publishes a fresh directory. Conflicts, missing or stale proof and changed inputs leave no partial destination. Consumers independently revalidate hashes and proof bindings. Configure `STREAM_AVATARS_THEME_PACK=/local/new-approved-pack` for the normal bot; local `sa:rehearse -- --theme-pack /local/new-approved-pack` and `sa:package -- --theme-pack ...` use the same catalog revision. With no configured approved pack, packaging remains heart-only. Keep private tokens out of the pack; the ZIP contains only placeholder connection settings.
+
+Only the twelve canonical hat pieces with PPU 1 are supported by this review build. Promotion rejects a `variants` field and arbitrary piece names. If native fitting requires another piece, dimensions or PPU variant, that avatar's production support is blocked until a controlled variant schema/runtime extension binds it to the approved canonical design, export checksum and explicit local native proof. Do not claim that unsupported variants are fitted.
+
+Final release work remains: user review and exact selections; genuine native graphical import/geometry/fit/restoration evidence; successful strict promotion; complete lint/tests and deterministic production packaging; commit the approved exports/provenance; then the user's final readiness gate before pushing and opening the MR. Review PNGs/ZIPs and raw history remain ignored until approval.

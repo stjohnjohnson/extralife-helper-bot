@@ -89,3 +89,21 @@ test('apply preserves unrelated native numeric literals beyond JavaScript precis
     const plan = buildFittingPlan({ sourceBytes: original }); applyFittingPlan({ settingsPath: filename, plan, appClosed: true });
     const next = fs.readFileSync(filename, 'utf8'); expect(next).toMatch(/"largeNativeCounter": 9007199254740993/); expect(next).toMatch(/"nativeDecimal": 0\.123456789012345678901/);
 }));
+test('native UTF8 BOM is accepted only at the beginning and remains part of source checksum', () => {
+    const original = bytes(fixture()); const bom = Buffer.from([0xef, 0xbb, 0xbf]);
+    const plan = buildFittingPlan({ sourceBytes: Buffer.concat([bom, original]) });
+    const plain = buildFittingPlan({ sourceBytes: original });
+    expect(plan.avatars).toEqual(plain.avatars); expect(plan.gearCompatibility).toEqual(plain.gearCompatibility);
+    expect(plan.sourceChecksum).not.toBe(plain.sourceChecksum);
+    expect(() => buildFittingPlan({ sourceBytes: Buffer.concat([bom, bom, original]) })).toThrow('Invalid settings JSON');
+});
+test('explicit BOM apply preserves BOM, exact backup and unrelated numeric tokens', () => temporary(dir => {
+    const filename = path.join(dir, 'settings.json');
+    const original = Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from(JSON.stringify(fixture()).replace('"credentials":', '"counter":9007199254740993,"decimal":0.123456789012345678901,"credentials":'))]);
+    fs.writeFileSync(filename, original); const plan = buildFittingPlan({ sourceBytes: original });
+    const applied = applyFittingPlan({ settingsPath: filename, plan, appClosed: true });
+    expect(fs.readFileSync(applied.backupPath)).toEqual(original);
+    const next = fs.readFileSync(filename); expect(next.subarray(0, 3)).toEqual(original.subarray(0, 3));
+    expect(next.toString('utf8')).toContain('9007199254740993'); expect(next.toString('utf8')).toContain('0.123456789012345678901');
+    expect(JSON.parse(next.subarray(3).toString('utf8')).avatarData.small.CanUseGear).toContain(SET_NAME);
+}));

@@ -5,12 +5,17 @@ const { tmpdir } = require('node:os');
 const { setTimeout: delay } = require('node:timers/promises');
 const { startStreamAvatars } = require('./index');
 const { createDonationSource } = require('../donations/source');
+const { THEME_IDS } = require('./themes');
 const scenarios = require('../../tests/fixtures/donations/integration-scenarios');
-async function runIntegration({ listenerConfig, token, crowdCount = 20, scenario = 'all', recognition = 'random', signal, hueOutput, logger = console, wait = ms => delay(ms, undefined, { signal }), clock = { nowMs: Date.now }, timers }) {
+async function runIntegration({ listenerConfig, token, crowdCount = 20, scenario = 'all', recognition = 'random', theme, game, candidatePackDir, themePackDir, signal, hueOutput, logger = console, wait = ms => delay(ms, undefined, { signal }), clock = { nowMs: Date.now }, timers }) {
     if (!['random','jump','hug'].includes(recognition)) throw new Error('Invalid integration recognition; use random, jump or hug');
     if (!Number.isInteger(crowdCount) || crowdCount < 0 || crowdCount > 100 || typeof token !== 'string' || token.length < 16 || token.length > 256) throw new Error('Invalid integration crowd/token configuration');
+    if (theme !== undefined && ![...THEME_IDS, 'all', 'neutral'].includes(theme)) throw new Error('Unknown integration theme');
+    if (theme !== undefined && game !== undefined) throw new Error('Choose --theme or --game');
+    if (theme === 'all' && scenario !== 'themes') throw new Error('--theme all requires --scenario themes');
+    const themed = scenario === 'themes' || theme !== undefined || game !== undefined;
     const selected = scenarios.filter(item => scenario === 'all' || item.name === scenario);
-    if (!selected.length) throw new Error('Unknown integration scenario');
+    if (!selected.length && scenario !== 'themes') throw new Error('Unknown integration scenario');
     signal?.throwIfAborted();
     const directory = await fs.mkdtemp(join(tmpdir(), 'sa-integration-run-'));
     let service, source, finalTotalCents = 0;
@@ -20,11 +25,23 @@ async function runIntegration({ listenerConfig, token, crowdCount = 20, scenario
     try {
         service = await startStreamAvatars({ config: { participantId: 'integration', webServer: listenerConfig,
             streamAvatars: { config: { token, stateDir: directory, donationIntervalCents: 50000 } } },
-        integration: { recognitionAction: recognition, crowdIds: Array.from({ length: crowdCount }, (_, i) => 'sa_integration_' + (i + 1)) }, logger, realClock: clock, timers });
+        integration: { recognitionAction: recognition, crowdIds: Array.from({ length: crowdCount }, (_, i) => 'sa_integration_' + (i + 1)) }, logger, realClock: clock, timers, candidatePackDir, themePackDir });
         logger.info(`Stream Avatars integration listener: ${service.address.address}:${service.address.port}. Import companion v3 and select Custom Lua.`, { address: service.address, stateDir: directory });
         const readyDeadline = clock.nowMs() + 60000;
-        while (!service.getStatus().companionReady) { check(); if (clock.nowMs() >= readyDeadline) throw new Error('Companion v3 was not ready within 60000 ms'); await wait(100); }
+        while (!service.getStatus().companionReady || (themed && !service.getStatus().themeReady)) { check(); if (clock.nowMs() >= readyDeadline) throw new Error('Companion v3 was not ready within 60000 ms'); await wait(100); }
         if (hueOutput && !await hueOutput.initialize()) throw new Error('Optional Hue initialization failed');
+        if (themed) {
+            const steps = scenario === 'themes' && (theme === undefined || theme === 'all') && game === undefined ? [
+                ...THEME_IDS.map(value => ({ theme: value })), { gameName: 'Raft' }, { gameName: 'PEAK' }, { gameName: 'Minecraft Bedrock' }, { theme: 'neutral' }
+            ] : [game !== undefined ? { gameName: game } : { theme: theme || 'neutral' }];
+            for (const step of steps) {
+                check(); if (!service.getStatus().themeReady) throw new Error('Theme companion disconnected before preview');
+                const result = await service.previewGame(step);
+                if (result.changed && !result.delivered) throw new Error('Theme preview was not dispatched');
+                logger.info(`Theme preview ${step.theme || step.gameName}: dispatched; verify scenery, caption and hats visually.`);
+                if (scenario === 'themes') { completedScenarios.push(step.theme || step.gameName); await wait(6500); }
+            }
+        }
         source = createDonationSource({ clock, requestGapMs: 0, fetch: async url => {
             check(); const isDonations = new URL(url).pathname.endsWith('/donations');
             return { status: 200, headers: new Headers({ 'api-version': '1.4', ...(isDonations ? { 'num-records': String(donations.length) } : {}) }), json: async () => isDonations ? [...donations].reverse() : campaign };

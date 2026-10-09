@@ -148,3 +148,9 @@ WEB_PORT=3010 npm run sa:integration -- --scenario ordinary --crowd 100 --recogn
 ```
 
 The ordinary poll cadence is 30 seconds. Automated clock-injected tests exercise API lag and overlapping batches even when normal deployment polls keep parties apart. Dispatch logs do not establish native visual acceptance; record LAN/OBS, platform, capacity and optional Hue results separately.
+
+### Preview themes and games
+
+Use `npm run sa:integration -- --scenario themes --theme all --candidate-pack /local/review-pack` for all six worlds, shared-theme game changes, an alias, and neutral. Use `--theme kitchen` or `--game "Keep Talking and Nobody Explodes"` with an existing donation scenario to inspect the two owners together. Approved packs use `--theme-pack`; production uses `STREAM_AVATARS_THEME_PACK` and rejects candidates.
+
+Preview state is isolated in the runner's temporary directory and removed on exit. It sends no Twitch category updates, chat, markers, or production game observations. Reconnect restores current state without an entrance. Each changed game identity gets one six-second entrance; repeated identities retain scenery and hats. Dispatch logs do not prove native fitting, graphics, or LAN/OBS acceptance.

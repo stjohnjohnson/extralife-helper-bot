@@ -96,7 +96,7 @@ async function startBridgeServer({ config, getSnapshot, onClientMessage = async 
         if (signal?.aborted) throw new Error('Stream Avatars startup aborted');
     } catch (error) { await stop(); throw error; }
     return { address: listener.address,
-        getStatus: () => ({ authenticatedClients: [...clients.values()].filter(record => record.authenticated).length, readyClients: [...clients.values()].filter(isReady).length }),
+        getStatus: () => ({ authenticatedClients: [...clients.values()].filter(record => record.authenticated).length, readyClients: [...clients.values()].filter(isReady).length, themeReadyClients: [...clients.values()].filter(record => isReady(record) && record.capabilities.includes('themes')).length }),
         async drain() {
             const deadline = Date.now() + 2000;
             while ([...clients.values()].some(record => record.pending > 0) && Date.now() < deadline) await delay(10);

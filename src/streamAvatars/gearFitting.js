@@ -3,8 +3,10 @@ const path = require('node:path');
 const { randomUUID } = require('node:crypto');
 const { isDeepStrictEqual } = require('node:util');
 const { SET_NAME, HATS, digest, object } = require('./gearCompatibility');
+const hasUtf8Bom = bytes => bytes.length >= 3 && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf;
+const sourceText = bytes => (hasUtf8Bom(bytes) ? bytes.subarray(3) : bytes).toString('utf8');
 function parseSource(sourceBytes) {
-    let data; try { data = JSON.parse(sourceBytes.toString('utf8')); } catch { throw new Error('Invalid settings JSON'); }
+    let data; try { data = JSON.parse(sourceText(sourceBytes)); } catch { throw new Error('Invalid settings JSON'); }
     if (!object(data) || !object(data.avatarData)) throw new Error('Settings must contain native avatarData');
     return data;
 }
@@ -43,7 +45,7 @@ function buildFittingPlan({ sourceBytes, overrides = {} }) {
 // Node24 preserves native numeric tokens (including Int64/decimal precision) when
 // rewriting unrelated settings. Parsed numbers are used only for plan geometry.
 const preserveNumbers = (key, value, context) => typeof value === 'number' ? JSON.rawJSON(context.source) : value;
-const parseExact = bytes => JSON.parse(bytes.toString('utf8'), preserveNumbers);
+const parseExact = bytes => JSON.parse(sourceText(bytes), preserveNumbers);
 function stripOwn(data) {
     const copy = parseExact(Buffer.from(JSON.stringify(data)));
     for (const a of Object.values(copy.avatarData)) {
@@ -79,7 +81,8 @@ function applyFittingPlan({ settingsPath, plan, appClosed = false }) {
         }
     }
     if (!isDeepStrictEqual(stripOwn(original), stripOwn(next))) throw new Error('Fitting changed unrelated settings');
-    const bytes = Buffer.from(JSON.stringify(next, null, 2) + '\n');
+    const jsonBytes = Buffer.from(JSON.stringify(next, null, 2) + '\n');
+    const bytes = hasUtf8Bom(sourceBytes) ? Buffer.concat([sourceBytes.subarray(0, 3), jsonBytes]) : jsonBytes;
     const directory = path.dirname(path.resolve(settingsPath)); const tag = randomUUID();
     const backupPath = path.join(directory, `.sa-fit-backup-${tag}.json`), temporaryPath = path.join(directory, `.sa-fit-${tag}.tmp`);
     // Refuse a changed source again immediately before backup and atomic replacement.

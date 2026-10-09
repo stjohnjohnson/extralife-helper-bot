@@ -6,10 +6,11 @@ function validGameObservation(value) {
     return value && cleanGameName(value.gameName) !== null && Number.isFinite(value.observedAtMs) && value.observedAtMs >= 0 && ['twitch', 'discord-category'].includes(value.source) &&
         (!Object.hasOwn(value, 'confirmedAtMs') || (value.source === 'discord-category' && Number.isFinite(value.confirmedAtMs) && value.confirmedAtMs >= value.observedAtMs));
 }
-function validGame(value) {
+function validGame(value, mode) {
     return value && Object.keys(value).length === 5 && ['identity', 'displayName', 'themeId', 'observedAtMs', 'source'].every(key => Object.hasOwn(value, key)) &&
         validGameIdentity(value.identity) && validThemeId(value.themeId) && cleanGameName(value.displayName) === value.displayName &&
-        validGameObservation({ gameName: value.displayName, observedAtMs: value.observedAtMs, source: value.source });
+        (validGameObservation({ gameName: value.displayName, observedAtMs: value.observedAtMs, source: value.source }) ||
+            (mode === 'rehearsal' && value.source === 'rehearsal' && Number.isFinite(value.observedAtMs) && value.observedAtMs >= 0));
 }
 
 function createInitialState({ mode, channel }) {
@@ -44,7 +45,7 @@ function validateSessionState(state, { mode, channel }) {
         typeof state.campaignGoalReached !== 'boolean' ||
         (state.sessionId !== null && (typeof state.sessionId !== 'string' || !state.sessionId || state.startedAtMs === null)) ||
         (state.latestObservation !== null && !validObservation(state.latestObservation)) ||
-        (state.game !== null && !validGame(state.game))) {
+        (state.game !== null && !validGame(state.game, mode))) {
         throw new Error('Invalid broadcast session state');
     }
     return structuredClone(state);

@@ -259,6 +259,69 @@ class ArtworkWorkflow {
         }
         return { valid: !errors.length, requiredAssets: briefs.length, selectedAssets: briefs.filter(b => selections[b.id]).length, errors };
     }
+    candidatePack({ destination, manifest, gearCompatibility } = {}) {
+        const ids = this.briefs().map(b => b.id).sort();
+        if (!manifest?.assets || JSON.stringify(Object.keys(manifest.assets).sort()) !== JSON.stringify(ids)) throw new Error('Explicit complete 42-attempt candidate map required');
+        return this.publishPack({ destination, choices: manifest.assets, gearCompatibility, previewOnly: true });
+    }
+    promote({ destination, gearProofs } = {}) {
+        const release = this.releaseCheck();
+        if (!release.valid) throw new Error('Release check failed: ' + release.errors.join('; '));
+        const choices = this.selections();
+        const { validateProofs } = require('../../src/streamAvatars/themeRelease');
+        const proofs = validateProofs(gearProofs, choices);
+        return this.publishPack({ destination, choices, gearCompatibility: proofs.compatibility, gearProofs: proofs, previewOnly: false });
+    }
+    publishPack({ destination, choices, gearCompatibility, gearProofs = null, previewOnly }) {
+        const { buildThemeCatalog } = require('../../src/streamAvatars/themeLayout');
+        const { localPath, jsonHash, loadThemePack } = require('../../src/streamAvatars/themeRelease');
+        const { HATS } = require('../../src/streamAvatars/gearCompatibility');
+        const target = localPath(destination);
+        if (fs.existsSync(target)) throw new Error('Pack destination already exists (conflict)');
+        const manifest = { schemaVersion: 1, assets: {} }; const evidence = {}; const bytes = {};
+        for (const brief of this.briefs().sort((a, b) => a.id.localeCompare(b.id))) {
+            const choice = choices[brief.id]; const record = this.attempt(choice?.attemptId);
+            if (record.assetId !== brief.id) throw new Error('Cross-asset pack attempt');
+            for (const field of ['sha256', 'sourceSha256', 'recipeHash']) if (choice[field] !== undefined && choice[field] !== record[field]) throw new Error('Candidate map checksum mismatch');
+            const validation = this.validate(record.attemptId);
+            if (!validation.valid) throw new Error('Invalid pack candidate: ' + validation.errors.join('; '));
+            const exportFile = `assets/${brief.id}.png`;
+            manifest.assets[brief.id] = { assetId: brief.id, theme: brief.theme, kind: brief.kind, ...(brief.kind === 'gear' ? { gearSlot: 'head' } : {}), attemptId: record.attemptId, sha256: record.sha256, exportFile,
+                geometry: { frame: { width: record.frame.width, height: record.frame.height, frameCount: 1, fps: 0 }, anchor: { x: record.anchor.x, y: record.anchor.y } } };
+            evidence[brief.id] = { assetId: brief.id, attemptId: record.attemptId, sha256: record.sha256, sourceSha256: record.sourceSha256, recipeHash: record.recipeHash,
+                promptSha256: hash(record.exactPrompt), referenceSha256: [...record.references, ...(record.actualReferences || [])].map(r => r.sha256), approved: !previewOnly };
+            if (!previewOnly) {
+                const expectedName = brief.kind === 'gear' ? HATS[brief.theme].find(h => h.assetId === brief.id).pieceName : 'sa_' + brief.id.replaceAll('.', '_').replaceAll('-', '_');
+                if (choice.sha256 !== record.sha256 || choice.recipeHash !== record.recipeHash || !validImportProof(choice.importProof, record) || choice.importProof.importName !== expectedName) throw new Error('Selection/native import name checksum mismatch');
+                evidence[brief.id].selectionId = choice.selectionId;
+                evidence[brief.id].importProof = { attemptId: record.attemptId, sha256: record.sha256, importedAndProven: true, importName: expectedName, evidenceSha256: hash(choice.importProof.notes) };
+            }
+            bytes[exportFile] = fs.readFileSync(this.local(record.exportFile));
+            if (hash(bytes[exportFile]) !== record.sha256) throw new Error('Changed export checksum');
+        }
+        const catalog = { ...buildThemeCatalog({ manifest, gearCompatibility, previewOnly: true }), previewOnly, rehearsalOnly: previewOnly };
+        const provenance = { schemaVersion: 1, previewOnly, packRevision: catalog.packRevision, manifestSha256: jsonHash(manifest), gearProofsSha256: gearProofs ? jsonHash(gearProofs) : null, assets: evidence };
+        fs.mkdirSync(path.dirname(target), { recursive: true });
+        const lock = target + '.publish-lock'; const stage = target + '.stage-' + crypto.randomUUID();
+        const descriptor = fs.openSync(lock, 'wx', 0o600);
+        try {
+            if (fs.existsSync(target)) throw new Error('Pack destination conflict');
+            fs.mkdirSync(stage); fs.mkdirSync(path.join(stage, 'assets'));
+            const write = (name, value) => fs.writeFileSync(localPath(stage, name), value, { flag: 'wx', flush: true });
+            for (const [name, image] of Object.entries(bytes)) write(name, image);
+            for (const [name, value] of Object.entries({ 'manifest.json': manifest, 'catalog.json': catalog, 'provenance.json': provenance, 'gear-compatibility.json': catalog.gear, ...(gearProofs ? { 'gear-import.json': gearProofs } : {}) })) write(name, JSON.stringify(value, null, 2) + '\n');
+            loadThemePack({ directory: stage, previewOnly });
+            if (fs.existsSync(target)) throw new Error('Pack destination conflict');
+            for (const brief of this.briefs()) {
+                const choice = choices[brief.id]; const current = this.attempt(choice.attemptId);
+                if (!this.validate(choice.attemptId).valid || current.sha256 !== manifest.assets[brief.id].sha256) throw new Error('Candidate inputs changed during staging');
+                if (!previewOnly && this.selections()[brief.id]?.selectionId !== choice.selectionId) throw new Error('Selection changed during staging');
+            }
+            if (!previewOnly && !this.releaseCheck().valid) throw new Error('Release changed during staging');
+            fs.renameSync(stage, target);
+        } finally { fs.rmSync(stage, { recursive: true, force: true }); fs.closeSync(descriptor); fs.unlinkSync(lock); }
+        return { packRevision: catalog.packRevision, catalog, provenance };
+    }
     review({ theme } = {}) {
         if (theme && !this.inventory.assets.some(b => b.theme === theme)) throw new Error('Unknown theme');
         const selections = this.selections();

@@ -35,3 +35,13 @@ test.each([['--recognition'],['--recognition','explode']])('invalid recognition 
     await expect(run([...args, '--hue'], env)).rejects.toThrow(/recognition|Use/);
     expect(runIntegration).not.toHaveBeenCalled(); expect(HueController).not.toHaveBeenCalled();
 });
+
+test.each([
+    [['--scenario','themes','--theme','all','--candidate-pack','/local/review'], { scenario: 'themes', theme: 'all', candidatePackDir: '/local/review' }],
+    [['--scenario','ordinary','--theme','kitchen','--theme-pack','/local/approved'], { scenario: 'ordinary', theme: 'kitchen', themePackDir: '/local/approved' }],
+    [['--game','Keep Talking and Nobody Explodes'], { game: 'Keep Talking and Nobody Explodes' }]
+])('theme controls are forwarded to the isolated integration runner: %j', async (args, expected) => {
+    await run(args, env);
+    expect(runIntegration).toHaveBeenCalledWith(expect.objectContaining(expected));
+    expect(HueController).not.toHaveBeenCalled();
+});

@@ -95,3 +95,33 @@ test('runner rejects unknown recognition before creating a listener', async () =
     await expect(runIntegration({ listenerConfig: { host: '127.0.0.1', port: 0 }, token, recognition: 'explode', logger, wait: async () => { throw new Error('listener was created'); } })).rejects.toThrow(/recognition/);
     expect(logger.info).not.toHaveBeenCalled();
 });
+
+test.each([
+    [{ scenario: 'themes', theme: 'all' }, ['block-world','kitchen','outdoor','puzzle','space-salvage','party','Raft','PEAK','Minecraft Bedrock','neutral']],
+    [{ scenario: 'ordinary', theme: 'kitchen' }, ['ordinary']]
+])('existing theme previews run over the new real socket runner: %j', async (options, completed) => {
+    const packets = [], dirs = []; let socket; const time = createManualClock(Date.now());
+    const logger = { warn: jest.fn(), info(message, details) {
+        if (!details?.address) return;
+        dirs.push(details.stateDir);
+        socket = new WebSocket(`ws://127.0.0.1:${details.address.port}/sa/socket`);
+        socket.on('open', () => socket.send(JSON.stringify({ version: 3, type: 'auth', token })));
+        socket.on('message', raw => {
+            const value = JSON.parse(raw); packets.push(value);
+            if (value.type === 'snapshot') socket.send(JSON.stringify({ version: 3, type: 'ready', capabilities: ['campaign','celebrations','donation-recognition','themes'], resolution: { width: 1920, height: 1080 } }));
+        });
+    } };
+    try {
+        const result = await runIntegration({ listenerConfig: { host: '127.0.0.1', port: 0 }, token, logger, clock: time.clock, timers: time.timers, ...options,
+            wait: async ms => { await time.advance(ms); await new Promise(resolve => setTimeout(resolve, 2)); } });
+        expect(result.completedScenarios).toEqual(completed);
+        const entrances = packets.filter(value => value.type === 'game-entrance');
+        expect(entrances.length).toBe(options.scenario === 'themes' ? 10 : 1);
+        expect(entrances.every(value => value.version === 3 && value.mode === 'integration' && value.campaignId === 'integration')).toBe(true);
+        if (options.scenario === 'ordinary') {
+            expect(packets.some(value => value.type === 'celebration' && value.donationTotalCents === 2500)).toBe(true);
+            expect(packets.filter(value => value.type === 'snapshot' && value.theme).every(value => value.theme.themeId === 'kitchen')).toBe(true);
+        } else expect(packets.filter(value => value.type === 'snapshot' && value.theme).at(-1).theme.themeId).toBeNull();
+        for (const dir of dirs) await expect(fs.stat(dir)).rejects.toMatchObject({ code: 'ENOENT' });
+    } finally { socket?.terminate(); }
+});

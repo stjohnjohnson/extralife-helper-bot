@@ -1,17 +1,20 @@
 const fs = require('node:fs');
 const path = require('node:path');
+const { parseArgs } = require('node:util');
 const { buildPackage } = require('../src/streamAvatars/package');
 
 const DEFAULT_OUTPUT = path.resolve(__dirname, '../dist/stream-avatars/sa-helper-bridge.zip');
-const USAGE = 'Usage: npm run sa:package -- [--output path/to/package.zip]';
+const USAGE = 'Usage: npm run sa:package -- [--output path/to/package.zip] [--candidate-pack LOCAL_DIR | --theme-pack LOCAL_DIR]';
 
 function run(args = process.argv.slice(2)) {
-    if (args.length && (args.length !== 2 || args[0] !== '--output' || !args[1] || !args[1].toLowerCase().endsWith('.zip'))) throw new Error(USAGE);
-    const output = args.length ? path.resolve(args[1]) : DEFAULT_OUTPUT;
-    const { archive, imageCount } = buildPackage();
+    let values;
+    try { ({ values } = parseArgs({ args, options: { output: { type: 'string' }, 'candidate-pack': { type: 'string' }, 'theme-pack': { type: 'string' } } })); } catch { throw new Error(USAGE); }
+    if ((values.output && !values.output.toLowerCase().endsWith('.zip')) || (values['candidate-pack'] && values['theme-pack'])) throw new Error(USAGE);
+    const output = values.output ? path.resolve(values.output) : DEFAULT_OUTPUT;
+    const { archive, imageCount, packRevision } = buildPackage({ themePackDir: values['candidate-pack'] || values['theme-pack'], previewOnly: !!values['candidate-pack'] });
     fs.mkdirSync(path.dirname(output), { recursive: true });
     fs.writeFileSync(output, archive);
-    console.log(`Created ${output} (${imageCount} image${imageCount === 1 ? '' : 's'}). Configure the private address/token after import.`);
+    console.log(`Created ${output} (${imageCount} image${imageCount === 1 ? '' : 's'}, revision ${packRevision}). Configure the private address/token after import.`);
 }
 
 if (require.main === module) {

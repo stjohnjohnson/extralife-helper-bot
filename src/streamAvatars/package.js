@@ -85,8 +85,10 @@ function animationSettings(manifest) {
     };
 }
 
-function buildPackage({ integrationDir = DEFAULT_INTEGRATION_DIR, themeManifest, themeAssetsDir, gearCompatibility, previewOnly = false } = {}) {
-    const catalog = buildThemeCatalog({ manifest: themeManifest, gearCompatibility, previewOnly });
+function buildPackage({ integrationDir = DEFAULT_INTEGRATION_DIR, themeManifest, themeAssetsDir, gearCompatibility, themePackDir, previewOnly = false } = {}) {
+    if (themePackDir && (themeManifest || gearCompatibility || themeAssetsDir)) throw new Error('Use one trusted local theme pack');
+    const catalog = themePackDir ? require('./themeRelease').loadThemePack({ directory: themePackDir, previewOnly }).catalog : buildThemeCatalog({ manifest: themeManifest, gearCompatibility, previewOnly });
+    if (themePackDir) themeAssetsDir = themePackDir;
     const assetsDir = path.join(integrationDir, 'assets');
     if (!fs.lstatSync(assetsDir).isDirectory()) throw new Error('assets must be a regular directory');
     const manifests = fs.readdirSync(assetsDir).filter(name => name.toLowerCase().endsWith('.json')).sort();
@@ -134,7 +136,7 @@ function buildPackage({ integrationDir = DEFAULT_INTEGRATION_DIR, themeManifest,
         scriptImages[asset.image] = animationSettings({ name: asset.image, frameWidth: asset.width, frameHeight: asset.height, frames: 1, framesPerSecond: 1, loop: true });
         add(`${scriptPath}${asset.image}.png`, image);
     }
-    if (themeManifest) {
+    if (catalog.assets.length) {
         const marker = 'local THEME_CATALOG_JSON = nil';
         if (!source.includes(marker)) throw new Error('Companion theme-catalog marker is missing');
         const themes = Object.fromEntries(Object.entries(catalog.themes).map(([id, theme]) => [id, buildThemeLayout({ theme, packRevision: catalog.packRevision })]));

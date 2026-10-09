@@ -2,15 +2,22 @@ const { join } = require('node:path');
 const { createSessionController } = require('../broadcastSession');
 const { createSessionStore } = require('../broadcastSession/store');
 const { validObservation, validGameObservation } = require('../broadcastSession/state');
-const { loadThemeConfiguration, PACK_REVISION } = require('./themes');
+const { loadThemeConfiguration, resolveGame, THEME_IDS } = require('./themes');
+const { createHash } = require('node:crypto');
+const { buildThemeCatalog } = require('./themeLayout');
+const { loadThemePack } = require('./themeRelease');
 const { publicCampaign } = require('./protocol');
 const { createCampaignCelebrationComposer } = require('./celebrations');
 const { createCampaignProgress } = require('./campaignProgress');
 const { createCampaignStore } = require('./campaignStore');
 const { startBridgeServer } = require('./server');
 const { createEventDispatcher } = require('./events');
-async function startStreamAvatars({ config, logger = { warn() {} }, signal, webServer, realClock = { nowMs: Date.now }, timers = { setTimeout, clearTimeout }, integration = null }) {
+async function startStreamAvatars({ config, logger = { warn() {} }, signal, webServer, realClock = { nowMs: Date.now }, timers = { setTimeout, clearTimeout }, integration = null, themePackDir, candidatePackDir }) {
     const settings = config.streamAvatars.config, mode = integration ? 'integration' : 'production';
+    if (candidatePackDir && !integration) throw new Error('Candidate packs require integration preview');
+    if (candidatePackDir && themePackDir) throw new Error('Choose one theme pack');
+    const directory = candidatePackDir || themePackDir || settings.themePackDir;
+    const catalog = directory ? loadThemePack({ directory, previewOnly: Boolean(candidatePackDir && integration) }).catalog : buildThemeCatalog();
     const crowdIds = integration ? [...integration.crowdIds] : [], participantId = String(config.participantId), intervalCents = settings.donationIntervalCents ?? 50000;
     const progress = await createCampaignProgress({ store: createCampaignStore({ path: join(settings.stateDir, mode, 'campaign.json'), mode, participantId, intervalCents }),
         clock: realClock, mode, participantId, intervalCents });
@@ -32,7 +39,7 @@ async function startStreamAvatars({ config, logger = { warn() {} }, signal, webS
     let server, events, stopping, phaseTimer = null, lastResolution = null, active = true, generation = 1;
     const snapshot = () => ({ version: 3, type: 'snapshot', mode, generation, serverNowMs: realClock.nowMs(), campaign: publicCampaign(progress.getSnapshot()),
         integration: { active: Boolean(integration), crowdIds },
-        theme: themes.enabled && currentGame() ? { gameIdentity: currentGame().identity, gameName: currentGame().displayName, themeId: currentGame().themeId, packRevision: PACK_REVISION } : null,
+        theme: themes.enabled && currentGame() ? { gameIdentity: currentGame().identity, gameName: currentGame().displayName, themeId: currentGame().themeId, packRevision: catalog.packRevision } : null,
         features: ['hearts','crowd','campaign','celebrations','donation-recognition', ...(themes.enabled ? ['themes'] : [])] });
     const cancelTimer = () => { if (phaseTimer !== null) timers.clearTimeout(phaseTimer); phaseTimer = null; };
     const discardVisuals = () => { cancelTimer(); composer.clear(); progress.clearConfirmations(); };
@@ -83,6 +90,18 @@ async function startStreamAvatars({ config, logger = { warn() {} }, signal, webS
         signal?.addEventListener('abort', abort, { once: true });
     } catch (error) { await stop(); throw error; }
     return { address: server.address, getPollCheckpoint: () => active ? progress.getPollCheckpoint() : null,
+        previewGame({ theme, gameName, announce = true }) { return enqueueObservation(async () => {
+            if (!integration || !themes.enabled) throw new Error('Theme preview unavailable');
+            if ((theme === undefined) === (gameName === undefined)) throw new Error('Choose a theme or game');
+            const game = gameName !== undefined ? resolveGame(gameName, themes.config) : [...THEME_IDS, 'neutral'].includes(theme) ? {
+                identity: createHash('sha256').update('integration-theme:' + theme).digest('hex'),
+                displayName: theme === 'neutral' ? 'Just Chatting' : theme, themeId: theme === 'neutral' ? null : theme
+            } : null;
+            if (!game) throw new Error('Invalid integration theme or game');
+            if (previewGame?.identity === game.identity) return { changed: false, delivered: false };
+            previewGame = game; notify();
+            return { changed: true, delivered: announce && events.publishGameEntrance({ mode, generation, campaignId: participantId, gameIdentity: game.identity, themeId: game.themeId }) };
+        }); },
         observeProduction(observation) { return enqueueObservation(async () => {
             if (integration || !validObservation(observation)) return;
             const latestAt = Math.max(lastRealObservation?.observedAtMs ?? -1, gameSession.getSnapshot().latestObservation?.observedAtMs ?? -1);
@@ -110,7 +129,7 @@ async function startStreamAvatars({ config, logger = { warn() {} }, signal, webS
             const state = progress.getSnapshot(), c = publicCampaign(state);
             return { mode, state, game: currentGame(), gameRecoveryRequired: gameSession?.getStatus().recoveryRequired, crowdCount: crowdIds.length, ...progress.getStatus(), initialized: c.initialized,
                 campaignTotalCents: c.totalCents, campaignGoalCents: c.goalCents, nextMilestoneCents: c.nextMilestoneCents,
-                companionReady: ready(), companionConnected: server.getStatus().authenticatedClients > 0, resolution: lastResolution };
+                themeReady: Boolean(server.getStatus().themeReadyClients), companionReady: ready(), companionConnected: server.getStatus().authenticatedClients > 0, resolution: lastResolution };
         },
         async dispatch(action) {
             if (!active) return { status: 'unavailable', message: 'Stream Avatars stopped.' };

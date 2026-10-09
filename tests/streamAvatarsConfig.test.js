@@ -32,3 +32,7 @@ test('invalid theme override keeps listener and heart configuration enabled with
     expect(result).toMatchObject({ enabled: true, errors: [], config: { themes: { enabled: false, config: null, errors: ['Invalid Stream Avatars theme configuration'] } } });
     expect(JSON.stringify(result)).not.toContain('FAKE_SECRET');
 });
+test('production accepts a configured trusted local pack directory and rejects URL-like paths', () => {
+    expect(parseStreamAvatarsConfiguration({ ...enabled, STREAM_AVATARS_THEME_PACK: '/private/tmp/approved-pack' }).config.themePackDir).toBe('/private/tmp/approved-pack');
+    expect(parseStreamAvatarsConfiguration({ ...enabled, STREAM_AVATARS_THEME_PACK: 'https://example.com/pack' }).enabled).toBe(false);
+});
