@@ -94,3 +94,54 @@ test.each(['donation','milestone','goal','hidden','goal-only'])('Lua renders act
         expect({ status: result.status, stderr: result.stderr, stdout: result.stdout.trim() }).toEqual({ status: 0, stderr: '', stdout: 'OK wire-celebration' });
     } finally { rmSync(directory, { recursive: true, force: true }); }
 });
+
+const { buildThemeCatalog, buildThemeLayout } = require('../src/streamAvatars/themeLayout');
+const { candidate } = require('./fixtures/themeCandidates');
+const themeScenarios = ['theme-stale-load', 'theme-shared-game', 'theme-neutral', 'theme-missing-backdrop', 'theme-resize', 'theme-small-bounds', 'theme-heart-coexistence', 'theme-reconnect-no-entrance', 'theme-production-gate', 'theme-revision', 'theme-load-timeout', 'theme-pending-cap', 'theme-scope-cancellation', 'entrance-timing', 'entrance-obsolete', 'entrance-caption', 'entrance-neutral', 'entrance-supersession', 'theme-density-0', 'theme-density-20', 'theme-density-100', 'theme-kitchen', 'entrance-caption-error'];
+function themeSource() {
+    const manifest = candidate();
+    for (const asset of Object.values(manifest.assets)) {
+        const copy = { ...asset, assetId: asset.assetId.replace('block-world', 'kitchen'), theme: 'kitchen' };
+        manifest.assets[copy.assetId] = copy;
+    }
+    const catalog = buildThemeCatalog({ manifest, previewOnly: true });
+    const themes = Object.fromEntries(Object.entries(catalog.themes).map(([id, theme]) => [id, buildThemeLayout({ theme, packRevision: catalog.packRevision })]));
+    return readFileSync(resolve('integrations/stream-avatars/companion.lua'), 'utf8').replace('local THEME_CATALOG_JSON = nil', `local THEME_CATALOG_JSON = [[${JSON.stringify({ profile: catalog.profile, previewOnly: true, packRevision: 'a'.repeat(64), themes })}]]`);
+}
+function runTheme(scenario, mutate = source => source) {
+    const directory = mkdtempSync(join(tmpdir(), 'sa-theme-'));
+    try {
+        const script = join(directory, 'companion.lua'); writeFileSync(script, mutate(themeSource()));
+        return run(script, scenario);
+    } finally { rmSync(directory, { recursive: true, force: true }); }
+}
+test.each(themeScenarios)('lasting worlds and bounded entrances: %s', scenario => {
+    const result = runTheme(scenario);
+    expect({ status: result.status, stderr: result.stderr, stdout: result.stdout.trim() }).toEqual({ status: 0, stderr: '', stdout: 'OK ' + scenario });
+});
+
+test.each([
+    ['theme-stale-load', 'get(key)=="cancelled"', 'false'],
+    ['theme-stale-load', 'entry.object.setScale(0,0); entry.loader=async("sa_load_theme"', 'entry.object.setScale(1,1); entry.loader=async("sa_load_theme"'],
+    ['theme-shared-game', 'if key==themeKey then return end', 'if false then return end'],
+    ['theme-production-gate', 'not catalog.previewOnly or', 'true or'],
+    ['theme-production-gate', 'and snapshot.rehearsal.active', ''],
+    ['theme-revision', 'theme.packRevision==catalog.packRevision', 'true'],
+    ['theme-shared-game', 'layer="behindBackground",order=0', 'layer="background",order=0'],
+    ['theme-resize', 'local scale=width/REFERENCE_WIDTH', 'local scale=1000/REFERENCE_WIDTH'],
+    ['theme-pending-cap', 'if pending<100 then', 'if true then'],
+    ['theme-missing-backdrop', 'release(entry); entry.skipped=true', 'clearTheme(); return'],
+    ['entrance-timing', 'ends=elapsed+6', 'ends=elapsed+60'],
+    ['entrance-timing', 'value.expiresAtMs>elapsed*1000+serverOffset and value.durationMs==6000', 'true and value.durationMs==6000'],
+    ['entrance-timing', 'and not seen[value.id] and', 'and'],
+    ['entrance-obsolete', 'value.themeId==snapshot.theme.themeId', 'true'],
+    ['entrance-obsolete', 'value.gameIdentity==snapshot.theme.gameIdentity', 'true'],
+    ['entrance-caption', 'value:gsub("[<>]", "")', 'value'],
+    ['entrance-supersession', 'then clearEntrance() end', 'then end']
+])('theme/entrance regression detects mutation %s / %s', (scenario, original, broken) => {
+    const result = runTheme(scenario, source => {
+        if (!source.includes(original)) throw new Error('Mutation target moved: ' + original);
+        return source.replaceAll(original, broken);
+    });
+    expect(result.error).toBeUndefined(); expect(result.status).toBe(1); expect(result.stderr).toMatch(/assertion failed|must|requires active rehearsal/);
+});

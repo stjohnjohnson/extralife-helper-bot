@@ -62,9 +62,10 @@ async function startBridgeServer({ config, getSnapshot, onClientMessage = async 
                     if (record.alive && socket.readyState === WebSocket.OPEN) {
                         if (message.type === 'ready') {
                             if (!message.capabilities.includes('campaign') || !message.capabilities.includes('celebrations') || !message.capabilities.includes('donation-recognition')) throw new Error('Import latest companion v3');
+                            const hadThemes = record.capabilities.includes('themes');
                             const previouslyReady = isReady(record); reportReadinessLoss();
                             record.capabilities = message.capabilities; if (!previouslyReady) record.readyAtMs = clock.nowMs(); hadReady = true;
-                            if (message.capabilities.includes('themes')) sendTo(socket, record, getSnapshot());
+                            if (!hadThemes && message.capabilities.includes('themes')) sendTo(socket, record, getSnapshot());
                         }
                         await onClientMessage(message);
                     }

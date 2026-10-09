@@ -433,10 +433,11 @@ test('gallery band height and baseline controls clamp preview values without mut
     expect(height.value).toBe('120');
     expect(bottom.value).toBe('4');
     expect(doc.querySelector('.strip').style.height).toBe('120px');
+    expect(doc.querySelector('.strip img').style.bottom).toBe('0px');
     height.value = '96'; height.dispatchEvent(new dom.window.Event('change'));
     bottom.value = '12'; bottom.dispatchEvent(new dom.window.Event('change'));
     expect(doc.querySelector('.strip').style.height).toBe('96px');
-    expect(doc.querySelector('.strip img').style.bottom).toBe('12px');
+    expect(doc.querySelector('.strip img').style.bottom).toBe('8px');
     expect(doc.querySelector('.avatar').style.bottom).toBe('12px');
     height.value = '9999'; height.dispatchEvent(new dom.window.Event('change'));
     bottom.value = '-100'; bottom.dispatchEvent(new dom.window.Event('change'));

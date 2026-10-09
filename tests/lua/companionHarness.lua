@@ -2,6 +2,9 @@ local script, scenario = arg[1], arg[2]
 local shared, packets, users, objects, callbacks = {}, {}, {}, {}, {}
 local codec = dofile("tests/lua/vendor/json.lua")
 local logs = {}
+local themeScenario = scenario:match("^theme%-") or scenario:match("^entrance%-")
+local themeRevision = themeScenario and arg[3] or string.rep("a",64)
+if not themeRevision then themeRevision=string.rep("a",64) end
 -- Stream Avatars bundles a MoonSharp codec whose serializer emits \/,
 -- but whose Lua lexer rejects it. get() round-trips tables through that codec.
 local function hostParse(text)
@@ -38,14 +41,14 @@ app.platformServiceSettings = {
     SetUserLeave = function(id) assert(type(id)=="number" and id>=900001 and id<=900100); users[tostring(id)] = nil; leaves = leaves+1 end
 }
 app.createGameObject = function()
-    local ob; ob = { removed = false, scale = 1, image = { anchor = function(where,dimensions) assert(where=="center" and dimensions==true); ob.anchored=true end } }
+    local ob; ob = { removed = false, scale = 1, image = { anchor = function(where,dimensions) assert(where=="center" and dimensions==true); ob.anchored=true end, sorting = function(value,layer) assert(value==0 or value==1); assert(layer=="behindBackground" or layer=="background"); ob.layer=layer end }, text = { setText = function(value) assert(type(value)=="string"); if scenario=="entrance-caption-error" then error("caption unavailable") end; ob.caption=value end, setSize = function(value) assert(type(value)=="number" and value>0); ob.fontSize=value end } }
     ob.setScale = function(x,y) assert(x==y); ob.scale=x end
     ob.setPosition = function(x,y) assert(not ob.removed and type(x)=="number" and type(y)=="number" and x==x and y==y and math.abs(x)<math.huge and math.abs(y)<math.huge); ob.x=x; ob.y=y end
     ob.destroy = function() ob.removed=true end
     objects[#objects+1]=ob; return ob
 end
 local loaders, loaderSequence = {}, 0
-local allowImageCompletion = scenario~="pending-image-stop"
+local allowImageCompletion = scenario~="pending-image-stop" and scenario~="theme-stale-load"
 local env; env = {
     getApp = function() return app end,
     get = function(key)
@@ -54,7 +57,10 @@ local env; env = {
     end, set = function(key,value) shared[key]=clone(value) end,
     load = function() shared.data = config end,
     getUsers = function() local list={} for _,user in pairs(users) do list[#list+1]=user end return list end,
-    applyImage = function(ob,name) assert(type(name)=="string" and name:match("^sa_") and not ob.removed); ob.asset=name; if (scenario=="celebration-missing-confetti" and name=="sa_confetti") or (scenario=="celebration-missing-heart" and name=="sa_heart") then error("missing layer") end; if scenario=="missing-image" then error("missing image") end
+    applyImage = function(ob,name) assert(type(name)=="string" and name:match("^sa_") and not ob.removed); ob.asset=name; ob.name=name; if (scenario=="celebration-missing-confetti" and name=="sa_confetti") or (scenario=="celebration-missing-heart" and name=="sa_heart") then error("missing layer") end; if scenario=="missing-image" then error("missing image") end
+        if scenario=="theme-missing-backdrop" and name:find("backdrop") then error("missing backdrop") end
+        if (scenario=="theme-load-timeout" or scenario=="theme-pending-cap") and name~="sa_heart" then while true do coroutine.yield() end end
+        if scenario=="theme-stale-load" and name~="sa_heart" then ob.imageLoaded=true; coroutine.yield() end; if scenario=="missing-image" then error("missing image") end
         if (scenario=="missing-image-host" or scenario=="image-pending-cap") then error("CLR missing image") end
         if scenario=="celebration-delay-cancel" or scenario=="image-load-delay" or scenario=="pending-image-stop" or scenario=="image-loaded-before-clear" then
             -- The real callback plays the image before it resumes the worker.
@@ -86,7 +92,7 @@ setmetatable(app, { __index=function(_,key) error("Undocumented app API: "..tost
 -- addEvent must resolve only explicitly exported callbacks, never main-coroutine locals.
 env.addEvent = function(name, callback) callbacks[name] = function(...) return env[callback](...) end end
 env.async = function(name, ...)
-    assert(name=="sa_load_heart" and type(env[name])=="function")
+    assert((name=="sa_load_heart" or name=="sa_load_theme") and type(env[name])=="function")
     loaderSequence=loaderSequence+1
     local worker=coroutine.create(env[name]); loaders[loaderSequence]=worker
     local ok=coroutine.resume(worker,...)
@@ -197,7 +203,103 @@ local function phasePacket(phase,seq,id)
     local party=phase=="party"
     return {version=3,type="celebration",mode="integration",generation=1,campaignId="12",id=id or phase,sequenceId=seq or "sequence",issuedAtMs=1000,expiresAtMs=11000,phase=phase,kind=party and "milestone" or "donation",campaignTotalCents=252500,milestoneCents=party and 250000 or codec.null,donationCount=party and 0 or 1,donationTotalCents=party and 0 or 5000,recognitionStartedAtMs=party and codec.null or 1000,recognitionAction=party and codec.null or "jump",heartsUntilMs=party and 0 or 6000,partyStartedAtMs=party and 1000 or codec.null,partyUntilMs=party and 19000 or 0}
 end
-if scenario=="phase-ordered" then
+if themeScenario then
+    local function themed(game, revision, theme)
+        local value=snapshot(); value.integration.active=true
+        value.theme={gameIdentity=game or string.rep("b",64),gameName="Minecraft",themeId=theme or "block-world",packRevision=revision or themeRevision}
+        return value
+    end
+    local function entranceEvent(id, value)
+        value=value or themed()
+        return {version=3,type="game-entrance",mode=value.mode,generation=value.generation,campaignId=value.campaign.campaignId,id=id or "entrance",gameIdentity=value.theme.gameIdentity,themeId=value.theme.themeId,issuedAtMs=1000,expiresAtMs=11000,durationMs=6000}
+    end
+    local function themes() local n=0 for _,ob in ipairs(objects) do if ob.name and ob.name~="sa_heart" and not ob.removed and ob.scale>0 then n=n+1 end end return n end
+    local function captions() local list={} for _,ob in ipairs(objects) do if ob.caption and not ob.removed then list[#list+1]=ob end end return list end
+    local function themeObject() for _,ob in ipairs(objects) do if ob.name and ob.name~="sa_heart" and not ob.removed and ob.scale>0 then return ob end end end
+    if scenario:match("^theme%-density%-") then
+        local n=tonumber(scenario:match("(%d+)$")); for i=1,n do addUser(i,i*5,20) end
+    else addUser(1) end
+    send(themed()); tick()
+    if scenario=="theme-stale-load" then
+        allowImageCompletion=false; send(themed(string.rep("c",64),string.rep("d",64))); assert(themes()==0)
+        send(themed()); assert(themes()==0); allowImageCompletion=true; tick(); tick(); assert(themes()==8)
+        for i=1,8 do assert(objects[i].removed and objects[i].scale==0, "stale theme must stay invisible and be discarded") end
+    elseif scenario=="theme-load-timeout" then
+        assert(themes()==0); tick(2.1); tick(); assert(themes()==0 and shared.sa_pending_images==8)
+        send({version=3,type="heartbeat",serverNowMs=4000}); assert(packets[#packets].type=="heartbeat")
+    elseif scenario=="theme-pending-cap" then
+        for i=1,15 do send(themed(nil,string.rep("d",64))); send(themed()); tick(2.1); tick() end
+        assert(#objects==100 and shared.sa_pending_images==100, "theme must cap pending loads")
+        send({version=3,type="heartbeat",serverNowMs=4000}); assert(packets[#packets].type=="heartbeat")
+    elseif scenario=="theme-missing-backdrop" then
+        tick(); assert(themes()==4, "missing backdrop must preserve props")
+        send(hearts()); assert(count()==5); send({version=3,type="heartbeat",serverNowMs=1200}); assert(packets[#packets].type=="heartbeat"); callbacks.websocket("sa_helper_bridge","OnClose","",""); tick(); assert(themes()==0, "missing component must not leak surviving props on disconnect")
+    elseif scenario=="theme-small-bounds" then
+        app.convertPercentToPosition=function(x,y) return {x=x*10,y=y*0.1} end; tick(); assert(themes()==0)
+        app.convertPercentToPosition=function(x,y) return {x=x*1000,y=y*200} end; tick(); assert(themes()==8)
+    else
+        assert(themes()==8, "theme must create four literal tiles and four props")
+        for _,ob in ipairs(objects) do
+            assert(ob.layer==(ob.name:find("backdrop") and "behindBackground" or "background"), "theme must use declared layer")
+            if ob.name:find("backdrop") then assert(math.abs(ob.y-18.75)<0.0001, "center pivot must preserve baseline anchor") end
+        end
+        if scenario:match("^theme%-density%-") then
+            local n=tonumber(scenario:match("(%d+)$")); send(entranceEvent()); assert(jumps==n and themes()==8 and #captions()==1)
+            for _,user in pairs(users) do assert(user.x==user.id*5 and user.y==20, "world must preserve movement positions") end
+        elseif scenario=="theme-kitchen" then
+            send(themed(string.rep("c",64),nil,"kitchen")); tick(); assert(themes()==8)
+            for _,ob in ipairs(objects) do if not ob.removed then assert(ob.name:match("^sa_kitchen_"), "new world must replace only old world") end end
+        elseif scenario=="theme-shared-game" then
+            local ob=themeObject(); local x=ob.x; local value=themed(string.rep("c",64)); value.theme.gameName="Minecraft Bedrock"; send(value); assert(themeObject()==ob and ob.x==x and #objects==8)
+        elseif scenario=="theme-neutral" then
+            local value=snapshot(); value.theme=nil; send(value); assert(themes()==0); send(hearts()); assert(count()==1)
+        elseif scenario=="theme-resize" then
+            local before={}; for _,ob in ipairs(objects) do before[ob]=ob.x end
+            app.convertPercentToPosition=function(x,y) return {x=-100+x*777,y=-20+y*200} end; tick(); assert(themes()==8 and #objects==8)
+            for _,ob in ipairs(objects) do assert(math.abs(ob.x-(-100+before[ob]*777/1000))<0.0001); assert(math.abs(ob.scale-777/1920)<0.0001) end
+        elseif scenario=="theme-heart-coexistence" then
+            send(hearts()); assert(count()==9); send(entranceEvent()); assert(count()==9 and #captions()==1); tick(5.1); tick(); assert(themes()==8 and count()==8 and #captions()==1); tick(1); tick(); assert(themes()==8 and #captions()==0)
+        elseif scenario=="theme-reconnect-no-entrance" then
+            assert(jumps==0 and #captions()==0); send(entranceEvent()); assert(jumps==1); callbacks.websocket("sa_helper_bridge","OnClose","",""); tick(); assert(themes()==0 and #captions()==0); tick(1.1); send(themed()); tick(); assert(themes()==8 and jumps==1 and #captions()==0)
+        elseif scenario=="theme-production-gate" then
+            local value=themed(); value.mode="production"; value.rehearsal.active=false; send(value); assert(themes()==0, "candidate must never render in production")
+            value=themed(); value.rehearsal.active=false; send(value); assert(themes()==0, "candidate requires active rehearsal")
+        elseif scenario=="theme-revision" then
+            send(entranceEvent()); assert(#captions()==1); send(themed(nil,string.rep("d",64))); assert(themes()==0 and #captions()==0, "theme revision must cancel entrance"); send(themed()); tick(); assert(themes()==8 and #objects==17)
+        elseif scenario=="theme-scope-cancellation" then
+            for _,change in ipairs({"clear","mode","session","disconnect"}) do
+                send(themed()); tick(); send(entranceEvent(change)); assert(#captions()==1)
+                if change=="clear" then send({version=3,type="clear",mode="integration",generation=1})
+                elseif change=="mode" then local value=snapshot("production"); send(value)
+                elseif change=="session" then local value=snapshot(); value.session.sessionId="next"; send(value)
+                else callbacks.websocket("sa_helper_bridge","OnClose","",""); tick() end
+                assert(themes()==0 and #captions()==0, "scope cancellation must clear theme and entrance")
+            end
+        elseif scenario=="entrance-timing" then
+            send(entranceEvent()); assert(#captions()==1 and jumps==1); send(entranceEvent()); assert(jumps==1)
+            tick(5.8); tick(); assert(#captions()==1); tick(0.3); tick(); assert(#captions()==0 and themes()==8)
+            local expired=entranceEvent("expired"); expired.issuedAtMs=0; expired.expiresAtMs=10000; send({version=3,type="heartbeat",serverNowMs=10000}); send(expired); assert(jumps==1)
+        elseif scenario=="entrance-obsolete" then
+            local value=entranceEvent(); value.gameIdentity=string.rep("c",64); send(value); assert(jumps==0)
+            value=entranceEvent(); value.themeId="kitchen"; send(value); assert(jumps==0)
+            value=entranceEvent(); value.sessionId="wrong"; send(value); assert(jumps==0)
+            value=entranceEvent(); value.generation=0; send(value); assert(jumps==0)
+        elseif scenario=="entrance-caption" then
+            local value=themed(); value.theme.gameName="<size=900>"..string.rep("遊",70).."</size>"; send(value); send(entranceEvent(nil,value))
+            assert(#captions()==1); local text=captions()[1].caption; assert(not text:find("[<>]") and text:sub(-3)=="…", "caption must remove markup brackets and truncate without splitting UTF-8")
+            assert(#text<200 and not text:find("\239\191\189"))
+        elseif scenario=="entrance-neutral" then
+            local value=themed(); value.theme.themeId=nil; value.theme.gameName="Just Chatting"; send(value); send(entranceEvent(nil,value)); assert(themes()==0 and #captions()==1 and captions()[1].caption=="Just Chatting" and jumps==1)
+        elseif scenario=="entrance-caption-error" then
+            send(hearts()); send(entranceEvent()); assert(themes()==8 and count()==9 and jumps==0, "caption failure must preserve other owners")
+            assert(objects[#objects].removed, "failed caption must be destroyed")
+            send({version=3,type="heartbeat",serverNowMs=1200}); assert(packets[#packets].type=="heartbeat")
+        elseif scenario=="entrance-supersession" then
+            send(entranceEvent()); local old=captions()[1]; local value=themed(string.rep("c",64)); value.theme.gameName="Next Game"; send(value); assert(old.removed and #captions()==0)
+            send(entranceEvent("new",value)); assert(#captions()==1 and captions()[1].caption=="Next Game" and jumps==2 and themes()==8)
+        end
+    end
+elseif scenario=="phase-ordered" then
     addUser(1);send(phaseSnapshot());send(phasePacket("recognition"));tick()
     assert(captionText()=="$50 - THANK YOU!" and dances==0 and jumps==1 and assetCount("sa_heart")==1,"recognition must precede party actions")
     tick(5);local p=phasePacket("party");p.issuedAtMs=6000;p.expiresAtMs=16000;p.partyStartedAtMs=6000;p.partyUntilMs=24000;send(p);tick()

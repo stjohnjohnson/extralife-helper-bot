@@ -1,3 +1,4 @@
+const { propPosition } = require('../../src/streamAvatars/themeLayout');
 function sceneLayout(cards, width = 1920) {
     const scenery = [];
     const backdrops = [];
@@ -11,11 +12,7 @@ function sceneLayout(cards, width = 1920) {
         }
         const props = [...latest.values()].filter(c => c.brief.kind === 'scenery').sort((a, b) => a.assetId.localeCompare(b.assetId)).slice(0, 5);
         props.forEach((c, index) => {
-            let seed = 0;
-            for (const char of `${theme}:${c.assetId}`) seed = (Math.imul(seed, 31) + char.charCodeAt(0)) >>> 0;
-            const jitter = (seed % 101) - 50;
-            const center = width * (index + 1) / (props.length + 1);
-            const previewX = Math.max(0, Math.min(width - c.brief.frame.width, Math.round(center - c.brief.frame.width / 2 + jitter)));
+            const previewX = propPosition(theme, c.assetId, c.brief.frame.width, index, props.length, width);
             scenery.push({ ...c, previewX });
         });
     }

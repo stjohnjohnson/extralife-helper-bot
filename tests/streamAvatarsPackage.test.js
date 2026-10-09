@@ -51,6 +51,34 @@ describe('portable Stream Avatars packages', () => {
         });
     });
 
+    test('candidate package embeds portable rehearsal-only layouts and verified images', () => {
+        const assets = {};
+        for (const [name, kind, width, height] of [['base', 'backdrop', 480, 64], ['one', 'scenery', 96, 64], ['two', 'scenery', 64, 64], ['three', 'scenery', 32, 64], ['four', 'scenery', 32, 32]]) {
+            const bytes = PNG.sync.write({ width, height, data: Buffer.alloc(width * height * 4) });
+            fs.writeFileSync(path.join(directory, `${name}.png`), bytes);
+            const assetId = `block-world.${kind}.${name}`;
+            assets[assetId] = { assetId, theme: 'block-world', kind, sha256: require('node:crypto').createHash('sha256').update(bytes).digest('hex'), exportFile: `${name}.png`, imagePath: '/PRIVATE_MACHINE_SENTINEL', geometry: { frame: { width, height }, anchor: { x: width / 2, y: height } } };
+        }
+        const themeManifest = { assets, approved: false };
+        for (const asset of Object.values(assets)) Object.assign(asset, { scale: 999, originX: 0, originY: 0 });
+        expect(() => buildPackage({ integrationDir, themeManifest, themeAssetsDir: directory })).toThrow(/promotion/);
+        const result = buildPackage({ integrationDir, themeManifest, themeAssetsDir: directory, previewOnly: true });
+        expect(result.imageCount).toBe(6);
+        expect(result.packRevision).toMatch(/^[a-f0-9]{64}$/);
+        const entries = decode(result.archive);
+        const script = strFromU8(entries[`${commandPath}sa_helper_bridge.lua`]);
+        expect(script).not.toContain('PRIVATE_MACHINE_SENTINEL');
+        expect(script).not.toContain(directory);
+        const catalogJson = script.match(/local THEME_CATALOG_JSON = \[\[([^]*?)\]\]/)[1];
+        const catalog = JSON.parse(catalogJson);
+        expect(catalog).toMatchObject({ previewOnly: true, packRevision: result.packRevision, profile: { referenceWidth: 1920, bandHeight: 120, baselineOffset: 4 } });
+        expect(catalog.themes['block-world'].tiles).toHaveLength(4);
+        expect(catalog.themes['block-world'].props).toHaveLength(4);
+        expect(json(entries, 'data.txt').commands.sa_helper_bridge.scriptImages.sa_block_world_backdrop_base).toMatchObject({ width: 480, height: 64, scale: 1, originX: 0.5, originY: 0.5, details: { loopTotal: 61 } });
+        assets[Object.keys(assets)[0]].sha256 = 'f'.repeat(64);
+        expect(() => buildPackage({ integrationDir, themeManifest, themeAssetsDir: directory, previewOnly: true })).toThrow(/checksum/);
+    });
+
     test('automatically includes new manifests with independent FPS and looping', () => {
         fs.writeFileSync(path.join(integrationDir, 'assets/second.json'), JSON.stringify({ ...manifest, name: 'sa_second', framesPerSecond: 24, loop: false }));
         const result = buildPackage({ integrationDir });
