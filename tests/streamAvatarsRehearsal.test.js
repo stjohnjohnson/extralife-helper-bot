@@ -48,7 +48,7 @@ test('ordinary online samples do not clear an ongoing production effect', async 
     const received = []; socket.on('message', raw => received.push(JSON.parse(raw)));
     const nextSnapshot = () => new Promise(resolve => { const handle = raw => { if (JSON.parse(raw).type === 'snapshot') { socket.removeListener('message', handle); resolve(); } }; socket.on('message', handle); });
     try {
-        let wait = nextSnapshot(); socket.send(JSON.stringify({ version: 1, type: 'auth', token: 'a'.repeat(32) })); await wait;
+        let wait = nextSnapshot(); socket.send(JSON.stringify({ version: 2, type: 'auth', token: 'a'.repeat(32) })); await wait;
         wait = nextSnapshot(); await service.observeProduction({ status: 'online', observedAtMs: now, startedAtMs: now, streamId: 'real' }); await wait;
         received.length = 0; now += 1;
         wait = nextSnapshot(); await service.observeProduction({ status: 'online', observedAtMs: now, startedAtMs: now - 1, streamId: 'real' }); await wait;

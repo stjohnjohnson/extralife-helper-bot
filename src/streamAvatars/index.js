@@ -1,4 +1,5 @@
 const { join } = require('node:path');
+const { publicSession } = require('./protocol');
 const { createSessionController } = require('../broadcastSession');
 const { createInitialState, validObservation } = require('../broadcastSession/state');
 const { createSessionStore } = require('../broadcastSession/store');
@@ -22,9 +23,9 @@ async function startStreamAvatars({ config, logger, signal, webServer, standalon
     };
     const snapshot = () => {
         const { mode, state, now, simulated } = context();
-        return { version: 1, type: 'snapshot', mode, generation, serverNowMs: realClock.nowMs(), session: state,
+        return { version: 2, type: 'snapshot', mode: mode === 'rehearsal' ? 'integration' : mode, generation, serverNowMs: realClock.nowMs(), session: publicSession(state),
             elapsedMs: state.startedAtMs === null ? 0 : Math.max(0, (state.endedAtMs ?? now) - state.startedAtMs),
-            rehearsal: { active: mode === 'rehearsal', crowdIds: mode === 'rehearsal' ? simulated.crowdIds : [] }, features: ['hearts', 'crowd', 'session'] };
+            integration: { active: mode === 'rehearsal', crowdIds: mode === 'rehearsal' ? simulated.crowdIds : [] }, features: ['hearts', 'crowd', 'session'] };
     };
     const notify = invalidate => {
         if (!active) return;

@@ -5,16 +5,22 @@ function createEventDispatcher({ realClock, send, newEventId = randomUUID }) {
     const seen = new Set();
     return {
         publishHearts({ mode, generation, sessionId }) {
+            if (mode === 'rehearsal') mode = 'integration';
             if (!active) return false;
             const id = newEventId(); const key = mode + ':' + generation + ':' + id;
             if (seen.has(key)) return false;
             const issuedAtMs = realClock.nowMs();
-            const message = validateServerMessage({ version: 1, type: 'hearts', mode, generation, sessionId, id, issuedAtMs, expiresAtMs: issuedAtMs + 10000, durationMs: 5000 });
+            const message = validateServerMessage({ version: 2, type: 'hearts', mode, generation, sessionId, id, issuedAtMs, expiresAtMs: issuedAtMs + 10000, durationMs: 5000 });
             if (!send(message)) return false;
             seen.add(key); if (seen.size > 256) seen.delete(seen.values().next().value);
             return true;
         },
-        clear({ mode, generation }) { if (active) send(validateServerMessage({ version: 1, type: 'clear', mode, generation })); },
+        publishCelebration(message) {
+            if (!active) return false;
+            const packet = validateServerMessage({ ...message, version: 2, type: 'celebration', id: newEventId() });
+            return send(packet);
+        },
+        clear({ mode, generation }) { if (mode === 'rehearsal') mode = 'integration'; if (active) send(validateServerMessage({ version: 2, type: 'clear', mode, generation })); },
         stop() { active = false; seen.clear(); }
     };
 }

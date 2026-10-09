@@ -96,10 +96,10 @@ end
 local function raw(message) callbacks.websocket("sa_helper_bridge","OnMessage",message,"") end
 local function send(message) raw(codec.encode(message)); tick() end
 local function snapshot(mode,generation,ids)
-    return {version=1,type="snapshot",mode=mode or "rehearsal",generation=generation or 1,serverNowMs=1000,session={sessionId="session"},elapsedMs=0,rehearsal={active=mode~="production",crowdIds=ids or {}},features={"hearts","crowd","session"}}
+    return {version=2,type="snapshot",mode=mode or "integration",generation=generation or 1,serverNowMs=1000,session={sessionId="session"},elapsedMs=0,integration={active=mode~="production",crowdIds=ids or {}},features={"hearts","crowd","session"}}
 end
 local function hearts(id,generation)
-    return {version=1,type="hearts",mode="rehearsal",generation=generation or 1,sessionId="session",id=id or "effect",issuedAtMs=1000,expiresAtMs=11000,durationMs=5000}
+    return {version=2,type="hearts",mode="integration",generation=generation or 1,sessionId="session",id=id or "effect",issuedAtMs=1000,expiresAtMs=11000,durationMs=5000}
 end
 local function addUser(id,x,y)
     local user={id=id,isActive=true,x=x or 50,y=y or 20}
@@ -122,17 +122,17 @@ if scenario=="image-pending-cap" then
     addUser(1)
     for i=1,105 do send(snapshot()); send(hearts("failed-"..i)); tick(2.1); tick() end
     assert(#objects==100 and shared.sa_pending_images==100, "must bound failed host loads")
-    send({version=1,type="heartbeat",serverNowMs=1000}); assert(packets[#packets].type=="heartbeat")
+    send({version=2,type="heartbeat",serverNowMs=1000}); assert(packets[#packets].type=="heartbeat")
 elseif scenario=="missing-image-host" or scenario=="image-load-timeout" then
     addUser(1); send(snapshot()); send(hearts()); assert(count()==0)
-    send({version=1,type="heartbeat",serverNowMs=1100}); assert(packets[#packets].type=="heartbeat")
+    send({version=2,type="heartbeat",serverNowMs=1100}); assert(packets[#packets].type=="heartbeat")
     tick(2.1); tick(); assert(count()==0)
     assert(shared.sa_pending_images==1, "failed host callbacks retain one bounded pending load")
     assert(packets[#packets].code=="missing-heart-image")
-    send({version=1,type="heartbeat",serverNowMs=4000}); assert(packets[#packets].type=="heartbeat")
+    send({version=2,type="heartbeat",serverNowMs=4000}); assert(packets[#packets].type=="heartbeat")
 elseif scenario=="image-loaded-before-clear" then
     addUser(1); send(snapshot()); send(hearts()); assert(count()==0)
-    raw(codec.encode({version=1,type="clear",mode="rehearsal",generation=1}))
+    raw(codec.encode({version=2,type="clear",mode="integration",generation=1}))
     tick() -- worker finishes immediately before the parent processes clear.
     assert(shared.sa_pending_images==0 and next(loaders)==nil)
     for _,ob in ipairs(objects) do assert(ob.removed, "completed image must be destroyed before render acknowledgement") end
@@ -186,11 +186,11 @@ elseif scenario=="generation" then
     addUser(1); send(snapshot()); send(hearts()); send(snapshot("production",2)); assert(count()==0)
     send(hearts("old",1)); assert(count()==0)
 elseif scenario=="crowd" then
-    send(snapshot("rehearsal",1,{"sa_rehearsal_1","sa_rehearsal_2"})); assert(users["900001"] and users["900002"])
-    send(snapshot("rehearsal",1,{"sa_rehearsal_2"})); assert(not users["900001"] and leaves==1)
+    send(snapshot("integration",1,{"sa_rehearsal_1","sa_rehearsal_2"})); assert(users["900001"] and users["900002"])
+    send(snapshot("integration",1,{"sa_rehearsal_2"})); assert(not users["900001"] and leaves==1)
     send(snapshot("production",2)); assert(not users["900002"] and leaves==2)
 elseif scenario=="invalid" then
-    addUser(1); send(snapshot()); send({version=1,type="command",text="error()"}); assert(count()==0)
+    addUser(1); send(snapshot()); send({version=2,type="command",text="error()"}); assert(count()==0)
     send(hearts()); local ob=active(); send(hearts()); assert(count()==1 and active()==ob, "duplicate must not recreate or extend effects")
     callbacks.websocket("other_socket","OnClose","",""); tick(); assert(count()==1)
 elseif scenario=="missing-image" then
@@ -220,19 +220,19 @@ elseif scenario=="same-snapshot" then
 elseif scenario=="new-session" then
     addUser(1); send(snapshot()); send(hearts()); local value=snapshot(); value.session.sessionId="next"; send(value); assert(count()==0)
 elseif scenario=="stale-control" then
-    addUser(1); send(snapshot("rehearsal",2)); send(hearts("current",2)); local ob=active()
-    send({version=1,type="clear",mode="rehearsal",generation=1}); assert(active()==ob and not ob.removed)
-    send(snapshot("rehearsal",1)); assert(active()==ob and not ob.removed)
+    addUser(1); send(snapshot("integration",2)); send(hearts("current",2)); local ob=active()
+    send({version=2,type="clear",mode="integration",generation=1}); assert(active()==ob and not ob.removed)
+    send(snapshot("integration",1)); assert(active()==ob and not ob.removed)
 elseif scenario=="stop" then
-    send(snapshot("rehearsal",1,{"sa_rehearsal_1"})); send(hearts()); assert(count()==1)
-    send({version=1,type="clear",mode="production",generation=2}); assert(count()==0 and not users["900001"])
+    send(snapshot("integration",1,{"sa_rehearsal_1"})); send(hearts()); assert(count()==1)
+    send({version=2,type="clear",mode="production",generation=2}); assert(count()==0 and not users["900001"])
 elseif scenario=="close-open-race" then
     addUser(1); send(snapshot()); send(hearts()); assert(count()==1)
     callbacks.websocket("sa_helper_bridge","OnClose","",""); callbacks.websocket("sa_helper_bridge","OnOpen","","")
     raw(codec.encode(snapshot())); tick(); assert(count()==0,"disconnect must clear even if reopened before the next tick")
     send(hearts("new")); assert(count()==1,"fresh reconnect snapshot must survive cleanup")
 elseif scenario=="socket-error" then
-    send(snapshot("rehearsal",1,{"sa_rehearsal_1"})); send(hearts()); callbacks.websocket("sa_helper_bridge","OnError","private details",""); tick(); assert(count()==0 and not users["900001"])
+    send(snapshot("integration",1,{"sa_rehearsal_1"})); send(hearts()); callbacks.websocket("sa_helper_bridge","OnError","private details",""); tick(); assert(count()==0 and not users["900001"])
 elseif scenario=="async-open" then
     assert(#packets==0); callbacks.websocket("sa_helper_bridge","OnOpen","",""); assert(packets[1].type=="auth"); send(snapshot()); assert(packets[2].type=="ready")
 elseif scenario=="backoff" then
@@ -242,27 +242,27 @@ elseif scenario=="backoff" then
     tick(29.99); assert(connectedCount==6); tick(0.02); assert(connectedCount==7)
     tick(29.99); assert(connectedCount==7); tick(0.02); assert(connectedCount==8)
 elseif scenario=="mailbox-burst" then
-    addUser(1); raw(codec.encode(snapshot())); raw(codec.encode(hearts())); raw(codec.encode({version=1,type="clear",mode="production",generation=2})); tick(); assert(count()==0)
-    raw(codec.encode(snapshot("rehearsal",3))); raw(codec.encode(hearts("later",3))); tick(); assert(count()==1)
+    addUser(1); raw(codec.encode(snapshot())); raw(codec.encode(hearts())); raw(codec.encode({version=2,type="clear",mode="production",generation=2})); tick(); assert(count()==0)
+    raw(codec.encode(snapshot("integration",3))); raw(codec.encode(hearts("later",3))); tick(); assert(count()==1)
 elseif scenario=="mailbox-overflow" then
-    addUser(1); send(snapshot()); send(hearts()); for i=1,33 do raw(codec.encode({version=1,type="heartbeat",serverNowMs=1000})) end
+    addUser(1); send(snapshot()); send(hearts()); for i=1,33 do raw(codec.encode({version=2,type="heartbeat",serverNowMs=1000})) end
     tick(); assert(count()==0 and shared.sa_connected==false and removals>=2)
 elseif scenario=="malformed-json" then
     addUser(1); send(snapshot()); raw('{broken'); raw('null'); raw('42'); raw('["command"]'); tick(); assert(count()==0)
     send(hearts()); assert(count()==1,"malformed input must not kill the renderer")
 elseif scenario=="invalid-snapshot" then
     addUser(1); local bad=snapshot(); bad.serverNowMs="invalid"; send(bad); send(hearts()); assert(count()==0)
-    bad=snapshot(); bad.rehearsal.crowdIds={"arbitrary-user"}; send(bad); send(hearts("fractional")); assert(count()==0)
+    bad=snapshot(); bad.integration.crowdIds={"arbitrary-user"}; send(bad); send(hearts("fractional")); assert(count()==0)
     send(snapshot()); send(hearts("good")); assert(count()==1)
 elseif scenario=="wrong-session" then
     addUser(1); send(snapshot()); local value=hearts(); value.sessionId="wrong"; send(value); assert(count()==0)
 elseif scenario=="heartbeat-expiry" then
-    addUser(1); send(snapshot()); send({version=1,type="heartbeat",serverNowMs=20000}); send(hearts()); assert(count()==0)
+    addUser(1); send(snapshot()); send({version=2,type="heartbeat",serverNowMs=20000}); send(hearts()); assert(count()==0)
 elseif scenario=="elapsed-state" then
     addUser(1); local value=snapshot(); value.elapsedMs=25200000; send(value); send(hearts()); assert(count()==1)
     value.elapsedMs=300000; send(value); tick(5); assert(count()==0)
 elseif scenario=="crowd-no-extra-config" then
-    addUser(42); send(snapshot("rehearsal",1,{"sa_rehearsal_1"})); assert(users["900001"] and users["42"] and leaves==0)
+    addUser(42); send(snapshot("integration",1,{"sa_rehearsal_1"})); assert(users["900001"] and users["42"] and leaves==0)
 elseif scenario=="resized-bounds" then
     local user=addUser(1,900,500); send(snapshot()); send(hearts()); assert(active().x==900 and active().y==184)
     app.convertPercentToPosition=function(x,y) return {x=-200+x*400,y=y*100} end
@@ -273,9 +273,9 @@ elseif scenario=="small-bounds" then
     assert(packets[#packets].code=="render-error")
 elseif scenario=="reload" then
     assert(not users["900001"] and not users["900002"] and leaves==2)
-    send(snapshot("rehearsal",1,{"sa_rehearsal_3"})); assert(users["900003"] and #shared.sa_owned_ids==1)
+    send(snapshot("integration",1,{"sa_rehearsal_3"})); assert(users["900003"] and #shared.sa_owned_ids==1)
 elseif scenario=="wire-contract" then
     local file=assert(io.open(arg[3],"rb")); local message=file:read("*a"); file:close(); raw(message); tick(); assert(packets[#packets].type=="ready")
-    addUser(1); send(hearts()); assert(count()==1)
+    addUser(1); local event=hearts(); event.sessionId="session_é"; send(event); assert(count()==1)
 else error("unknown scenario") end
 print("OK "..scenario)

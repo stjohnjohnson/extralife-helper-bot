@@ -34,7 +34,7 @@ function sa_on_socket(title, event, message, code)
     if event == "OnOpen" then
         local settings = get("sa_settings")
         set("sa_connected", true)
-        app.sendWebsocketMessage(title, json.serialize({ version=1, type="auth", token=settings.token }))
+        app.sendWebsocketMessage(title, json.serialize({ version=2, type="auth", token=settings.token }))
     elseif event == "OnMessage" then
         if not get("sa_connected") then return end
         local queue = get("sa_mailbox") or {}
@@ -75,7 +75,7 @@ return function()
         return {x=bottom.x,y=bottom.y,width=width,height=height}
     end
     local function send(value) app.sendWebsocketMessage(socket, json.serialize(value)) end
-    local function diagnostic(code) send({version=1,type="diagnostic",code=code}) end
+    local function diagnostic(code) send({version=2,type="diagnostic",code=code}) end
     local function release(entry)
         local status=get(entry.key)
         if not entry.loaded and status~="failed" and status~="loaded" then
@@ -111,27 +111,27 @@ return function()
         return true
     end
     local function validSnapshot(value)
-        return type(value.session)=="table" and number(value.serverNowMs) and type(value.rehearsal)=="table" and
-            type(value.rehearsal.active)=="boolean" and validCrowd(value.rehearsal.crowdIds)
+        return type(value.session)=="table" and number(value.serverNowMs) and type(value.integration)=="table" and
+            type(value.integration.active)=="boolean" and validCrowd(value.integration.crowdIds)
     end
     local function handleMessage(value)
-        if type(value)~="table" or value.version~=1 then diagnostic("unsupported-message"); return end
+        if type(value)~="table" or value.version~=2 then diagnostic("unsupported-message"); return end
         if value.type=="heartbeat" and number(value.serverNowMs) then
             serverOffset=value.serverNowMs-elapsed*1000
-            send({version=1,type="heartbeat"}); return
+            send({version=2,type="heartbeat"}); return
         end
-        if (value.mode~="production" and value.mode~="rehearsal") or not integer(value.generation) or value.generation<generationFloor or value.generation<0 then return end
+        if (value.mode~="production" and value.mode~="integration") or not integer(value.generation) or value.generation<generationFloor or value.generation<0 then return end
         if value.type=="clear" then
             generationFloor=value.generation; clearObjects(); reconcileCrowd({}); snapshot=nil
         elseif value.type=="snapshot" and validSnapshot(value) then
             if not snapshot or snapshot.generation~=value.generation or snapshot.mode~=value.mode or snapshot.session.sessionId~=value.session.sessionId then clearObjects() end
             generationFloor=value.generation; snapshot=value; serverOffset=value.serverNowMs-elapsed*1000; retryDelay=1
-            if value.mode=="rehearsal" and not previewHostSet then app.platformServiceSettings.SetStreamer(900000,"sa_rehearsal_host"); previewHostSet=true end
+            if value.mode=="integration" and not previewHostSet then app.platformServiceSettings.SetStreamer(900000,"sa_rehearsal_host"); previewHostSet=true end
             if value.mode=="production" then previewHostSet=false end
-            reconcileCrowd(value.mode=="rehearsal" and value.rehearsal.crowdIds or {})
+            reconcileCrowd(value.mode=="integration" and value.integration.crowdIds or {})
             local resolution=app.getResolution()
-            send({version=1,type="ready",capabilities={"hearts","crowd","session"},resolution={width=resolution.x,height=resolution.y}})
-        elseif value.type=="crowd" and snapshot and snapshot.mode=="rehearsal" and value.mode==snapshot.mode and value.generation==snapshot.generation and validCrowd(value.crowdIds) then
+            send({version=2,type="ready",capabilities={"hearts","crowd","session"},resolution={width=resolution.x,height=resolution.y}})
+        elseif value.type=="crowd" and snapshot and snapshot.mode=="integration" and value.mode==snapshot.mode and value.generation==snapshot.generation and validCrowd(value.crowdIds) then
             reconcileCrowd(value.crowdIds)
         elseif value.type=="hearts" and snapshot and value.mode==snapshot.mode and value.generation==snapshot.generation and value.sessionId==snapshot.session.sessionId and
             type(value.id)=="string" and #value.id>0 and #value.id<=128 and number(value.expiresAtMs) and number(value.issuedAtMs) and value.expiresAtMs>value.issuedAtMs and

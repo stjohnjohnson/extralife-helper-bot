@@ -14,7 +14,7 @@ async function startBridgeServer({ config, getSnapshot, onClientMessage = async 
         wss.handleUpgrade(req, socket, head, connection => wss.emit('connection', connection));
     };
     function sendTo(socket, record, message) {
-        if (!record.authenticated || socket.readyState !== WebSocket.OPEN) return false;
+        if (!record.authenticated || socket.readyState !== WebSocket.OPEN || (message.type === 'celebration' && !record.capabilities?.includes('celebrations'))) return false;
         const body = JSON.stringify(validateServerMessage(message));
         if (socket.bufferedAmount + Buffer.byteLength(body) > 65536 || record.pending >= 32) { socket.terminate(); return false; }
         record.pending++; socket.send(body, () => { record.pending--; }); return true;
@@ -25,7 +25,7 @@ async function startBridgeServer({ config, getSnapshot, onClientMessage = async 
         const timeout = setTimeout(() => { if (!record.authenticated) socket.close(1008, 'Authentication required'); }, config.authTimeoutMs ?? 5000);
         socket.on('error', () => {});
         socket.on('close', () => { record.alive = false; clearTimeout(timeout); clients.delete(socket); });
-        const reject = () => { record.alive = false; logger.warn('Stream Avatars connection rejected'); socket.close(1008, 'Invalid message'); };
+        const reject = () => { record.alive = false; logger.warn('Stream Avatars connection rejected'); socket.close(1008, 'Invalid message; import latest companion v2'); };
         socket.on('message', (raw, binary) => {
             try {
                 if (!record.alive) return;
@@ -42,7 +42,10 @@ async function startBridgeServer({ config, getSnapshot, onClientMessage = async 
                 if (record.incoming >= 32) throw new Error('Inbound queue full');
                 record.incoming++;
                 record.inboundTail = record.inboundTail.then(async () => {
-                    if (record.alive && socket.readyState === WebSocket.OPEN) await onClientMessage(message);
+                    if (record.alive && socket.readyState === WebSocket.OPEN) {
+                        if (message.type === 'ready') record.capabilities = message.capabilities;
+                        await onClientMessage(message);
+                    }
                 }).catch(reject).finally(() => { record.incoming--; });
             } catch { reject(); }
         });
@@ -50,7 +53,7 @@ async function startBridgeServer({ config, getSnapshot, onClientMessage = async 
     const heartbeat = setInterval(() => {
         for (const [socket, record] of clients) {
             if (Date.now() - record.lastSeen >= 30000) socket.terminate();
-            else sendTo(socket, record, { version: 1, type: 'heartbeat', serverNowMs: Date.now() });
+            else sendTo(socket, record, { version: 2, type: 'heartbeat', serverNowMs: Date.now() });
         }
     }, 15000); heartbeat.unref();
     const stop = () => {
@@ -70,7 +73,7 @@ async function startBridgeServer({ config, getSnapshot, onClientMessage = async 
         if (signal?.aborted) throw new Error('Stream Avatars startup aborted');
     } catch (error) { await stop(); throw error; }
     return { address: listener.address,
-        getStatus: () => ({ authenticatedClients: [...clients.values()].filter(record => record.authenticated).length }),
+        getStatus: () => ({ authenticatedClients: [...clients.values()].filter(record => record.authenticated).length, readyClients: [...clients.values()].filter(record => record.authenticated && record.capabilities?.includes('celebrations')).length }),
         disconnectClients() { for (const socket of clients.keys()) socket.terminate(); },
         send(message) { validateServerMessage(message); let delivered = false; for (const [socket, record] of clients) delivered = sendTo(socket, record, message) || delivered; return delivered; },
         stop };

@@ -1,9 +1,10 @@
+const { publicSession } = require('../src/streamAvatars/protocol');
 const { once } = require('node:events');
 const WebSocket = require('ws');
 const { startBridgeServer } = require('../src/streamAvatars/server');
 const { createInitialState } = require('../src/broadcastSession/state');
 const token = 'a'.repeat(32);
-const snapshot = () => ({ version: 1, type: 'snapshot', mode: 'production', generation: 1, serverNowMs: Date.now(), session: createInitialState({ mode: 'production', channel: 'x' }), elapsedMs: 0, rehearsal: { active: false, crowdIds: [] }, features: ['hearts'] });
+const snapshot = () => ({ version: 2, type: 'snapshot', mode: 'production', generation: 1, serverNowMs: Date.now(), session: publicSession(createInitialState({ mode: 'production', channel: 'x' })), elapsedMs: 0, integration: { active: false, crowdIds: [] }, features: ['hearts'] });
 let server; let clients;
 beforeEach(() => { clients = []; });
 afterEach(async () => { clients.forEach(client => client.terminate()); await server?.stop(); server = null; });
@@ -11,14 +12,14 @@ async function start(extra = {}) { server = await startBridgeServer({ config: { 
 async function connect(path = '/sa/socket') { const socket = new WebSocket(`ws://127.0.0.1:${server.address.port}${path}`); clients.push(socket); await once(socket, 'open'); return socket; }
 test('authenticates before snapshot and reconnect sends current state without old effects', async () => {
     await start(); const socket = await connect(); const received = []; socket.on('message', value => received.push(JSON.parse(value)));
-    expect(received).toEqual([]); const first = once(socket, 'message'); socket.send(JSON.stringify({ version: 1, type: 'auth', token })); await first;
+    expect(received).toEqual([]); const first = once(socket, 'message'); socket.send(JSON.stringify({ version: 2, type: 'auth', token })); await first;
     expect(received[0].type).toBe('snapshot');
     const closing = once(socket, 'close'); socket.close(); await closing;
-    expect(server.send({ version: 1, type: 'hearts', mode: 'production', generation: 1, sessionId: 's', id: 'old', issuedAtMs: Date.now(), expiresAtMs: Date.now() + 10000, durationMs: 5000 })).toBe(false);
-    const next = await connect(); const ready = once(next, 'message'); next.send(JSON.stringify({ version: 1, type: 'auth', token }));
+    expect(server.send({ version: 2, type: 'hearts', mode: 'production', generation: 1, sessionId: 's', id: 'old', issuedAtMs: Date.now(), expiresAtMs: Date.now() + 10000, durationMs: 5000 })).toBe(false);
+    const next = await connect(); const ready = once(next, 'message'); next.send(JSON.stringify({ version: 2, type: 'auth', token }));
     expect(JSON.parse((await ready)[0]).type).toBe('snapshot');
 });
-test.each([{ version: 1, type: 'auth', token: 'wrong' }, { version: 1, type: 'ready', capabilities: [], resolution: { width: 1, height: 1 } }, { version: 1, type: 'auth', token, lua: 'loadstring' }])('rejects unauthenticated or unknown actions without state disclosure', async message => {
+test.each([{ version: 2, type: 'auth', token: 'wrong' }, { version: 2, type: 'ready', capabilities: [], resolution: { width: 1, height: 1 } }, { version: 2, type: 'auth', token, lua: 'loadstring' }])('rejects unauthenticated or unknown actions without state disclosure', async message => {
     await start(); const socket = await connect(); const closed = once(socket, 'close'); socket.send(JSON.stringify(message)); expect((await closed)[0]).toBe(1008);
 });
 test('unauthenticated idle, binary and oversize connections are closed', async () => {
@@ -35,7 +36,7 @@ test('invalid route, occupied port, aborted startup and shutdown clean resources
 
 test('bounds in-flight messages for a slow companion instead of accumulating an animation backlog', async () => {
     await start(); const socket = await connect(); const ready = once(socket, 'message');
-    socket.send(JSON.stringify({ version: 1, type: 'auth', token })); await ready;
+    socket.send(JSON.stringify({ version: 2, type: 'auth', token })); await ready;
     const closing = once(socket, 'close'); let refused = 0;
     for (let index = 0; index < 40; index++) if (!server.send(snapshot())) refused++;
     await closing; expect(refused).toBeGreaterThan(0);
@@ -47,11 +48,13 @@ test('valid coalesced client frames are serialized rather than rejected', async 
     server = await startBridgeServer({ config: { host: '127.0.0.1', port: 0, token }, getSnapshot: snapshot,
         onClientMessage: async message => { seen.push(message.type); if (seen.length === 2) complete(); } });
     const socket = await connect(); const snapshotReceived = once(socket, 'message');
-    socket.send(JSON.stringify({ version: 1, type: 'auth', token })); await snapshotReceived;
+    socket.send(JSON.stringify({ version: 2, type: 'auth', token })); await snapshotReceived;
     const closed = once(socket, 'close').then(() => 'closed');
     socket._socket.cork();
-    socket.send(JSON.stringify({ version: 1, type: 'ready', capabilities: ['hearts'], resolution: { width: 1920, height: 200 } }));
-    socket.send(JSON.stringify({ version: 1, type: 'heartbeat' })); socket._socket.uncork();
+    socket.send(JSON.stringify({ version: 2, type: 'ready', capabilities: ['hearts'], resolution: { width: 1920, height: 200 } }));
+    socket.send(JSON.stringify({ version: 2, type: 'heartbeat' })); socket._socket.uncork();
     expect(await Promise.race([handled.then(() => 'handled'), closed])).toBe('handled');
     expect(seen).toEqual(['ready', 'heartbeat']); expect(socket.readyState).toBe(WebSocket.OPEN);
 });
+
+test('old companion receives actionable v2 import rejection',async()=>{await start();const socket=await connect();const closed=once(socket,'close');socket.send(JSON.stringify({version:1,type:'auth',token}));const [code,reason]=await closed;expect(code).toBe(1008);expect(reason.toString()).toContain('latest companion v2');});
