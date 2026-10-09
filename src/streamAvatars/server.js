@@ -1,4 +1,5 @@
 const { startWebServer } = require('../webServer');
+const { setTimeout: delay } = require('node:timers/promises');
 const { timingSafeEqual } = require('node:crypto');
 const { WebSocketServer, WebSocket } = require('ws');
 const { decodeClientMessage, validateServerMessage } = require('./protocol');
@@ -77,6 +78,10 @@ async function startBridgeServer({ config, getSnapshot, onClientMessage = async 
     } catch (error) { await stop(); throw error; }
     return { address: listener.address,
         getStatus: () => ({ authenticatedClients: [...clients.values()].filter(record => record.authenticated).length, readyClients: [...clients.values()].filter(record => record.authenticated && record.capabilities?.includes('celebrations')).length }),
+        async drain() {
+            const deadline = Date.now() + 2000;
+            while ([...clients.values()].some(record => record.pending > 0) && Date.now() < deadline) await delay(10);
+        },
         disconnectClients() { for (const socket of clients.keys()) socket.terminate(); },
         send(message) { validateServerMessage(message); let delivered = false; for (const [socket, record] of clients) delivered = sendTo(socket, record, message) || delivered; return delivered; },
         stop };

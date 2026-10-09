@@ -17,7 +17,7 @@ function run(script, scenario, fixture) {
 test('Lua consumes the actual Node protocol JSON, including nulls and UTF-8 fields', () => {
     const directory = mkdtempSync(join(tmpdir(), 'sa-wire-'));
     try {
-        const session = reduceObservation(createInitialState({ mode: 'rehearsal', channel: 'streamer_é' }), { status: 'online', observedAtMs: 1001, startedAtMs: 1000, streamId: 'fixture' }, { graceMs: 900000, cadenceMs: 60000, newSessionId: () => 'session_é' });
+        const session = reduceObservation(createInitialState({ mode: 'integration', channel: 'streamer_é' }), { status: 'online', observedAtMs: 1001, startedAtMs: 1000, streamId: 'fixture' }, { graceMs: 900000, cadenceMs: 60000, newSessionId: () => 'session_é' });
         const message = validateServerMessage({ version: 2, type: 'snapshot', mode: 'integration', generation: 1, serverNowMs: 1000, session: publicSession(session), elapsedMs: 1, integration: { active: true, crowdIds: [] }, features: ['hearts', 'crowd', 'session'] });
         const fixture = join(directory, 'snapshot.json'); writeFileSync(fixture, JSON.stringify(message));
         const result = run(resolve('integrations/stream-avatars/companion.lua'), 'wire-contract', fixture);

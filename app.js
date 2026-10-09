@@ -148,12 +148,7 @@ function start({ config = parseConfiguration(), donationSource } = {}) {
     if (config.streamAvatars?.enabled) {
         state.streamAvatarsStartup = state.webServerStartup.then(webServer => {
             if (!webServer || !state.active) return;
-            return startStreamAvatars({ config, webServer, logger: log, signal: state.streamAvatarsAbort.signal,
-                onRehearsalStopped: () => {
-                    if (state.active && state.twitchClient) Promise.resolve(state.twitchClient.say(config.twitch.channel,
-                        'Rehearsal stopped because Twitch reports live. Restore Stream Avatars normal streaming service.'))
-                        .catch(() => twitchLog.error('Unable to send rehearsal shutdown notice'));
-                } })
+            return startStreamAvatars({ config, webServer, logger: log, signal: state.streamAvatarsAbort.signal })
                 .then(async service => { if (!state.active) await service.stop(); else state.streamAvatars = service; })
                 .catch(() => log.error('Stream Avatars unavailable'));
         });

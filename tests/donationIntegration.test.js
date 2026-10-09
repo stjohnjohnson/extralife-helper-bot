@@ -61,3 +61,14 @@ test('a closed session still polls newest campaign gifts for legacy notification
     expect((await accept([{ ...gift('after', 10000), createdAtMs: now - 1 }])).intent).toBeNull();
     expect(service.getStatus().state.liveTotalCents).toBe(0);
 });
+
+
+test('reconnect publishes durable totals without replaying a celebration', async () => {
+    await live(); await accept([]); now++; await connect(); await accept([gift('live',2500)]);
+    socket.terminate(); socket=null;
+    const packets=[]; socket=new WebSocket(`ws://127.0.0.1:${service.address.port}/sa/socket`); await once(socket,'open');
+    socket.on('message', raw => packets.push(JSON.parse(raw))); const message=once(socket,'message');
+    socket.send(JSON.stringify({ version:2,type:'auth',token:'t'.repeat(32) })); await message;
+    await new Promise(resolve => setTimeout(resolve,10));
+    expect(packets.map(value => value.type)).toEqual(['snapshot']); expect(packets[0].session.liveTotalCents).toBe(2500);
+});

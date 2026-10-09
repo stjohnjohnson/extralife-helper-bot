@@ -1,44 +1,14 @@
 const fs = require('node:fs/promises');
 const { tmpdir } = require('node:os'); const { join } = require('node:path');
 const { startStreamAvatars } = require('../src/streamAvatars');
-const { parseAction } = require('../src/streamAvatars/rehearsal');
+const { parseAction } = require('../src/streamAvatars/actions');
 let directory; let service; let now;
 beforeEach(async () => { directory = await fs.mkdtemp(join(tmpdir(), 'sa-preview-')); now = 10000000; });
 afterEach(async () => { await service?.stop(); service = null; await fs.rm(directory, { recursive: true, force: true }); });
-async function start(standalone = false) {
-    service = await startStreamAvatars({ config: { twitch: { channel: 'streamer', viewerSampleIntervalSeconds: 60 }, streamAvatars: { config: { host: '127.0.0.1', port: 0, token: 'a'.repeat(32), stateDir: directory, graceMs: 900000 } } }, logger: { info() {}, warn() {} }, standalone, realClock: { nowMs: () => now } });
+async function start() {
+    service = await startStreamAvatars({ config: { twitch: { channel: 'streamer', viewerSampleIntervalSeconds: 60 }, streamAvatars: { config: { host: '127.0.0.1', port: 0, token: 'a'.repeat(32), stateDir: directory, graceMs: 900000 } } }, logger: { info() {}, warn() {} }, realClock: { nowMs: () => now } });
 }
 const command = text => service.dispatch(parseAction(text));
-test('preview admission is fresh and crowd/clear cannot modify production state', async () => {
-    await start(); expect((await command('rehearsal start')).status).toBe('denied');
-    await service.observeProduction({ status: 'offline', observedAtMs: now });
-    const productionFile = join(directory, 'production/state.json'); const before = await fs.readFile(productionFile, 'utf8');
-    expect((await command('rehearsal start')).status).toBe('ok');
-    await command('crowd 20'); expect(service.getStatus().crowdCount).toBe(20);
-    await command('clear'); expect(service.getStatus()).toMatchObject({ mode: 'rehearsal', crowdCount: 0 });
-    await command('rehearsal stop');
-    expect(await fs.readFile(productionFile, 'utf8')).toBe(before);
-    now += 200000; expect((await command('rehearsal start')).status).toBe('denied');
-});
-test('real live clears preview before any further crowd controls', async () => {
-    await start(); await service.observeProduction({ status: 'offline', observedAtMs: now });
-    await command('rehearsal start'); await command('crowd 10');
-    now++; await service.observeProduction({ status: 'online', observedAtMs: now, startedAtMs: now - 3600000, streamId: 'real' });
-    expect(service.getStatus()).toMatchObject({ mode: 'production', crowdCount: 0 });
-    expect((await command('crowd 20')).status).toBe('denied');
-});
-test('standalone preview is temporary and does not create or load any persistent state', async () => {
-    await start(true); await command('rehearsal start'); await command('crowd 100');
-    const id = service.getStatus().state.sessionId; now += 5000;
-    expect(service.getStatus().elapsedMs).toBe(5000);
-    expect(await fs.readdir(directory)).toEqual([]);
-    await service.stop(); await start(true); expect(service.getStatus().mode).toBe('production');
-    await command('rehearsal start');
-    expect(service.getStatus()).toMatchObject({ elapsedMs: 0, crowdCount: 0 });
-    expect(service.getStatus().state.sessionId).not.toBe(id);
-    expect(await fs.readdir(directory)).toEqual([]);
-    await service.stop(); await service.stop(); expect((await command('rehearsal start')).status).toBe('unavailable');
-});
 test.each(['clock advance 1h', 'clock seek 5m', 'scenario reconnect', 'hue on', 'hue off', 'rehearsal reset', 'crowd join 1', 'crowd leave 1', 'crowd -1', 'crowd 101', 'hearts extra', 'rehearsal start extra'])('unsupported control is rejected: %s', input => {
     expect(() => parseAction(input)).toThrow(/Use|Invalid/);
 });

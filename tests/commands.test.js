@@ -415,7 +415,7 @@ test('sa namespace routes Twitch controls while Discord and lookalike namespaces
     const config = { twitch: { admins: ['admin'], channel: 'channel' } };
     const service = { dispatch: async () => ({ status: 'ok', message: 'Preview requested' }) };
     const context = { channel: '#channel', tags: { username: 'admin', id: 'router-id', 'tmi-sent-ts': String(Date.now()) } };
-    expect(await handleCommand('sa hearts', 'twitch', context, config, {}, { info() {} }, null, service)).toBe('Preview requested');
-    expect(await handleCommand('sa hearts', 'discord', {}, config, {}, { info() {} }, null, service)).toMatch(/Twitch/i);
+    expect(await handleCommand('sa session reset confirm', 'twitch', context, config, {}, { info() {} }, null, service)).toBe('Preview requested');
+    expect(await handleCommand('sa session reset confirm', 'discord', {}, config, {}, { info() {} }, null, service)).toMatch(/Twitch/i);
     expect(await handleCommand('sail hearts', 'twitch', context, config, {}, { info() {} }, null, service)).toBeNull();
 });

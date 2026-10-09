@@ -599,19 +599,18 @@ describe('optional Stream Avatars application lifecycle', () => {
     });
 });
 
-describe('Twitch avatar command and automatic live handoff', () => {
+describe('Twitch avatar command forwarding', () => {
     beforeEach(() => { jest.clearAllMocks(); mockDiscordClient.channels.cache.get.mockReturnValue({ id: 'channel', guild: { id: 'guild' }, setName: jest.fn().mockResolvedValue() }); });
     afterEach(async () => { await application.stop(); });
-    test('passes avatar service to Twitch commands and sends the live-stop notice only while active', async () => {
+    test('passes avatar service to Twitch commands without rehearsal controls', async () => {
         const service = { observeProduction: jest.fn(), stop: jest.fn().mockResolvedValue() }; startStreamAvatars.mockResolvedValue(service);
         const startup = application.start({ config: { ...validConfig, streamAvatars: { enabled: true, config: {} } } });
         registeredHandler(mockDiscordClient.once, 'ready')(); await startup; await flushPromises();
         const tags = { username: 'streamer', id: 'message', 'tmi-sent-ts': String(Date.now()) };
         await registeredHandler(mockTwitchClient.on, 'message')('#channel-name', tags, '!sa status', false);
         expect(handleCommand.mock.calls.at(-1)[7]).toBe(service);
-        const onStopped = startStreamAvatars.mock.calls[0][0].onRehearsalStopped;
-        onStopped(); await flushPromises(); expect(mockTwitchClient.say).toHaveBeenCalledTimes(1);
-        await application.stop(); onStopped(); expect(mockTwitchClient.say).toHaveBeenCalledTimes(1);
+        expect(startStreamAvatars.mock.calls[0][0]).not.toHaveProperty('onRehearsalStopped');
+        await application.stop();
     });
 });
 

@@ -4,7 +4,7 @@ const positive = value => finite(value) && value > 0;
 const id = value => typeof value === 'string' && value.length > 0 && value.length <= 128;
 const exact = (value, keys) => value && !Array.isArray(value) && Object.keys(value).length === keys.length && keys.every(key => Object.hasOwn(value, key));
 const common = value => value?.version === 2 && ['production', 'integration'].includes(value.mode) && Number.isSafeInteger(value.generation) && value.generation >= 0;
-function crowdIds(value) { return Array.isArray(value) && value.length <= 100 && new Set(value).size === value.length && value.every(entry => /^sa_rehearsal_(?:[1-9]|[1-9]\d|100)$/.test(entry)); }
+function crowdIds(value) { return Array.isArray(value) && value.length <= 100 && new Set(value).size === value.length && value.every(entry => /^sa_integration_(?:[1-9]|[1-9]\d|100)$/.test(entry)); }
 function invalid() { throw new Error('Invalid Stream Avatars message'); }
 function decodeClientMessage(raw) {
     let value;

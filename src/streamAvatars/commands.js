@@ -1,5 +1,5 @@
 const { isAdmin } = require('../config');
-const { parseAction } = require('./rehearsal');
+const { parseAction } = require('./actions');
 const seen = new Map();
 const normalizeChannel = channel => typeof channel === 'string' ? channel.replace(/^#/, '').toLowerCase() : '';
 async function handleStreamAvatarsCommand(input, context, { config, service, logger, nowMs = Date.now }) {
@@ -18,7 +18,7 @@ async function handleStreamAvatarsCommand(input, context, { config, service, log
     try { action = parseAction(input); } catch (error) { return error.message; }
     if (action.name === 'status') {
         const status = service.getStatus();
-        return `Stream Avatars ${status.mode}: ${status.crowdCount} avatars, ${Math.floor(status.elapsedMs / 3600000)}h elapsed, companion ${status.companionConnected ? 'connected' : 'disconnected'}${status.recoveryRequired ? ', recovery required' : ''}.`;
+        return `Stream Avatars ${status.mode}: ${status.crowdCount} avatars, ${Math.floor(status.elapsedMs / 3600000)}h elapsed, $${((status.knownLiveTotalCents ?? 0) / 100).toFixed(2)} raised this stream, companion ${status.companionConnected ? 'connected' : 'disconnected'}${status.recoveryRequired ? ', recovery required' : ''}${status.reconciliationRequired ? ', reconciling donations' : ''}${status.unknownAmountCount ? ', hidden amounts: ' + status.unknownAmountCount : ''}.`;
     }
     try {
         const result = await service.dispatch(action, { platform: 'twitch', login, messageId: id });

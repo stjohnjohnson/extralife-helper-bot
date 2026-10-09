@@ -28,8 +28,8 @@ app.removeWebSocket = function(title) assert(title=="sa_helper_bridge"); removal
 app.createWebsocket = function(title,url) assert(title=="sa_helper_bridge" and url==expectedUrl); connectedCount = connectedCount + 1; if scenario~="async-open" and scenario~="backoff" then callbacks.websocket(title,"OnOpen","","") end end
 app.sendWebsocketMessage = function(title,message) assert(title=="sa_helper_bridge" and type(message)=="string"); packets[#packets+1] = codec.decode(message) end
 app.platformServiceSettings = {
-    SetStreamer = function(id,name) assert(id==900000 and name=="sa_rehearsal_host") end,
-    SetUserJoin = function(id,name) assert(type(id)=="number" and id>=900001 and id<=900100 and name=="sa_rehearsal_"..tostring(id-900000)); users[tostring(id)] = { id = id, displayName = name, isActive = true, getPosition = function() return { x=50, y=20 } end } end,
+    SetStreamer = function(id,name) assert(id==900000 and name=="sa_integration_host") end,
+    SetUserJoin = function(id,name) assert(type(id)=="number" and id>=900001 and id<=900100 and name=="sa_integration_"..tostring(id-900000)); users[tostring(id)] = { id = id, displayName = name, isActive = true, getPosition = function() return { x=50, y=20 } end } end,
     SetUserLeave = function(id) assert(type(id)=="number" and id>=900001 and id<=900100); users[tostring(id)] = nil; leaves = leaves+1 end
 }
 app.createGameObject = function()
@@ -242,8 +242,8 @@ elseif scenario=="generation" then
     addUser(1); send(snapshot()); send(hearts()); send(snapshot("production",2)); assert(count()==0)
     send(hearts("old",1)); assert(count()==0)
 elseif scenario=="crowd" then
-    send(snapshot("integration",1,{"sa_rehearsal_1","sa_rehearsal_2"})); assert(users["900001"] and users["900002"])
-    send(snapshot("integration",1,{"sa_rehearsal_2"})); assert(not users["900001"] and leaves==1)
+    send(snapshot("integration",1,{"sa_integration_1","sa_integration_2"})); assert(users["900001"] and users["900002"])
+    send(snapshot("integration",1,{"sa_integration_2"})); assert(not users["900001"] and leaves==1)
     send(snapshot("production",2)); assert(not users["900002"] and leaves==2)
 elseif scenario=="invalid" then
     addUser(1); send(snapshot()); send({version=2,type="command",text="error()"}); assert(count()==0)
@@ -280,7 +280,7 @@ elseif scenario=="stale-control" then
     send({version=2,type="clear",mode="integration",generation=1}); assert(active()==ob and not ob.removed)
     send(snapshot("integration",1)); assert(active()==ob and not ob.removed)
 elseif scenario=="stop" then
-    send(snapshot("integration",1,{"sa_rehearsal_1"})); send(hearts()); assert(count()==1)
+    send(snapshot("integration",1,{"sa_integration_1"})); send(hearts()); assert(count()==1)
     send({version=2,type="clear",mode="production",generation=2}); assert(count()==0 and not users["900001"])
 elseif scenario=="close-open-race" then
     addUser(1); send(snapshot()); send(hearts()); assert(count()==1)
@@ -288,7 +288,7 @@ elseif scenario=="close-open-race" then
     raw(codec.encode(snapshot())); tick(); assert(count()==0,"disconnect must clear even if reopened before the next tick")
     send(hearts("new")); assert(count()==1,"fresh reconnect snapshot must survive cleanup")
 elseif scenario=="socket-error" then
-    send(snapshot("integration",1,{"sa_rehearsal_1"})); send(hearts()); callbacks.websocket("sa_helper_bridge","OnError","private details",""); tick(); assert(count()==0 and not users["900001"])
+    send(snapshot("integration",1,{"sa_integration_1"})); send(hearts()); callbacks.websocket("sa_helper_bridge","OnError","private details",""); tick(); assert(count()==0 and not users["900001"])
 elseif scenario=="async-open" then
     assert(#packets==0); callbacks.websocket("sa_helper_bridge","OnOpen","",""); assert(packets[1].type=="auth"); send(snapshot()); assert(packets[2].type=="ready")
 elseif scenario=="backoff" then
@@ -318,7 +318,7 @@ elseif scenario=="elapsed-state" then
     addUser(1); local value=snapshot(); value.elapsedMs=25200000; send(value); send(hearts()); assert(count()==1)
     value.elapsedMs=300000; send(value); tick(5); assert(count()==0)
 elseif scenario=="crowd-no-extra-config" then
-    addUser(42); send(snapshot("integration",1,{"sa_rehearsal_1"})); assert(users["900001"] and users["42"] and leaves==0)
+    addUser(42); send(snapshot("integration",1,{"sa_integration_1"})); assert(users["900001"] and users["42"] and leaves==0)
 elseif scenario=="resized-bounds" then
     local user=addUser(1,900,500); send(snapshot()); send(hearts()); assert(active().x==900 and active().y==184)
     app.convertPercentToPosition=function(x,y) return {x=-200+x*400,y=y*100} end
@@ -329,7 +329,7 @@ elseif scenario=="small-bounds" then
     assert(packets[#packets].code=="render-error")
 elseif scenario=="reload" then
     assert(not users["900001"] and not users["900002"] and leaves==2)
-    send(snapshot("integration",1,{"sa_rehearsal_3"})); assert(users["900003"] and #shared.sa_owned_ids==1)
+    send(snapshot("integration",1,{"sa_integration_3"})); assert(users["900003"] and #shared.sa_owned_ids==1)
 elseif scenario=="wire-contract" then
     local file=assert(io.open(arg[3],"rb")); local message=file:read("*a"); file:close(); raw(message); tick(); assert(packets[#packets].type=="ready")
     addUser(1); local event=hearts(); event.sessionId="session_é"; send(event); assert(count()==1)

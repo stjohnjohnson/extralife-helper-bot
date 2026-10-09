@@ -5,7 +5,6 @@ function createEventDispatcher({ realClock, send, newEventId = randomUUID }) {
     const seen = new Set();
     return {
         publishHearts({ mode, generation, sessionId }) {
-            if (mode === 'rehearsal') mode = 'integration';
             if (!active) return false;
             const id = newEventId(); const key = mode + ':' + generation + ':' + id;
             if (seen.has(key)) return false;
@@ -20,7 +19,7 @@ function createEventDispatcher({ realClock, send, newEventId = randomUUID }) {
             const packet = validateServerMessage({ ...message, version: 2, type: 'celebration', id: newEventId() });
             return send(packet);
         },
-        clear({ mode, generation }) { if (mode === 'rehearsal') mode = 'integration'; if (active) send(validateServerMessage({ version: 2, type: 'clear', mode, generation })); },
+        clear({ mode, generation }) { if (active) send(validateServerMessage({ version: 2, type: 'clear', mode, generation })); },
         stop() { active = false; seen.clear(); }
     };
 }
