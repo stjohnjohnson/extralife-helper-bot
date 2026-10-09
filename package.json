@@ -13,7 +13,8 @@
     "start": "node app.js",
     "semantic-release": "semantic-release",
     "sa:integration": "node scripts/sa-integration.js",
-    "sa:package": "node scripts/sa-package.js"
+    "sa:package": "node scripts/sa-package.js",
+    "sa:art": "node scripts/sa-artwork.js"
   },
   "repository": {
     "type": "git",
