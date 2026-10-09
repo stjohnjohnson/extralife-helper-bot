@@ -97,7 +97,7 @@ test.each(['donation','milestone','goal','hidden','goal-only'])('Lua renders act
 
 const { buildThemeCatalog, buildThemeLayout } = require('../src/streamAvatars/themeLayout');
 const { candidate } = require('./fixtures/themeCandidates');
-const themeScenarios = ['theme-stale-load', 'theme-shared-game', 'theme-neutral', 'theme-missing-backdrop', 'theme-resize', 'theme-small-bounds', 'theme-heart-coexistence', 'theme-reconnect-no-entrance', 'theme-production-gate', 'theme-revision', 'theme-load-timeout', 'theme-pending-cap', 'theme-scope-cancellation', 'entrance-timing', 'entrance-obsolete', 'entrance-caption', 'entrance-neutral', 'entrance-supersession', 'theme-density-0', 'theme-density-20', 'theme-density-100', 'theme-kitchen', 'entrance-caption-error'];
+const themeScenarios = ['theme-stale-load', 'theme-shared-game', 'theme-neutral', 'theme-missing-backdrop', 'theme-resize', 'theme-small-bounds', 'theme-heart-coexistence', 'theme-reconnect-no-entrance', 'theme-production-gate', 'theme-revision', 'theme-load-timeout', 'theme-pending-cap', 'theme-scope-cancellation', 'entrance-timing', 'entrance-obsolete', 'entrance-caption', 'entrance-neutral', 'entrance-supersession', 'theme-density-0', 'theme-density-20', 'theme-density-100', 'theme-kitchen', 'entrance-caption-error', 'entrance-position-error'];
 function themeSource() {
     const manifest = candidate();
     for (const asset of Object.values(manifest.assets)) {
@@ -137,6 +137,7 @@ test.each([
     ['entrance-obsolete', 'value.themeId==snapshot.theme.themeId', 'true'],
     ['entrance-obsolete', 'value.gameIdentity==snapshot.theme.gameIdentity', 'true'],
     ['entrance-caption', 'value:gsub("[<>]", "")', 'value'],
+    ['entrance-position-error', 'if not positioned then clearEntrance(); diagnostic("render-error") end', 'if not positioned then clearTheme(); clearEntrance(); diagnostic("render-error") end'],
     ['entrance-supersession', 'then clearEntrance() end', 'then end']
 ])('theme/entrance regression detects mutation %s / %s', (scenario, original, broken) => {
     const result = runTheme(scenario, source => {

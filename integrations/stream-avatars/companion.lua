@@ -553,7 +553,9 @@ return function()
         local fits=number(scale) and number(height) and scale>0 and height>=(BAND_HEIGHT+BASELINE_OFFSET)*scale
         if entrance then
             if elapsed>=entrance.ends then clearEntrance()
-            elseif fits then entrance.object.setPosition(bottom.x+width/2,bottom.y+(BAND_HEIGHT+BASELINE_OFFSET)*scale)
+            elseif fits then
+                local positioned=pcall(function() entrance.object.setPosition(bottom.x+width/2,bottom.y+(BAND_HEIGHT+BASELINE_OFFSET)*scale) end)
+                if not positioned then clearEntrance(); diagnostic("render-error") end
             else clearEntrance() end
         end
         if not themeLayout then return end

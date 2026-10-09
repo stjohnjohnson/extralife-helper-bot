@@ -43,7 +43,7 @@ app.platformServiceSettings = {
 app.createGameObject = function()
     local ob; ob = { removed = false, scale = 1, image = { anchor = function(where,dimensions) assert(where=="center" and dimensions==true); ob.anchored=true end, sorting = function(value,layer) assert(value==0 or value==1); assert(layer=="behindBackground" or layer=="background"); ob.layer=layer end }, text = { setText = function(value) assert(type(value)=="string"); if scenario=="entrance-caption-error" then error("caption unavailable") end; ob.caption=value end, setSize = function(value) assert(type(value)=="number" and value>0); ob.fontSize=value end } }
     ob.setScale = function(x,y) assert(x==y); ob.scale=x end
-    ob.setPosition = function(x,y) assert(not ob.removed and type(x)=="number" and type(y)=="number" and x==x and y==y and math.abs(x)<math.huge and math.abs(y)<math.huge); ob.x=x; ob.y=y end
+    ob.setPosition = function(x,y) if scenario=="entrance-position-error" and ob.caption then error("caption position unavailable") end; assert(not ob.removed and type(x)=="number" and type(y)=="number" and x==x and y==y and math.abs(x)<math.huge and math.abs(y)<math.huge); ob.x=x; ob.y=y end
     ob.destroy = function() ob.removed=true end
     objects[#objects+1]=ob; return ob
 end
@@ -294,6 +294,16 @@ if themeScenario then
             send(hearts()); send(entranceEvent()); assert(themes()==8 and count()==9 and jumps==0, "caption failure must preserve other owners")
             assert(objects[#objects].removed, "failed caption must be destroyed")
             send({version=3,type="heartbeat",serverNowMs=1200}); assert(packets[#packets].type=="heartbeat")
+        elseif scenario=="entrance-position-error" then
+            send(hearts()); local heart=objects[#objects]; send(entranceEvent())
+            assert(themes()==8 and count()==9 and #captions()==0 and jumps==1, "caption position failure must preserve world and hearts")
+            for i=1,8 do assert(not objects[i].removed, "caption position failure must preserve existing scenery objects") end
+            assert(objects[#objects].removed, "failed caption position must destroy only the caption")
+            assert(packets[#packets].code=="render-error", "caption position failure must report its diagnostic")
+            send({version=3,type="heartbeat",serverNowMs=1200}); assert(packets[#packets].type=="heartbeat")
+            app.convertPercentToPosition=function(x,y) return {x=-100+x*777,y=-20+y*200} end; tick()
+            assert(themes()==8 and count()==9 and not heart.removed and #objects==10, "caption position failure must not recreate or lose other owners")
+            for i=1,8 do assert(math.abs(objects[i].scale-777/1920)<0.0001, "world must continue rendering after caption failure") end
         elseif scenario=="entrance-supersession" then
             send(entranceEvent()); local old=captions()[1]; local value=themed(string.rep("c",64)); value.theme.gameName="Next Game"; send(value); assert(old.removed and #captions()==0)
             send(entranceEvent("new",value)); assert(#captions()==1 and captions()[1].caption=="Next Game" and jumps==2 and themes()==8)
