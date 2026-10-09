@@ -13,6 +13,17 @@ json.parse = function(text, ...)
     return parseJson(compatible, ...)
 end
 
+-- Image loading yields and CLR host errors can escape Lua pcall. Keep it in
+-- a child coroutine so transport, expiry and cleanup continue independently.
+function sa_load_heart(object, key)
+    local ok=pcall(function() applyImage(object,"sa_heart") end)
+    set("sa_pending_images",math.max(0,(get("sa_pending_images") or 1)-1))
+    if get(key)=="cancelled" then object.destroy(); set(key,nil); return end
+    if not ok then set(key,"failed"); return end
+    object.image.anchor("center",true)
+    set(key,"loaded")
+end
+
 function sa_on_socket(title, event, message, code)
     if title ~= "sa_helper_bridge" then return end
     local app = getApp()
@@ -45,6 +56,7 @@ return function()
     local objects, owned, seen, seenOrder = {}, {}, {}, {}
     local snapshot, effect = nil, nil
     local generationFloor = -1
+    local loadSequence = get("sa_load_sequence") or 0
     local elapsed, serverOffset, updateElapsed = 0, 0, 0
     local retryAt, retryDelay, rotation, wasConnected = 0, 1, 0, false
     local worldWidth = settings.worldWidth or 32
@@ -53,8 +65,16 @@ return function()
     if not number(worldWidth) or not number(worldHeight) or not number(avatarTop) or worldWidth <= 0 or worldHeight <= 0 or avatarTop < 0 then log("SA bridge: invalid measured image geometry"); return end
     local function send(value) app.sendWebsocketMessage(socket, json.serialize(value)) end
     local function diagnostic(code) send({version=1,type="diagnostic",code=code}) end
+    local function release(entry)
+        local status=get(entry.key)
+        if not entry.loaded and status~="failed" and status~="loaded" then
+            -- stopAsync cannot cancel the host image callback. Leave its object
+            -- alive until it returns, then let the worker discard the image.
+            set(entry.key,"cancelled")
+        else set(entry.key,nil); pcall(entry.object.destroy) end
+    end
     local function clearObjects()
-        for _,entry in pairs(objects) do pcall(entry.object.destroy) end
+        for _,entry in pairs(objects) do release(entry) end
         objects = {}; effect = nil
     end
     local function reconcileCrowd(ids)
@@ -122,19 +142,34 @@ return function()
         local users=getUsers(); table.sort(users,function(a,b) return tostring(a.id)<tostring(b.id) end)
         local selected={}; local count=math.min(#users,snapshot.render.maxHearts)
         for i=1,count do local user=users[((i-1+effect.offset)%#users)+1]; selected[tostring(user.id)]=user end
-        for id,entry in pairs(objects) do if not selected[id] then pcall(entry.object.destroy); objects[id]=nil end end
+        for id,entry in pairs(objects) do if not selected[id] then
+            release(entry); objects[id]=nil
+        end end
         for id,user in pairs(selected) do
             local entry=objects[id]
             if not entry then
-                local object=app.createGameObject()
-                local ok=pcall(function() applyImage(object,"sa_heart"); object.image.anchor("center",true) end)
-                if not ok then object.destroy(); diagnostic("missing-heart-image"); clearObjects(); return end
-                entry={object=object}; objects[id]=entry
+                local pending=get("sa_pending_images") or 0
+                -- A CLR failure may never invoke its callback. Bound retained
+                -- pending objects until F5 reload, which the host cleans up.
+                if pending>=100 then clearObjects(); diagnostic("missing-heart-image"); return end
+                set("sa_pending_images",pending+1)
+                loadSequence=loadSequence+1; set("sa_load_sequence",loadSequence)
+                local key="sa_image_"..loadSequence
+                entry={object=app.createGameObject(),key=key,deadline=elapsed+2}; objects[id]=entry
+                -- The host starts animation before resuming the worker. Keep
+                -- pending/cancelled images hidden until positioned and active.
+                entry.object.setScale(0,0)
+                entry.loader=async("sa_load_heart",entry.object,key)
+            end
+            if not entry.loaded then
+                if get(entry.key)=="loaded" then entry.loaded=true; set(entry.key,nil)
+                elseif get(entry.key)=="failed" or elapsed>=entry.deadline then clearObjects(); diagnostic("missing-heart-image"); return end
             end
             local pos=user.getPosition(); local strip=snapshot.strip
             local x=math.max(strip.x+worldWidth/2,math.min(strip.x+strip.width-worldWidth/2,pos.x))
             local y=math.max(strip.y+worldHeight/2,math.min(strip.y+strip.height-worldHeight/2,pos.y+avatarTop+snapshot.render.heartOffset))
             entry.object.setPosition(x,y)
+            if entry.loaded then entry.object.setScale(1,1) end
         end
     end
     -- Reload cleanup uses only IDs this companion previously created, never real viewers.
@@ -142,6 +177,7 @@ return function()
         for _,id in ipairs(get("sa_owned_ids") or {}) do if id>=900001 and id<=900100 then app.platformServiceSettings.SetUserLeave(id) end end
         app.platformServiceSettings.SetStreamer(900000,"sa_rehearsal_host")
     end
+    set("sa_pending_images",0)
     set("sa_settings",settings); set("sa_mailbox",{}); set("sa_connected",false); set("sa_disconnect_pending",false)
     app.removeWebSocket(socket); addEvent("websocket","sa_on_socket")
     local bottom=app.convertPercentToPosition(0,0); local top=app.convertPercentToPosition(1,1)

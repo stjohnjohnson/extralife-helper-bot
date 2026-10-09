@@ -4,7 +4,7 @@ const { mkdtempSync, readFileSync, writeFileSync, rmSync } = require('node:fs');
 const { tmpdir } = require('node:os');
 const { createInitialState, reduceObservation } = require('../src/broadcastSession/state');
 const { validateServerMessage } = require('../src/streamAvatars/protocol');
-test.each(['host-json-escapes', 'auth', 'movement', 'density', 'cleanup', 'expiry', 'generation', 'crowd', 'invalid', 'missing-image', 'reconnect', 'late-join', 'empty-crowd', 'negative-bounds', 'density-rotation', 'same-snapshot', 'new-session', 'stale-control', 'stop', 'close-open-race', 'socket-error', 'async-open', 'backoff', 'mailbox-burst', 'mailbox-overflow', 'malformed-json', 'invalid-snapshot', 'wrong-session', 'heartbeat-expiry', 'virtual-clock', 'no-custom-service', 'reload', 'invalid-settings', 'infinite-settings'])('shipped Lua companion: %s', scenario => {
+test.each(['image-loaded-before-clear', 'image-pending-cap', 'missing-image-host', 'image-load-delay', 'image-load-timeout', 'pending-image-stop', 'host-json-escapes', 'auth', 'movement', 'density', 'cleanup', 'expiry', 'generation', 'crowd', 'invalid', 'missing-image', 'reconnect', 'late-join', 'empty-crowd', 'negative-bounds', 'density-rotation', 'same-snapshot', 'new-session', 'stale-control', 'stop', 'close-open-race', 'socket-error', 'async-open', 'backoff', 'mailbox-burst', 'mailbox-overflow', 'malformed-json', 'invalid-snapshot', 'wrong-session', 'heartbeat-expiry', 'virtual-clock', 'no-custom-service', 'reload', 'invalid-settings', 'infinite-settings'])('shipped Lua companion: %s', scenario => {
     const result = spawnSync(process.env.LUA_BIN || 'lua', [resolve('tests/lua/companionHarness.lua'), resolve('integrations/stream-avatars/companion.lua'), scenario], { encoding: 'utf8', timeout: 5000 });
     if (result.error) throw new Error('Install Lua 5.2+ or set LUA_BIN: ' + result.error.code);
     expect({ status: result.status, stderr: result.stderr, stdout: result.stdout.trim() }).toEqual({ status: 0, stderr: '', stdout: 'OK ' + scenario });
@@ -33,6 +33,11 @@ test('companion works with Windows CRLF source and a script path containing spac
 });
 // Prove these tests reject plausible defects, rather than merely executing happy paths.
 test.each([
+    ['pending-image-stop', 'entry.object.setScale(0,0)', 'entry.object.setScale(1,1)'],
+    ['image-loaded-before-clear', 'status~="loaded"', 'true'],
+    ['missing-image-host', 'deadline=elapsed+2', 'deadline=elapsed+20'],
+    ['pending-image-stop', 'get(key)=="cancelled"', 'false'],
+    ['image-pending-cap', 'pending>=100', 'false'],
     ['host-json-escapes', '#slashes % 2 == 1', 'false'],
     ['host-json-escapes', '#slashes % 2 == 1', 'true'],
     ['auth', 'token=settings.token', 'token="wrong-token"'],

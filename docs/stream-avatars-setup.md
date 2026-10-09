@@ -55,7 +55,7 @@ Native Windows/Linux Lua 5.2 and 5.4 CI, plus CRLF/path-with-spaces tests, check
 5. Connect Stream Avatars. The Lua log prints the lower-left and upper-right game coordinates. `getResolution()` reports window pixels and must not be substituted for these coordinates.
 6. Measure the safe avatar strip in game units before OBS cropping/scaling. Set the Linux environment's `STREAM_AVATARS_STRIP_X`, `Y`, `WIDTH`, and `HEIGHT` to that rectangle. Measure the imported heart's displayed width/height in these same units and set private `worldWidth`/`worldHeight` accordingly; `avatarTopOffset` is the measured distance from user position to avatar top. The supplied 32/32/40 are initial rehearsal values, not verified overlay measurements. The bot's `HEART_OFFSET` is an additional offset in game units.
 
-The companion clamps the whole measured heart rectangle, follows active avatars, rotates a 50-object selection for large crowds, and clears temporary objects on expiry, disconnect, mode switch, reload, or explicit stop. Missing image imports produce a sanitized diagnostic and skip the preview.
+The companion clamps the whole measured heart rectangle, follows active avatars, rotates a 50-object selection for large crowds, and clears temporary objects on expiry, disconnect, mode switch, reload, or explicit stop. Missing or stalled image loads time out after two game seconds, produce a sanitized diagnostic, and leave the connection responsive. The host may retain a blank pending object when its callback fails; pending loads are capped at 100. Repair the image import and press F5 to clear retained host objects and retry.
 
 ## Offline crowd
 

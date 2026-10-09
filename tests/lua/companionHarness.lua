@@ -26,11 +26,14 @@ app.platformServiceSettings = {
     SetUserLeave = function(id) assert(type(id)=="number" and id>=900001 and id<=900100); users[tostring(id)] = nil; leaves = leaves+1 end
 }
 app.createGameObject = function()
-    local ob = { removed = false, image = { anchor = function(where,dimensions) assert(where=="center" and dimensions==true) end } }
+    local ob; ob = { removed = false, scale = 1, image = { anchor = function(where,dimensions) assert(where=="center" and dimensions==true); ob.anchored=true end } }
+    ob.setScale = function(x,y) assert(x==y); ob.scale=x end
     ob.setPosition = function(x,y) assert(not ob.removed and type(x)=="number" and type(y)=="number" and x==x and y==y and math.abs(x)<math.huge and math.abs(y)<math.huge); ob.x=x; ob.y=y end
     ob.destroy = function() ob.removed=true end
     objects[#objects+1]=ob; return ob
 end
+local loaders, loaderSequence = {}, 0
+local allowImageCompletion = scenario~="pending-image-stop"
 local env; env = {
     getApp = function() return app end,
     get = function(key)
@@ -39,7 +42,15 @@ local env; env = {
     end, set = function(key,value) shared[key]=clone(value) end,
     load = function() shared.data = config end,
     getUsers = function() local list={} for _,user in pairs(users) do list[#list+1]=user end return list end,
-    applyImage = function(ob,name) assert(name=="sa_heart" and not ob.removed); if scenario=="missing-image" then error("missing image") end end,
+    applyImage = function(ob,name) assert(name=="sa_heart" and not ob.removed); if scenario=="missing-image" then error("missing image") end
+        if (scenario=="missing-image-host" or scenario=="image-pending-cap") then error("CLR missing image") end
+        if scenario=="image-load-delay" or scenario=="pending-image-stop" or scenario=="image-loaded-before-clear" then
+            -- The real callback plays the image before it resumes the worker.
+            ob.imageLoaded=true; coroutine.yield()
+        end
+        if scenario=="image-load-timeout" then while true do coroutine.yield() end end
+        ob.imageLoaded=true
+    end,
     log = function(message) logs[#logs+1]=message; assert(not message:find(config.token,1,true)) end,
     yield = function() return coroutine.yield() end,
     json = { serialize = scenario=="host-json-escapes" and hostSerialize or codec.encode, parse = scenario=="host-json-escapes" and hostParse or codec.decode }
@@ -49,9 +60,33 @@ for _,name in ipairs({"type","pairs","ipairs","tonumber","tostring","pcall","mat
 setmetatable(app, { __index=function(_,key) error("Undocumented app API: "..tostring(key)) end })
 -- addEvent must resolve only explicitly exported callbacks, never main-coroutine locals.
 env.addEvent = function(name, callback) callbacks[name] = function(...) return env[callback](...) end end
+env.async = function(name, ...)
+    assert(name=="sa_load_heart" and type(env[name])=="function")
+    loaderSequence=loaderSequence+1
+    local worker=coroutine.create(env[name]); loaders[loaderSequence]=worker
+    local ok=coroutine.resume(worker,...)
+    -- The real host catches CLR exceptions at the child coroutine boundary.
+    if not ok or coroutine.status(worker)=="dead" then loaders[loaderSequence]=nil end
+    return loaderSequence
+end
+env.stopAsync = function(id) loaders[id]=nil end
+if (scenario=="missing-image-host" or scenario=="image-pending-cap") then
+    env.pcall=function(fn,...)
+        local result={pcall(fn,...)}
+        if not result[1] and tostring(result[2]):find("CLR missing image",1,true) then error(result[2]) end
+        return table.unpack(result)
+    end
+end
 local start = assert(loadfile(script, "t", env))()
 local runner=coroutine.create(start)
-local function tick(delta) local ok,err=coroutine.resume(runner,delta or 0.05); assert(ok,err) end
+local function tick(delta)
+    for id,worker in pairs(loaders) do
+        local ok=true
+        if allowImageCompletion then ok=coroutine.resume(worker) end
+        if not ok or coroutine.status(worker)=="dead" then loaders[id]=nil end
+    end
+    local ok,err=coroutine.resume(runner,delta or 0.05); assert(ok,err)
+end
 local function raw(message) callbacks.websocket("sa_helper_bridge","OnMessage",message,"") end
 local function send(message) raw(codec.encode(message)); tick() end
 local function snapshot(mode,generation,ids)
@@ -64,8 +99,8 @@ local function addUser(id,x,y)
     local user={id=id,isActive=true,x=x or 50,y=y or 20}
     user.getPosition=function() return {x=user.x,y=user.y} end; users[tostring(id)]=user; return user
 end
-local function count() local n=0 for _,ob in ipairs(objects) do if not ob.removed then n=n+1 end end return n end
-local function active() for _,ob in ipairs(objects) do if not ob.removed then return ob end end end
+local function count() local n=0 for _,ob in ipairs(objects) do if not ob.removed and ob.imageLoaded and ob.scale>0 then n=n+1 end end return n end
+local function active() for _,ob in ipairs(objects) do if not ob.removed and ob.imageLoaded and ob.scale>0 then return ob end end end
 if scenario=="host-json-escapes" then
     config.token="private/test\\path/token"
     local ok=pcall(hostParse,hostSerialize(config)); assert(not ok, "must reproduce embedded codec failure")
@@ -78,7 +113,38 @@ if scenario=="invalid-settings" or scenario=="infinite-settings" then
     local ok,err=coroutine.resume(runner); assert(ok,err); assert(coroutine.status(runner)=="dead" and connectedCount==0); print("OK "..scenario); return
 end
 tick()
-if scenario=="host-json-escapes" then
+if scenario=="image-pending-cap" then
+    addUser(1)
+    for i=1,105 do send(snapshot()); send(hearts("failed-"..i)); tick(2.1); tick() end
+    assert(#objects==100 and shared.sa_pending_images==100, "must bound failed host loads")
+    send({version=1,type="heartbeat",serverNowMs=1000}); assert(packets[#packets].type=="heartbeat")
+elseif scenario=="missing-image-host" or scenario=="image-load-timeout" then
+    addUser(1); send(snapshot()); send(hearts()); assert(count()==0)
+    send({version=1,type="heartbeat",serverNowMs=1100}); assert(packets[#packets].type=="heartbeat")
+    tick(2.1); tick(); assert(count()==0)
+    assert(shared.sa_pending_images==1, "failed host callbacks retain one bounded pending load")
+    assert(packets[#packets].code=="missing-heart-image")
+    send({version=1,type="heartbeat",serverNowMs=4000}); assert(packets[#packets].type=="heartbeat")
+elseif scenario=="image-loaded-before-clear" then
+    addUser(1); send(snapshot()); send(hearts()); assert(count()==0)
+    raw(codec.encode({version=1,type="clear",mode="rehearsal",generation=1}))
+    tick() -- worker finishes immediately before the parent processes clear.
+    assert(shared.sa_pending_images==0 and next(loaders)==nil)
+    for _,ob in ipairs(objects) do assert(ob.removed, "completed image must be destroyed before render acknowledgement") end
+    for key,_ in pairs(shared) do assert(not key:match("^sa_image_"), "completed image leaked key") end
+elseif scenario=="image-load-delay" then
+    local user=addUser(1,500,20); send(snapshot()); send(hearts()); assert(count()==0)
+    user.x=600; tick(); assert(count()==1 and active().x==600 and active().y==76)
+elseif scenario=="pending-image-stop" then
+    addUser(1); send(snapshot()); send(hearts()); assert(count()==0)
+    callbacks.websocket("sa_helper_bridge","OnClose","",""); tick()
+    assert(count()==0 and next(loaders)~=nil)
+    for _,ob in ipairs(objects) do assert(not ob.removed, "host callback must retain its object") end
+    allowImageCompletion=true; tick()
+    assert(next(loaders)==nil and shared.sa_pending_images==0)
+    for _,ob in ipairs(objects) do assert(ob.removed, "cancelled image must never become visible") end
+    for key,_ in pairs(shared) do assert(not key:match("^sa_image_"), "late callback leaked completion key") end
+elseif scenario=="host-json-escapes" then
     assert(packets[1].type=="auth" and packets[1].token==config.token)
     local message=snapshot(); message.session.channel="viewer/path\\name"
     send(message); assert(packets[#packets].type=="ready")
@@ -123,7 +189,7 @@ elseif scenario=="invalid" then
     send(hearts()); local ob=active(); send(hearts()); assert(count()==1 and active()==ob, "duplicate must not recreate or extend effects")
     callbacks.websocket("other_socket","OnClose","",""); tick(); assert(count()==1)
 elseif scenario=="missing-image" then
-    addUser(1); send(snapshot()); send(hearts()); assert(count()==0)
+    addUser(1); send(snapshot()); send(hearts()); assert(count()==0); tick(2.1); tick()
     assert(packets[#packets].type=="diagnostic" and packets[#packets].code=="missing-heart-image")
 elseif scenario=="reconnect" then
     send(snapshot()); callbacks.websocket("sa_helper_bridge","OnClose","",""); tick(); tick(1.1)
