@@ -245,7 +245,8 @@ class ArtworkWorkflow {
         const errors = [];
         const selections = this.selections();
         const briefs = this.briefs();
-        for (const id of Object.keys(selections)) if (!briefs.some(b => b.id === id)) errors.push(id + ': retired or unknown selection cannot enter release');
+        const knownIds = new Set(this.briefs({ includeRetired: true }).map(b => b.id));
+        for (const id of Object.keys(selections)) if (!knownIds.has(id)) errors.push(id + ': unknown selection cannot enter release');
         for (const brief of briefs) {
             if (brief.kind === 'gear' && (brief.gearSlot !== 'head' || /backpack|goggles/i.test(brief.id + ' ' + brief.subject))) errors.push(brief.id + ': active gear must be a head-mounted hat or helmet');
             const selection = selections[brief.id];

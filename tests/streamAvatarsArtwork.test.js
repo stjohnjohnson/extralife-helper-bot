@@ -562,7 +562,7 @@ test('historical selections cannot satisfy or count toward the active release ga
     expect(result.requiredAssets).toBe(42);
     expect(result.selectedAssets).toBe(0);
     expect(result.valid).toBe(false);
-    expect(result.errors.join(' ')).toMatch(/retired/i);
+    expect(result.errors.some(e => e.startsWith(record.assetId + ':'))).toBe(false);
     expect(result.errors.join(' ')).toContain('outdoor.gear.trail-cap: missing selection');
 });
 test('rejects duplicate IDs across active and retired history', () => {
@@ -597,4 +597,43 @@ test('stream-scale mockup switches between light and dark test scenes', () => {
     select.value = '';
     select.dispatchEvent(new dom.window.Event('change'));
     expect(scene.style.backgroundColor).toBe('rgb(17, 19, 26)');
+});
+
+// These are synthetic PNG/proof fixtures in a disposable temp workspace, never native evidence.
+function completeActiveReleaseFixture(skipAsset = null) {
+    for (const brief of workflow.briefs().filter(b => b.id !== skipAsset)) {
+        const job = workflow.prepare({ asset: brief.id })[0];
+        const record = workflow.record({ job: job.jobId, file: brief.kind === 'backdrop' ? backdropFixture() : fixture(128, 128, 8), fit: true });
+        workflow.select({ asset: brief.id, attempt: record.attemptId, approve: true, proof: {
+            importedAndProven: true, attemptId: record.attemptId, sha256: record.sha256,
+            notes: 'TEST FIXTURE ONLY: synthetic native proof; no real artwork approval or app fitting',
+            importName: 'test-fixture-' + brief.id
+        } });
+    }
+}
+test('complete active release ignores retained retired approvals without changing their history', () => {
+    const retired = historicalHat(true);
+    const history = workflow.selections()[retired.assetId];
+    const historyFile = workflow.local('selections/' + history.selectionId + '.json');
+    const historyBytes = fs.readFileSync(historyFile);
+    completeActiveReleaseFixture();
+    expect(workflow.releaseCheck()).toEqual({ valid: true, requiredAssets: 42, selectedAssets: 42, errors: [] });
+    expect(workflow.selections()[retired.assetId]).toEqual(history);
+    expect(fs.readFileSync(historyFile)).toEqual(historyBytes);
+    expect(workflow.validate(retired.attemptId).valid).toBe(true);
+    expect(() => workflow.select({ asset: retired.assetId, attempt: retired.attemptId, approve: true })).toThrow(/retired/i);
+});
+test('complete active release still rejects unknown selection IDs alongside retired history', () => {
+    const retired = historicalHat(true);
+    completeActiveReleaseFixture();
+    const old = workflow.selections()[retired.assetId];
+    workflow.immutable('selections/unknown-fixture.json', { ...old, selectionId: 'unknown-fixture', assetId: 'unknown.gear.stranger', sequence: 999 });
+    expect(workflow.releaseCheck()).toEqual({ valid: false, requiredAssets: 42, selectedAssets: 42, errors: ['unknown.gear.stranger: unknown selection cannot enter release'] });
+});
+test('retired approval cannot fill a missing active replacement in an otherwise complete release', () => {
+    const retired = historicalHat(true);
+    const replacement = 'outdoor.gear.trail-cap';
+    completeActiveReleaseFixture(replacement);
+    expect(workflow.releaseCheck()).toEqual({ valid: false, requiredAssets: 42, selectedAssets: 41, errors: [replacement + ': missing selection (unapproved)'] });
+    expect(workflow.selections()[retired.assetId].attemptId).toBe(retired.attemptId);
 });
