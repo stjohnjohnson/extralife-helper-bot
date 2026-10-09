@@ -454,8 +454,10 @@ async function sendGameUpdateNotification(gameName, config, twitchClient, logger
             accessToken
         );
 
+        // Fence category reads started while this successful write was still in flight.
+        const confirmedAtMs = Date.now();
         if (onCategoryUpdated && typeof categoryName === 'string' && categoryName.trim()) {
-            try { await onCategoryUpdated({ gameName: categoryName, observedAtMs, source: 'discord-category' }); }
+            try { await onCategoryUpdated({ gameName: categoryName, observedAtMs, confirmedAtMs, source: 'discord-category' }); }
             catch { logger.warn('Stream Avatars category observer failed'); }
         }
 

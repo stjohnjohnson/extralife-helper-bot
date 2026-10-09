@@ -77,3 +77,12 @@ test('offline grace retains confirmed game and final ending clears it', () => {
 test.each([{ themeId: 'path/file' }, { displayName: '😀'.repeat(201) }, { identity: '../untrusted' }, { source: 'discord-presence' }, { observedAtMs: -1 }, { gear: 'untrusted' }])('version2 rejects unsafe confirmed game records %j', patch => {
     expect(() => validateSessionState({ ...live(), game: { identity: 'a'.repeat(64), displayName: 'Minecraft', themeId: 'block-world', observedAtMs: 1, source: 'twitch', ...patch } }, { mode: 'production', channel: 'streamer' })).toThrow(/state/i);
 });
+test.each([
+    { observedAtMs: 100, confirmedAtMs: 99, source: 'discord-category' },
+    { observedAtMs: 100, confirmedAtMs: NaN, source: 'discord-category' },
+    { observedAtMs: 100, confirmedAtMs: '120', source: 'discord-category' },
+    { observedAtMs: 100, confirmedAtMs: 120, source: 'twitch' }
+])('rejects malformed or read-supplied successful-write confirmation %j', value => {
+    const { validGameObservation } = require('../src/broadcastSession/state');
+    expect(Boolean(validGameObservation({ gameName: 'Minecraft', ...value }))).toBe(false);
+});

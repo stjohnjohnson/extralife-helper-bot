@@ -35,10 +35,12 @@ async function createSessionController({ store, clock, mode, channel, graceMs, c
             if (recoveryRequired) throw new Error('Session recovery required');
             if (!validGameObservation(observation) || !gameConfig || !state.sessionId || state.endedAtMs !== null ||
                 state.latestObservation?.status !== 'online' || clock.nowMs() - state.latestObservation.observedAtMs > 2 * cadenceMs) return;
-            if (gameWatermark && (observation.observedAtMs < gameWatermark.observedAtMs ||
-                (observation.observedAtMs === gameWatermark.observedAtMs && (observation.source !== 'twitch' || gameWatermark.source === 'twitch')))) return;
+            // Successful writes order at confirmation; reads retain their request-start time.
+            const orderedAtMs = observation.confirmedAtMs ?? observation.observedAtMs;
+            if (gameWatermark && (orderedAtMs < gameWatermark.observedAtMs ||
+                (orderedAtMs === gameWatermark.observedAtMs && (observation.source !== 'twitch' || gameWatermark.source === 'twitch')))) return;
             const resolved = resolveGame(observation.gameName, gameConfig);
-            const game = { ...resolved, observedAtMs: observation.observedAtMs, source: observation.source };
+            const game = { ...resolved, observedAtMs: orderedAtMs, source: observation.source };
             if (state.game?.identity === game.identity) { gameWatermark = game; return; }
             const next = { ...structuredClone(state), game, revision: state.revision + 1 };
             await persist(next);

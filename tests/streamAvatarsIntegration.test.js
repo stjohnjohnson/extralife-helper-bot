@@ -131,3 +131,14 @@ test('reset admission is serialized after an already queued live observation', a
     const becomingLive = online(); const reset = dispatch('session reset confirm'); await becomingLive;
     expect((await reset).status).toBe('denied'); expect(service.getStatus().state.sessionId).not.toBeNull();
 });
+test('an overlapping old Twitch read cannot undo a completed category write or emit another entrance', async () => {
+    await online(); await observeGame('Minecraft'); await connectThemes();
+    const patchStart = now + 100; const pollStart = now + 110; now += 120;
+    let pending = waitFor('game-entrance');
+    await service.observeGame({ gameName: 'PlateUp!', observedAtMs: patchStart, confirmedAtMs: now, source: 'discord-category' }); await pending;
+    const received = []; socket.on('message', raw => received.push(JSON.parse(raw))); now += 10;
+    await observeGame('Minecraft', pollStart); expect(service.getStatus().state.game.displayName).toBe('PlateUp!');
+    expect(received).toEqual([]);
+    pending = waitFor('game-entrance'); await observeGame('Raft', now); await pending;
+    expect(service.getStatus().state.game.displayName).toBe('Raft'); expect(received.filter(value => value.type === 'game-entrance')).toHaveLength(1);
+});

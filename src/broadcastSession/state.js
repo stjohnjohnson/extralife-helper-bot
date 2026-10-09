@@ -3,7 +3,8 @@ const { cleanGameName, THEME_IDS } = require('../streamAvatars/themes');
 const validGameIdentity = value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
 const validThemeId = value => value === null || THEME_IDS.includes(value);
 function validGameObservation(value) {
-    return value && cleanGameName(value.gameName) !== null && Number.isFinite(value.observedAtMs) && value.observedAtMs >= 0 && ['twitch', 'discord-category'].includes(value.source);
+    return value && cleanGameName(value.gameName) !== null && Number.isFinite(value.observedAtMs) && value.observedAtMs >= 0 && ['twitch', 'discord-category'].includes(value.source) &&
+        (!Object.hasOwn(value, 'confirmedAtMs') || (value.source === 'discord-category' && Number.isFinite(value.confirmedAtMs) && value.confirmedAtMs >= value.observedAtMs));
 }
 function validGame(value) {
     return value && Object.keys(value).length === 5 && ['identity', 'displayName', 'themeId', 'observedAtMs', 'source'].every(key => Object.hasOwn(value, key)) &&

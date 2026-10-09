@@ -74,3 +74,15 @@ test('duplicate Twitch observation promotes tie priority without persisting; new
     await controller.observe({ status: 'online', observedAtMs: 960, startedAtMs: 0, streamId: 'one' });
     await controller.observeGame(game('Raft', 940)); expect(controller.getSnapshot().game.displayName).toBe('Minecraft'); await controller.stop();
 });
+test('successful category write fences overlapping reads until confirmation; later reads and Twitch ties still win', async () => {
+    const controller = await gameController();
+    await controller.observeGame(game('Minecraft', 901));
+    await controller.observeGame({ ...game('PlateUp!', 910, 'discord-category'), confirmedAtMs: 930 });
+    const revision = controller.getSnapshot().revision;
+    await controller.observeGame(game('Minecraft', 920), { announce: true });
+    expect(controller.getSnapshot()).toMatchObject({ revision, game: { displayName: 'PlateUp!', observedAtMs: 930, source: 'discord-category' } });
+    await controller.observeGame(game('Raft', 931)); expect(controller.getSnapshot().game).toMatchObject({ displayName: 'Raft', observedAtMs: 931 });
+    await controller.observeGame({ ...game('PlateUp!', 940, 'discord-category'), confirmedAtMs: 950 });
+    await controller.observeGame(game('PEAK', 950)); expect(controller.getSnapshot().game.displayName).toBe('PEAK');
+    await controller.stop();
+});
