@@ -188,17 +188,29 @@ return function()
         if entry then entry.object.setPosition(x,y); if entry.loaded then entry.object.setScale(scale,scale) end end
     end
     local function moneyGlyphs(cents)
-        local dollars=tostring(math.floor(cents/100)); local grouped=dollars:reverse():gsub("(%d%d%d)","%1,"):reverse():gsub("^,","")
+        local dollars=string.format("%.0f",math.floor(cents/100)); local grouped=dollars:reverse():gsub("(%d%d%d)","%1,"):reverse():gsub("^,","")
         return "$"..grouped..(cents%100==0 and "" or "."..string.format("%02d",cents%100))
+    end
+    local function numericItems(text)
+        local result={}
+        for char in text:gmatch(".") do result[#result+1]={asset=char=="$" and "sa_dollar" or (char=="," and "sa_comma" or (char=="." and "sa_dot" or "sa_digit_"..char)),width=17,height=23} end
+        return result
     end
     local function captionItems()
         if celebration and celebration.kind=="goal" then return {{asset="sa_goal_accent",width=32,height=32},{asset="sa_goal",width=431,height=23}} end
         if celebration then
-            local result={}; local text=moneyGlyphs(celebration.liveTotalCents)
-            for char in text:gmatch(".") do result[#result+1]={asset=char=="$" and "sa_dollar" or (char=="," and "sa_comma" or (char=="." and "sa_dot" or "sa_digit_"..char)),width=17,height=23} end
+            local result=numericItems(moneyGlyphs(celebration.liveTotalCents))
             result[#result+1]={asset="sa_raised",width=341,height=23}; return result
         end
-        return {{asset="sa_thanks",width=179,height=23}}
+        if not recognition or recognition.suppressed then return {} end
+        if not recognition.amountKnown then return {{asset="sa_thanks",width=179,height=23}} end
+        local result=numericItems(moneyGlyphs(recognition.amount))
+        if recognition.count>1 then
+            result[#result+1]={asset="sa_from",width=107,height=23}
+            for _,item in ipairs(numericItems(string.format("%.0f",recognition.count))) do result[#result+1]=item end
+            result[#result+1]={asset="sa_donations",width=233,height=23}
+        else result[#result+1]={asset="sa_separator",width=53,height=23} end
+        result[#result+1]={asset="sa_thanks",width=179,height=23}; return result
     end
     local function jsonNull(value)
         if value==nil then return true end
@@ -230,9 +242,16 @@ return function()
         if effect then for _,entry in pairs(objects) do release(entry) end; objects={}; effect=nil end
         lastCelebrationIssuedAt=value.issuedAtMs
         seen[value.id]=true; seenOrder[#seenOrder+1]=value.id; if #seenOrder>256 then seen[table.remove(seenOrder,1)]=nil end
-        if not recognition or recognition.ends<=elapsed or recognition.untilMs<=serverNow then jumped={} end
-        recognition={ends=elapsed+math.max(0,(value.heartsUntilMs-serverNow)/1000),untilMs=value.heartsUntilMs}
         local partyActive=celebration and celebration.ends>elapsed and celebration.untilMs>serverNow
+        local sameWindow=recognition and recognition.startedAtMs==value.recognitionStartedAtMs
+        local suppressed=(sameWindow and recognition.suppressed) or partyActive or value.partyUntilMs>serverNow
+        if not sameWindow then jumped={} end
+        if not sameWindow or recognition.amount~=value.donationTotalCents or recognition.count~=value.donationCount or recognition.suppressed~=suppressed then clearLayer(captionLayer); captionLayer={} end
+        recognition=value.donationCount>0 and value.heartsUntilMs>serverNow and {
+            ends=elapsed+(value.heartsUntilMs-serverNow)/1000,untilMs=value.heartsUntilMs,
+            startedAtMs=value.recognitionStartedAtMs,count=value.donationCount,amount=value.donationTotalCents,
+            amountKnown=not jsonNull(value.donationTotalCents),action=value.recognitionAction,suppressed=suppressed
+        } or nil
         if value.partyUntilMs>serverNow then
             if not partyActive then clearLayer(particleLayer); particleLayer={}; stopDances(); actionAttempts={} end
             if not celebration or celebration.kind~=value.kind or celebration.liveTotalCents~=value.liveTotalCents then clearLayer(captionLayer); captionLayer={} end
@@ -249,7 +268,7 @@ return function()
         local bounds=gameBounds(); if not bounds then report("render-error"); return end
         -- Numeric glyphs and fixed captions remain inside the current canvas.
         local items=captionItems(); local width=0; for _,item in ipairs(items) do width=width+item.width+2 end
-        local scale=math.min(1,(bounds.width-8)/width,(bounds.height-8)/32)
+        local scale=math.min(1,(bounds.width-8)/math.max(1,width),(bounds.height-8)/32)
         local left=bounds.x+(bounds.width-width*scale)/2
         for i,item in ipairs(items) do place(captionLayer,i,item.asset,left+item.width*scale/2,bounds.y+bounds.height-20*scale,scale); left=left+(item.width+2)*scale end
         if celebration then
@@ -275,7 +294,7 @@ return function()
                 place(heartLayer,id,"sa_heart",math.max(bounds.x+16,math.min(bounds.x+bounds.width-16,pos.x)),math.max(bounds.y+16,math.min(bounds.y+bounds.height-16,pos.y+AVATAR_TOP+16)),1)
                 if not jumped[id] then
                     jumped[id]=true
-                    if not celebration then local ok=pcall(function() user.runCommand("!{cmd:jump}",true) end); if not ok then report("action-error") end end
+                    if not celebration and not recognition.suppressed then local ok=pcall(function() user.runCommand("!{cmd:jump}",true) end); if not ok then report("action-error") end end
                 end
             end
             if celebration and not dancing[id] and not pendingDances[id] and (not actionAttempts[id] or elapsed-actionAttempts[id]>=2) then

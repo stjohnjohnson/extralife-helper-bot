@@ -1,0 +1,11 @@
+{
+  "name": "sa_from",
+  "file": "sa_from.png",
+  "frameWidth": 107,
+  "frameHeight": 23,
+  "frames": 1,
+  "rows": 1,
+  "framesPerSecond": 1,
+  "loop": true,
+  "transparent": true
+}

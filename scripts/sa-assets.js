@@ -19,7 +19,7 @@ const font = {
     U:['10001','10001','10001','10001','10001','10001','01110'], X:['10001','10001','01010','00100','01010','10001','10001'],
     Y:['10001','10001','01010','00100','00100','00100','00100'], '!':['00100','00100','00100','00100','00100','00000','00100'],
     '$':['00100','01111','10100','01110','00101','11110','00100'], ',':['00000','00000','00000','00000','00000','00100','01000'],
-    '.':['00000','00000','00000','00000','00000','00000','00100'], ' ':Array(7).fill('00000')
+    '-':['00000','00000','00000','11111','00000','00000','00000'], '.':['00000','00000','00000','00000','00000','00000','00100'], ' ':Array(7).fill('00000')
 };
 function pixel(png, x, y, color) { if (x < 0 || y < 0 || x >= png.width || y >= png.height) return; const at = (y * png.width + x) * 4; color.forEach((v,i) => { png.data[at+i] = v; }); }
 function caption(text) {
@@ -39,7 +39,7 @@ function generateAssets(directory = resolve(__dirname, '../integrations/stream-a
         fs.writeFileSync(join(directory, name + '.json'), JSON.stringify({ name, file: name + '.png', frameWidth, frameHeight: image.height, frames, rows: 1, framesPerSecond: fps, loop: true, transparent: true }, null, 2) + '\n');
     }
     for (let i=0;i<10;i++) save('sa_digit_' + i, caption(String(i)));
-    for (const [name,text] of Object.entries({ sa_dollar: '$', sa_comma: ',', sa_dot: '.', sa_thanks: 'THANK YOU!', sa_raised: ' RAISED THIS STREAM!', sa_goal: 'EXTRA LIFE GOAL REACHED!' })) save(name, caption(text));
+    for (const [name,text] of Object.entries({ sa_separator: ' - ', sa_from: ' FROM ', sa_donations: ' DONATIONS - ', sa_dollar: '$', sa_comma: ',', sa_dot: '.', sa_thanks: 'THANK YOU!', sa_raised: ' RAISED THIS STREAM!', sa_goal: 'EXTRA LIFE GOAL REACHED!' })) save(name, caption(text));
     const confetti = new PNG({ width: 32, height: 8 });
     // Broad paper faces throughout the tumble; no synchronized one-pixel edge frames.
     const faces = [

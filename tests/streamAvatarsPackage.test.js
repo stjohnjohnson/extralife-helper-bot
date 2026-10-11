@@ -29,7 +29,7 @@ describe('portable Stream Avatars packages', () => {
     test('contains the shipped script, placeholder settings, and native looping animation metadata', () => {
         const result = buildPackage({ integrationDir });
         const entries = decode(result.archive);
-        expect(result.imageCount).toBe(19);
+        expect(result.imageCount).toBe(22);
         expect(Object.keys(entries).sort()).toEqual([
             'data.txt', ...fs.readdirSync(path.join(shipped, 'assets')).filter(name => name.endsWith('.json')).map(name => `${commandPath}${JSON.parse(fs.readFileSync(path.join(shipped, 'assets', name))).name}.png`), `${commandPath}sa_helper_bridge.lua`, `${commandPath}sa_helper_bridge_settings.json`
         ].sort());
@@ -55,7 +55,7 @@ describe('portable Stream Avatars packages', () => {
         fs.writeFileSync(path.join(integrationDir, 'assets/second.json'), JSON.stringify({ ...manifest, name: 'sa_second', framesPerSecond: 24, loop: false }));
         const result = buildPackage({ integrationDir });
         const entries = decode(result.archive);
-        expect(result.imageCount).toBe(20);
+        expect(result.imageCount).toBe(23);
         expect(entries[`${commandPath}sa_second.png`]).toEqual(entries[`${commandPath}sa_heart.png`]);
         expect(json(entries, 'data.txt').commands.sa_helper_bridge.scriptImages.sa_second.details)
             .toMatchObject({ fps: 24, fpsPerFrame: Array(8).fill(24), loopTotal: 1 });
@@ -115,7 +115,7 @@ describe('portable Stream Avatars packages', () => {
 
     test('includes manifests with an uppercase extension on every OS', () => {
         fs.renameSync(path.join(integrationDir, 'assets/heart.json'), path.join(integrationDir, 'assets/heart.JSON'));
-        expect(buildPackage({ integrationDir }).imageCount).toBe(19);
+        expect(buildPackage({ integrationDir }).imageCount).toBe(22);
     });
 
     test('rejects corrupt or truncated PNG chunks', () => {
@@ -198,7 +198,7 @@ describe('portable Stream Avatars packages', () => {
             cwd: directory, encoding: 'utf8', env: { ...process.env, STREAM_AVATARS_TOKEN: 'PRIVATE_CLI_SENTINEL' }
         });
         expect(result.status).toBe(0);
-        expect(result.stdout).toContain('19 images');
+        expect(result.stdout).toContain('22 images');
         expect(result.stdout).toContain(output);
         const entries = decode(fs.readFileSync(output));
         expect(json(entries, `${commandPath}sa_helper_bridge_settings.json`).token).toBe('REPLACE_WITH_PRIVATE_TOKEN');

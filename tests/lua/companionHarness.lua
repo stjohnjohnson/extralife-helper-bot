@@ -143,7 +143,55 @@ if scenario=="invalid-settings" or scenario=="invalid-token" or scenario=="inval
     local ok,err=coroutine.resume(runner); assert(ok,err); assert(coroutine.status(runner)=="dead" and connectedCount==0); if nativeNull then nativeNull:close() end;print("OK "..scenario); return
 end
 tick()
-if scenario=="recognition-schema" then
+local function captionText()
+    local text=""
+    local phrases={sa_dollar="$",sa_comma=",",sa_dot=".",sa_separator=" - ",sa_from=" FROM ",sa_donations=" DONATIONS - ",sa_thanks="THANK YOU!",sa_raised=" RAISED THIS STREAM!",sa_goal="EXTRA LIFE GOAL REACHED!"}
+    for _,ob in ipairs(objects) do if not ob.removed and ob.imageLoaded and ob.scale>0 and ob.asset then
+        text=text..(phrases[ob.asset] or ob.asset:match("^sa_digit_(%d)$") or "")
+    end end
+    return text
+end
+local function timedGift(now,id,kind)
+    send({version=2,type="heartbeat",serverNowMs=now})
+    local v=celebration(kind,id);v.issuedAtMs=now;v.recognitionStartedAtMs=now;v.heartsUntilMs=now+5000;v.expiresAtMs=now+10000
+    if kind=="goal" then v.partyUntilMs=now+20000 elseif kind=="milestone" then v.partyUntilMs=now+18000 end
+    return v
+end
+if scenario=="caption-single" or scenario=="caption-batch" or scenario=="caption-cents" or scenario=="caption-hidden" then
+    addUser(1);send(snapshot());local v=celebration();v.liveTotalCents=50000
+    local expected="$25 - THANK YOU!"
+    if scenario=="caption-batch" then v.donationCount=2;expected="$25 FROM 2 DONATIONS - THANK YOU!"
+    elseif scenario=="caption-cents" then v.donationTotalCents=2550;expected="$25.50 - THANK YOU!"
+    elseif scenario=="caption-hidden" then v.donationTotalCents=codec.null;expected="THANK YOU!" end
+    send(v);tick();assert(captionText()==expected, "fresh donation caption: "..captionText())
+elseif scenario=="caption-shortening" then
+    addUser(1);send(snapshot());local v=celebration();v.donationCount=100;v.donationTotalCents=12345678;send(v);tick()
+    assert(captionText()=="$123,456.78 FROM 100 DONATIONS - THANK YOU!")
+    v.id="hidden-update";v.donationTotalCents=codec.null;send(v);tick();assert(captionText()=="THANK YOU!" and jumps==1)
+    assert(count()==2,"must release unused caption objects")
+elseif scenario=="caption-party" then
+    addUser(1);send(snapshot());send(celebration());tick();assert(captionText()=="$25 - THANK YOU!")
+    local v=celebration("milestone","party");v.liveTotalCents=50000;v.milestoneCents=50000;send(v);tick();assert(captionText()=="$500 RAISED THIS STREAM!")
+    local upgrade=celebration("goal","upgrade");send(upgrade);tick();assert(captionText()=="EXTRA LIFE GOAL REACHED!")
+    local gift=timedGift(20000,"during-party");send(gift);tick();assert(captionText()=="EXTRA LIFE GOAL REACHED!")
+    send({version=2,type="heartbeat",serverNowMs=22000});tick();assert(captionText()=="" and assetCount("sa_heart")==1 and jumps==1,"suppressed gifts must not replay")
+    send(timedGift(27000,"fresh"));tick();assert(captionText()=="$25 - THANK YOU!" and jumps==2)
+elseif scenario=="caption-bounds" then
+    addUser(1);send(snapshot());local v=celebration();v.donationCount=9007199254740991;v.donationTotalCents=9007199254740991;send(v);tick()
+    assert(captionText()=="$90,071,992,547,409.91 FROM 9007199254740991 DONATIONS - THANK YOU!",captionText())
+    for _,canvas in ipairs({{x=-300,y=-200,w=90,h=64},{x=-700,y=-50,w=1500,h=300},{x=0,y=0,w=32,h=32}}) do
+        app.convertPercentToPosition=function(x,y) return {x=canvas.x+x*canvas.w,y=canvas.y+y*canvas.h} end;tick()
+        local captions=0
+        for _,ob in ipairs(objects) do if not ob.removed and ob.imageLoaded and ob.scale>0 then
+            assert(ob.x>=canvas.x and ob.x<=canvas.x+canvas.w and ob.y>=canvas.y and ob.y<=canvas.y+canvas.h)
+            if ob.asset~="sa_heart" then
+                captions=captions+1;local f=assert(io.open("integrations/stream-avatars/assets/"..ob.asset..".json"));local dimensions=codec.decode(f:read("*a"));f:close()
+                assert(ob.x-dimensions.frameWidth*ob.scale/2>=canvas.x and ob.x+dimensions.frameWidth*ob.scale/2<=canvas.x+canvas.w,"caption width must fit canvas")
+            end
+        end end
+        assert(captions<=48 and (shared.sa_pending_images or 0)<=128)
+    end
+elseif scenario=="recognition-schema" then
     addUser(1);send(snapshot())
     local bad={ {donationCount=-1}, {donationCount=1.5}, {donationTotalCents=-1}, {donationTotalCents=1.5}, {donationTotalCents=9007199254740992}, {recognitionAction="explode"}, {recognitionStartedAtMs=1001}, {heartsUntilMs=11001} }
     for i,patch in ipairs(bad) do local v=celebration();v.id="bad-"..i;for k,x in pairs(patch) do v[k]=x end;send(v);assert(count()==0 and jumps==0,"must reject malformed recognition") end

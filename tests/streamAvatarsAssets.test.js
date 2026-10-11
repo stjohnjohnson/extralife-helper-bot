@@ -7,7 +7,7 @@ test('celebration PNGs and manifests are transparent, correctly tiled and determ
     const dir = fs.mkdtempSync(join(tmpdir(), 'sa-assets-'));
     try {
         generateAssets(dir); const files = fs.readdirSync(dir).sort();
-        expect(files.filter(name => name.endsWith('.json'))).toHaveLength(18);
+        expect(files.filter(name => name.endsWith('.json'))).toHaveLength(21);
         const first = files.map(name => fs.readFileSync(join(dir, name)));
         generateAssets(dir); expect(files.map(name => fs.readFileSync(join(dir, name)))).toEqual(first);
         for (const name of files.filter(name => name.endsWith('.json'))) {
@@ -29,4 +29,9 @@ test('gold confetti keeps a visible paper face throughout its tumble',()=>{
         for(let y=0;y<manifest.frameHeight;y++)for(let x=0;x<manifest.frameWidth;x++)if(png.data[(y*png.width+frame*manifest.frameWidth+x)*4+3]>0)columns.add(x);
         expect(columns.size).toBeGreaterThanOrEqual(3);
     }
+});
+
+test.each([['sa_separator', ' - '], ['sa_from', ' FROM '], ['sa_donations', ' DONATIONS - ']])('fixed recognition phrase %s has the expected dimensions', (name, text) => {
+    const manifest = JSON.parse(fs.readFileSync(`integrations/stream-avatars/assets/${name}.json`));
+    expect(manifest).toMatchObject({ name, frameWidth: text.length * 18 - 1, frameHeight: 23, frames: 1, transparent: true });
 });
