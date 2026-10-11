@@ -14,6 +14,7 @@ local function hostSerialize(value) return (codec.encode(value):gsub("/", "\\/")
 local function clone(value) if type(value) ~= "table" or value==codec.null then return value end local copy={} for k,v in pairs(value) do copy[k]=clone(v) end return copy end
 local connectedCount, leaves, removals = 0, 0, 0
 local jumps, dances, exits = 0, 0, 0
+local hugs, commands = {}, {}
 local config = { url = "ws://127.0.0.1/sa/socket", token = "private-test-token", image = "sa_heart" }
 local expectedUrl=config.url
 if scenario=="address-ip" then config={address="192.168.1.42",token=config.token}; expectedUrl="ws://192.168.1.42:3000/sa/socket" end
@@ -71,7 +72,10 @@ if scenario=="native-null-donation" or scenario=="native-null-goal" then
     env.json.parse=function(text) local value=codec.decode(text);if value.milestoneCents==codec.null then value.milestoneCents=nativeNull end;return value end
 end
 -- The companion has no filesystem, shell, package, clock or dynamic-code access.
+local hostMath={};for key,value in pairs(math) do hostMath[key]=value end
+hostMath.random=function(limit) return scenario=="hug-shuffle" and 1 or limit end
 for _,name in ipairs({"type","pairs","ipairs","tonumber","tostring","pcall","math","table","string"}) do env[name]=_G[name] end
+env.math=hostMath
 setmetatable(app, { __index=function(_,key) error("Undocumented app API: "..tostring(key)) end })
 -- addEvent must resolve only explicitly exported callbacks, never main-coroutine locals.
 env.addEvent = function(name, callback) callbacks[name] = function(...) return env[callback](...) end end
@@ -95,6 +99,11 @@ end
 local start = assert(loadfile(script, "t", env))()
 local runner=coroutine.create(start)
 local function tick(delta)
+    for _,pair in ipairs(hugs) do
+        pair.frames=pair.frames+1
+        if pair.frames==3 then pair.from.state="Hug";if users[tostring(pair.to.id)]==pair.to and pair.to.state=="Idle" then pair.to.state="Targeted" end end
+        if pair.frames==30 then pair.from.state="Idle";if pair.to.state=="Targeted" then pair.to.state="Idle" end end
+    end
     for _,user in pairs(users) do if user.pendingDance then
         user.pendingDance=user.pendingDance-1
         if scenario=="async-dance-alias" and user.pendingDance==2 then user.state="CustomAnimation";user.animation="idle" end
@@ -120,7 +129,14 @@ local function addUser(id,x,y)
     user.getState=function() return user.state end; user.getAnimation=function() return user.animation end
     user.exitState=function() exits=exits+1; user.state="Idle"; user.animation="idle" end
     user.runCommand=function(command,quiet)
-        assert(quiet==true and (command=="!{cmd:jump}" or command=="!{cmd:dance}"))
+        local target=command:match("^!{cmd:hug} ([A-Za-z0-9_:%-]+)$")
+        commands[#commands+1]={from=tostring(user.id),target=target,command=command}
+        assert(quiet==true and (command=="!{cmd:jump}" or command=="!{cmd:dance}" or target),"must use validated native commands")
+        if target then
+            if scenario=="hug-exception" then error("hug unavailable") end
+            local partner=assert(users[target]);assert(partner~=user,"must not self-pair")
+            hugs[#hugs+1]={from=user,to=partner,frames=0};return
+        end
         if scenario=="celebration-faults" then error("action unavailable") end
         if command=="!{cmd:jump}" then jumps=jumps+1 else dances=dances+1; if scenario:match("^async%-dance") then user.pendingDance=3 else user.state="CustomAnimation"; user.animation="dance" end end
     end
@@ -157,7 +173,55 @@ local function timedGift(now,id,kind)
     if kind=="goal" then v.partyUntilMs=now+20000 elseif kind=="milestone" then v.partyUntilMs=now+18000 end
     return v
 end
-if scenario=="caption-single" or scenario=="caption-batch" or scenario=="caption-cents" or scenario=="caption-hidden" then
+if scenario:match("^hug%-crowd%-%d+$") then
+    local n=tonumber(scenario:match("(%d+)$"));for i=1,n do addUser(i) end;send(snapshot());local v=celebration();v.recognitionAction="hug";send(v);tick()
+    assert(#hugs==math.floor(n/2) and jumps==n%2,"must issue one initiating hug per pair")
+    local used={};for _,pair in ipairs(hugs) do local a,b=tostring(pair.from.id),tostring(pair.to.id);assert(not used[a] and not used[b] and a~=b,"must pair without reuse");used[a]=true;used[b]=true end
+    for i=1,35 do tick() end;for _,user in pairs(users) do assert(user.state=="Idle") end;assert(exits==0,"hugs must finish natively")
+elseif scenario=="hug-shuffle" then
+    for i=1,4 do addUser(i) end;send(snapshot());local v=celebration();v.recognitionAction="hug";send(v)
+    assert(#hugs==2 and hugs[1].from.id==2 and hugs[1].to.id==3 and hugs[2].from.id==4 and hugs[2].to.id==1,"must shuffle stable sorted users")
+elseif scenario=="hug-once" then
+    addUser(1);addUser(2);send(snapshot());local v=celebration();v.recognitionAction="hug";send(v);send(v)
+    v.id="amount-update";v.donationCount=2;v.donationTotalCents=5000;send(v)
+    assert(#hugs==1 and jumps==0,"amount updates must retain handled window")
+    addUser(3);addUser(4);tick();assert(#hugs==2,"late joins pair only with unhandled users")
+    for i=1,35 do tick() end
+    v=timedGift(12000,"new-window");v.recognitionAction="hug";send(v);assert(#hugs==4,"new start must reset actions")
+elseif scenario=="hug-busy" or scenario=="jump-busy" then
+    for i=1,6 do local u=addUser(i);if i<=4 then u.state=({"MiniGame","Hug","Targeted","CustomAnimation"})[i] end end
+    send(snapshot());local v=celebration();v.recognitionAction=scenario=="hug-busy" and "hug" or "jump";send(v);tick()
+    assert(#hugs==(scenario=="hug-busy" and 1 or 0) and jumps==(scenario=="jump-busy" and 2 or 0),"must leave busy users untouched")
+    for _,cmd in ipairs(commands) do assert(cmd.from=="5" or cmd.from=="6","must preserve native action") end
+elseif scenario=="hug-recheck" or scenario=="hug-recheck-initiator" then
+    local a,b=addUser(1),addUser(2);local changed=scenario=="hug-recheck" and b or a;local calls=0
+    changed.getState=function() calls=calls+1;if calls>=2 then changed.state="MiniGame" end;return changed.state end
+    send(snapshot());local v=celebration();v.recognitionAction="hug";send(v);tick();assert(#hugs==0,"must recheck both users before command")
+    for _,cmd in ipairs(commands) do assert(cmd.from~=tostring(changed.id),"must not jump busy fallback") end
+elseif scenario=="hug-unsafe" or scenario=="hug-exception" then
+    addUser(1);addUser(scenario=="hug-unsafe" and "2;injected" or 2);send(snapshot());local v=celebration();v.recognitionAction="hug";send(v);tick()
+    assert(#hugs==0 and jumps==2,"unsafe/rejected pair must fall back to jumps")
+    if scenario=="hug-unsafe" then for _,cmd in ipairs(commands) do assert(not cmd.command:find("hug",1,true),"must not dispatch unsafe ID") end end
+    if scenario=="hug-exception" then local found=false;for _,p in ipairs(packets) do if p.code=="action-error" then found=true end end;assert(found) end
+elseif scenario=="hug-party" then
+    addUser(1);addUser(2);send(snapshot());local v=celebration("goal");v.recognitionAction="hug";send(v);assert(#hugs==0 and dances==2)
+    v=timedGift(20000,"party-gift");v.recognitionAction="hug";send(v);send({version=2,type="heartbeat",serverNowMs=22000});tick()
+    assert(#hugs==0 and jumps==0 and assetCount("sa_heart")==2 and captionText()=="","suppressed actions must not replay")
+elseif scenario=="hug-reload" or scenario=="hug-clear" or scenario=="hug-disconnect" or scenario=="hug-target-leaves" or scenario=="hug-takeover" then
+    local a,b=addUser(1),addUser(2);send(snapshot());local v=celebration();v.recognitionAction="hug";send(v);tick();tick();assert(#hugs==1)
+    if scenario=="hug-reload" then runner=coroutine.create(start);tick()
+    elseif scenario=="hug-target-leaves" then users["2"]=nil
+    elseif scenario=="hug-takeover" then b.state="MiniGame"
+    elseif scenario=="hug-clear" then send({version=2,type="clear",mode="integration",generation=2})
+    else callbacks.websocket("sa_helper_bridge","OnClose","","");tick() end
+    tick(12);tick();assert(#hugs==1 and exits==0,"never force-exit/retry native hugs")
+    if scenario=="hug-takeover" then assert(b.state=="MiniGame") end
+    if scenario=="hug-clear" or scenario=="hug-disconnect" or scenario=="hug-reload" then
+        for i=1,35 do tick() end
+        if scenario=="hug-disconnect" then callbacks.websocket("sa_helper_bridge","OnOpen","","") end
+        send(snapshot("integration",2));local fresh=celebration("donation","after-reset");fresh.generation=2;fresh.recognitionAction="hug";send(fresh);assert(#hugs==2,"clear/reconnect/reload must reset bookkeeping")
+    end
+elseif scenario=="caption-single" or scenario=="caption-batch" or scenario=="caption-cents" or scenario=="caption-hidden" then
     addUser(1);send(snapshot());local v=celebration();v.liveTotalCents=50000
     local expected="$25 - THANK YOU!"
     if scenario=="caption-batch" then v.donationCount=2;expected="$25 FROM 2 DONATIONS - THANK YOU!"

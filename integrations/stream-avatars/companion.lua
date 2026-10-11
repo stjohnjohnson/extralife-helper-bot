@@ -118,7 +118,7 @@ return function()
     end
     -- Separate registries contain only objects created by this companion.
     local recognition, celebration = nil, nil
-    local heartLayer, particleLayer, captionLayer, dancing, jumped, actionAttempts = {}, {}, {}, {}, {}, {}
+    local heartLayer, particleLayer, captionLayer, dancing, handled, actionAttempts = {}, {}, {}, {}, {}, {}
     local pendingDances = {}
     local reported = {}; local lastCelebrationIssuedAt=-1
     local function report(code) if not reported[code] then reported[code]=true; diagnostic(code) end end
@@ -162,7 +162,7 @@ return function()
     end
     clearCelebration=function()
         clearLayer(heartLayer); clearLayer(particleLayer); clearLayer(captionLayer); stopDances()
-        heartLayer={}; particleLayer={}; captionLayer={}; jumped={}; actionAttempts={}; recognition=nil; celebration=nil; reported={}; lastCelebrationIssuedAt=-1
+        heartLayer={}; particleLayer={}; captionLayer={}; handled={}; actionAttempts={}; recognition=nil; celebration=nil; reported={}; lastCelebrationIssuedAt=-1
     end
     local function imageEntry(layer,id,asset)
         local entry=layer[id]
@@ -245,7 +245,7 @@ return function()
         local partyActive=celebration and celebration.ends>elapsed and celebration.untilMs>serverNow
         local sameWindow=recognition and recognition.startedAtMs==value.recognitionStartedAtMs
         local suppressed=(sameWindow and recognition.suppressed) or partyActive or value.partyUntilMs>serverNow
-        if not sameWindow then jumped={} end
+        if not sameWindow then handled={} end
         if not sameWindow or recognition.amount~=value.donationTotalCents or recognition.count~=value.donationCount or recognition.suppressed~=suppressed then clearLayer(captionLayer); captionLayer={} end
         recognition=value.donationCount>0 and value.heartsUntilMs>serverNow and {
             ends=elapsed+(value.heartsUntilMs-serverNow)/1000,untilMs=value.heartsUntilMs,
@@ -257,6 +257,44 @@ return function()
             if not celebration or celebration.kind~=value.kind or celebration.liveTotalCents~=value.liveTotalCents then clearLayer(captionLayer); captionLayer={} end
             celebration={ends=elapsed+(value.partyUntilMs-serverNow)/1000,untilMs=value.partyUntilMs,kind=value.kind,liveTotalCents=value.liveTotalCents}
         elseif not partyActive then clearLayer(captionLayer); captionLayer={}; celebration=nil end
+    end
+    local function eligible(user)
+        local ok,result=pcall(function() return user.isActive and ordinaryState(user.getState()) end)
+        if not ok then report("action-error") end
+        return ok and result
+    end
+    local function jump(user)
+        if not eligible(user) then return end
+        handled[tostring(user.id)]=true
+        local ok=pcall(function() user.runCommand("!{cmd:jump}",true) end)
+        if not ok then report("action-error") end
+    end
+    local function recognize(users)
+        if not recognition or recognition.suppressed or celebration then return end
+        local candidates={}
+        for i=1,math.min(101,#users) do local user=users[i]
+            if not handled[tostring(user.id)] and eligible(user) then candidates[#candidates+1]=user end
+        end
+        if recognition.action=="jump" then for _,user in ipairs(candidates) do jump(user) end; return end
+        for i=#candidates,2,-1 do local j=math.random(i); candidates[i],candidates[j]=candidates[j],candidates[i] end
+        for i=1,#candidates,2 do
+            local initiator,partner=candidates[i],candidates[i+1]
+            if not partner then jump(initiator)
+            else
+                local a,b=eligible(initiator),eligible(partner)
+                local target=tostring(partner.id)
+                if a and b and target:match("^[A-Za-z0-9_:%-]+$") then
+                    -- The native hug travels to and temporarily controls its partner.
+                    -- One initiating request; let the host finish both sides itself.
+                    handled[tostring(initiator.id)]=true; handled[target]=true
+                    local ok=pcall(function() initiator.runCommand("!{cmd:hug} "..target,true) end)
+                    if not ok then report("action-error"); jump(initiator); jump(partner) end
+                else
+                    if a then jump(initiator) end
+                    if b then jump(partner) end
+                end
+            end
+        end
     end
     local function renderCelebration()
         reconcileDances()
@@ -286,16 +324,13 @@ return function()
         local activeUsers, liveIds, unique = {}, {}, {}
         -- Installed MainGetUsers iterates activeCharacters, including the caster.
         for _,user in ipairs(getUsers()) do local id=tostring(user.id); if user.isActive and not unique[id] then unique[id]=true; activeUsers[#activeUsers+1]=user end end
+        table.sort(activeUsers,function(a,b) return tostring(a.id)<tostring(b.id) end)
         if #activeUsers>101 then report("density-limit") end
         for i,user in ipairs(activeUsers) do if i<=101 then
             local id=tostring(user.id); liveIds[id]=true
             if recognition then
                 local pos=user.getPosition()
                 place(heartLayer,id,"sa_heart",math.max(bounds.x+16,math.min(bounds.x+bounds.width-16,pos.x)),math.max(bounds.y+16,math.min(bounds.y+bounds.height-16,pos.y+AVATAR_TOP+16)),1)
-                if not jumped[id] then
-                    jumped[id]=true
-                    if not celebration and not recognition.suppressed then local ok=pcall(function() user.runCommand("!{cmd:jump}",true) end); if not ok then report("action-error") end end
-                end
             end
             if celebration and not dancing[id] and not pendingDances[id] and (not actionAttempts[id] or elapsed-actionAttempts[id]>=2) then
                 actionAttempts[id]=elapsed
@@ -315,6 +350,7 @@ return function()
                 if not ok then dancing[id]=nil; report("action-error") end
             end
         end end
+        recognize(activeUsers)
         saveDances()
         for id,entry in pairs(heartLayer) do if not liveIds[id] then if entry.object then release(entry) end; heartLayer[id]=nil end end
     end
