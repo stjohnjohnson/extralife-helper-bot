@@ -119,14 +119,46 @@ return function()
     -- Separate registries contain only objects created by this companion.
     local recognition, celebration = nil, nil
     local heartLayer, particleLayer, captionLayer, dancing, jumped, actionAttempts = {}, {}, {}, {}, {}, {}
+    local pendingDances = {}
     local reported = {}; local lastCelebrationIssuedAt=-1
     local function report(code) if not reported[code] then reported[code]=true; diagnostic(code) end end
     local function clearLayer(layer) for _,entry in pairs(layer) do if entry.object then release(entry) end end end
+    local function ordinaryState(state) return state=="Idle" or state=="Wander" end
+    local function matchingDance(entry)
+        return entry.user.avatar==entry.avatar and entry.user.getState()=="CustomAnimation" and entry.user.getAnimation()==entry.animation
+    end
+    local function saveDances()
+        local ids,signatures={},{}; for id,entry in pairs(dancing) do ids[#ids+1]=id;signatures[id]={avatar=entry.avatar,animation=entry.animation} end
+        local pendingIds,pendingSignatures={},{}; for id,request in pairs(pendingDances) do pendingIds[#pendingIds+1]=id;pendingSignatures[id]={avatar=request.avatar} end
+        set("sa_owned_dances",ids); set("sa_owned_dance_signatures",signatures); set("sa_pending_dance_ids",pendingIds); set("sa_pending_dance_signatures",pendingSignatures)
+    end
+    local function reconcileDances()
+        for id,request in pairs(pendingDances) do
+            local ok=pcall(function()
+                local state,animation=request.user.getState(),request.user.getAnimation()
+                if request.user.avatar~=request.avatar then pendingDances[id]=nil; return end
+                -- getAnimation reports a sprite name, not the command/action.
+                -- A custom2 or idle sprite may be a mapped/tween dance OR an
+                -- unrelated action. Never claim or force-exit those variants.
+                if elapsed>=request.untilTime then pendingDances[id]=nil
+                elseif state=="CustomAnimation" and animation=="dance" then
+                    local entry={user=request.user,avatar=request.avatar,animation=animation}
+                    if request.cancelled then request.user.exitState() else dancing[id]=entry end
+                    pendingDances[id]=nil
+                elseif not ordinaryState(state) then pendingDances[id]=nil end
+            end)
+            if not ok then pendingDances[id]=nil; report("action-error") end
+        end
+        saveDances()
+    end
     local function stopDances()
-        for _,user in pairs(dancing) do pcall(function()
-            if user.getState()=="CustomAnimation" and user.getAnimation()=="dance" then user.exitState() end
+        for _,request in pairs(pendingDances) do request.cancelled=true end
+        reconcileDances()
+        for _,entry in pairs(dancing) do pcall(function()
+            local user=entry.user
+            if matchingDance(entry) then user.exitState() end
         end) end
-        dancing={}; set("sa_owned_dances",{})
+        dancing={}; saveDances()
     end
     clearCelebration=function()
         clearLayer(heartLayer); clearLayer(particleLayer); clearLayer(captionLayer); stopDances()
@@ -200,6 +232,7 @@ return function()
         elseif not partyActive then clearLayer(captionLayer); captionLayer={}; celebration=nil end
     end
     local function renderCelebration()
+        reconcileDances()
         if not recognition and not celebration then return end
         local serverNow=elapsed*1000+serverOffset
         if recognition and (elapsed>=recognition.ends or serverNow>=recognition.untilMs) then clearLayer(heartLayer); heartLayer={}; recognition=nil end
@@ -237,22 +270,25 @@ return function()
                     if not celebration then local ok=pcall(function() user.runCommand("!{cmd:jump}",true) end); if not ok then report("action-error") end end
                 end
             end
-            if celebration and not dancing[id] and (not actionAttempts[id] or elapsed-actionAttempts[id]>=2) then
+            if celebration and not dancing[id] and not pendingDances[id] and (not actionAttempts[id] or elapsed-actionAttempts[id]>=2) then
                 actionAttempts[id]=elapsed
                 local ok=pcall(function()
                     -- Respect actions already running, including an existing dance.
-                    if user.getState()=="Idle" and user.getAnimation()~="dance" then
+                    if ordinaryState(user.getState()) then
+                        -- Native state changes complete on a later frame. Track
+                        -- only this bounded request, never an existing dance.
+                        pendingDances[id]={user=user,avatar=user.avatar,untilTime=elapsed+2}
                         user.runCommand("!{cmd:dance}",true)
-                        if user.getState()=="CustomAnimation" and user.getAnimation()=="dance" then dancing[id]=user end
+                        reconcileDances()
                     end
                 end)
-                if not ok then report("action-error") end
+                if not ok then pendingDances[id]=nil; report("action-error") end
             elseif celebration and dancing[id] then
-                local ok=pcall(function() if user.getState()~="CustomAnimation" or user.getAnimation()~="dance" then dancing[id]=nil end end)
+                local ok=pcall(function() if not matchingDance(dancing[id]) then dancing[id]=nil end end)
                 if not ok then dancing[id]=nil; report("action-error") end
             end
         end end
-        local ownedDances={}; for id,_ in pairs(dancing) do ownedDances[#ownedDances+1]=id end; set("sa_owned_dances",ownedDances)
+        saveDances()
         for id,entry in pairs(heartLayer) do if not liveIds[id] then if entry.object then release(entry) end; heartLayer[id]=nil end end
     end
     local function handleMessage(value)
@@ -326,8 +362,14 @@ return function()
     -- Reload cleanup uses only IDs this companion previously created, never real viewers.
     for _,id in ipairs(get("sa_owned_ids") or {}) do if id>=900001 and id<=900100 then app.platformServiceSettings.SetUserLeave(id) end end
     local previousDances={}; for _,id in ipairs(get("sa_owned_dances") or {}) do previousDances[tostring(id)]=true end
-    for _,user in ipairs(getUsers()) do if previousDances[tostring(user.id)] then pcall(function() if user.getState()=="CustomAnimation" and user.getAnimation()=="dance" then user.exitState() end end) end end
-    set("sa_owned_dances",{})
+    local previousSignatures=get("sa_owned_dance_signatures") or {}
+    local previousPending=get("sa_pending_dance_signatures") or {}
+    for _,user in ipairs(getUsers()) do
+        local id=tostring(user.id)
+        if previousDances[id] then pcall(function() local signature=previousSignatures[id] or {avatar=user.avatar,animation="dance"}; if matchingDance({user=user,avatar=signature.avatar,animation=signature.animation}) then user.exitState() end end) end
+        if previousPending[id] and user.avatar==previousPending[id].avatar then pendingDances[id]={user=user,avatar=previousPending[id].avatar,untilTime=elapsed+2,cancelled=true} end
+    end
+    set("sa_owned_dances",{}); reconcileDances()
     set("sa_pending_images",0)
     set("sa_settings",settings); set("sa_mailbox",{}); set("sa_connected",false); set("sa_disconnect_pending",false)
     app.removeWebSocket(socket); addEvent("websocket","sa_on_socket")

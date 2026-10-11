@@ -95,6 +95,11 @@ end
 local start = assert(loadfile(script, "t", env))()
 local runner=coroutine.create(start)
 local function tick(delta)
+    for _,user in pairs(users) do if user.pendingDance then
+        user.pendingDance=user.pendingDance-1
+        if scenario=="async-dance-alias" and user.pendingDance==2 then user.state="CustomAnimation";user.animation="idle" end
+        if user.pendingDance==0 then user.pendingDance=nil;user.state="CustomAnimation";user.animation=scenario=="async-dance-alias" and "custom2" or (scenario=="async-dance-tween" and "idle" or "dance") end
+    end end
     for id,worker in pairs(loaders) do
         local ok=true
         if allowImageCompletion then ok=coroutine.resume(worker) end
@@ -117,7 +122,7 @@ local function addUser(id,x,y)
     user.runCommand=function(command,quiet)
         assert(quiet==true and (command=="!{cmd:jump}" or command=="!{cmd:dance}"))
         if scenario=="celebration-faults" then error("action unavailable") end
-        if command=="!{cmd:jump}" then jumps=jumps+1 else dances=dances+1; user.state="CustomAnimation"; user.animation="dance" end
+        if command=="!{cmd:jump}" then jumps=jumps+1 else dances=dances+1; if scenario:match("^async%-dance") then user.pendingDance=3 else user.state="CustomAnimation"; user.animation="dance" end end
     end
     user.getPosition=function() return {x=user.x,y=user.y} end; users[tostring(id)]=user; return user
 end
@@ -138,7 +143,50 @@ if scenario=="invalid-settings" or scenario=="invalid-token" or scenario=="inval
     local ok,err=coroutine.resume(runner); assert(ok,err); assert(coroutine.status(runner)=="dead" and connectedCount==0); if nativeNull then nativeNull:close() end;print("OK "..scenario); return
 end
 tick()
-if scenario=="milestone-whole-dollars" then
+if scenario=="async-dance-manual-interruption" then
+    local user=addUser(1);user.avatar="test-avatar";send(snapshot());send(celebration("milestone"))
+    user.pendingDance=nil;user.state="CustomAnimation";user.animation="custom1"
+    tick();tick(18);tick()
+    assert(user.state=="CustomAnimation" and user.animation=="custom1" and exits==0,"must preserve a distinct intervening action")
+elseif scenario=="async-dance-pending-avatar-reload" then
+    local user=addUser(1);user.avatar="original-avatar";send(snapshot());send(celebration("milestone"))
+    user.avatar="new-avatar";runner=coroutine.create(assert(loadfile(script,"t",env))());tick();tick();tick();tick()
+    assert(user.state=="CustomAnimation" and exits==0,"must preserve avatar changes across pending reload")
+elseif scenario=="dance-wander" then
+    local user=addUser(1);user.state="Wander";send(snapshot());send(celebration("milestone"));tick()
+    assert(user.state=="CustomAnimation" and dances==1,"must admit normal wandering avatars to the party")
+    tick(18);tick();assert(user.state=="Idle" and exits==1)
+elseif scenario=="async-dance-alias" or scenario=="async-dance-tween" then
+    local user=addUser(1);user.avatar="test-avatar";send(snapshot());send(celebration("milestone"));tick();tick();tick();tick(2.1)
+    assert(dances==1 and user.state=="CustomAnimation","must start native mapped or tweened dances without repeatedly issuing the command")
+    tick(18);tick();assert(user.state=="CustomAnimation" and exits==0,"ambiguous custom sprites must finish their native duration without forced cleanup")
+elseif scenario=="dance-other-animation" or scenario=="dance-avatar-change" then
+    local user=addUser(1);user.avatar="test-avatar";send(snapshot());send(celebration("milestone"));tick()
+    if scenario=="dance-other-animation" then user.animation="custom1" else user.avatar="changed-avatar" end
+    tick();tick(18);tick();assert(user.state=="CustomAnimation" and exits==0,"must preserve a changed action or avatar")
+elseif scenario=="async-dance-expiry" then
+    local user=addUser(1); send(snapshot()); send(celebration("milestone"))
+    assert(user.state=="Idle"); tick();tick();tick();tick()
+    assert(user.animation=="dance" and #shared.sa_owned_dances==1,"must recognize a dance started on a later frame")
+    tick(18);tick();assert(user.state=="Idle" and exits==1,"must stop the asynchronously started dance at expiry")
+elseif scenario=="async-dance-reload" then
+    local user=addUser(1);send(snapshot());send(celebration("milestone"));assert(user.state=="Idle")
+    runner=coroutine.create(assert(loadfile(script,"t",env))());tick();tick();tick();tick()
+    assert(user.state=="Idle" and exits==1,"must drain a queued dance across companion reload")
+elseif scenario=="async-dance-cancel" then
+    local user=addUser(1);send(snapshot());send(celebration("milestone"));send({version=2,type="clear",mode="integration",generation=2})
+    tick();tick();tick();assert(user.state=="Idle" and exits==1,"must stop a queued dance that starts after cancellation")
+elseif scenario=="async-dance-interrupted" then
+    local user=addUser(1);send(snapshot());send(celebration("milestone"));user.pendingDance=nil;user.state="MiniGame";user.animation="attack"
+    tick();tick(18);tick();assert(user.state=="MiniGame" and exits==0,"must preserve an intervening action")
+elseif scenario=="async-dance-rejected" then
+    local user=addUser(1);send(snapshot());send(celebration("milestone"));user.pendingDance=nil;user.state="MiniGame";tick(2.1)
+    user.state="CustomAnimation";user.animation="dance";tick();tick(18);tick()
+    assert(user.animation=="dance" and exits==0,"must not claim a later manual dance after the request times out")
+elseif scenario=="async-dance-existing" then
+    local user=addUser(1);user.state="CustomAnimation";user.animation="dance";send(snapshot());send(celebration("milestone"));tick(18);tick()
+    assert(user.animation=="dance" and exits==0 and dances==0,"must leave a pre-existing dance alone")
+elseif scenario=="milestone-whole-dollars" then
     addUser(1); send(snapshot()); local packet=celebration("milestone"); packet.liveTotalCents=50000; packet.milestoneCents=50000
     send(packet); tick(); assert(assetCount("sa_digit")==3 and assetCount("sa_dot")==0 and assetCount("sa_raised")==1,"whole-dollar milestone must omit .00")
 elseif scenario=="confetti-scatter" then
