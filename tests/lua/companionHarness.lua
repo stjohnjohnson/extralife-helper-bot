@@ -62,6 +62,14 @@ local env; env = {
     yield = function() return coroutine.yield() end,
     json = { null=codec.null, serialize = scenario=="host-json-escapes" and hostSerialize or codec.encode, parse = scenario=="host-json-escapes" and hostParse or codec.decode }
 }
+-- MoonSharp json.null is a function; parsed JSON null is special userdata.
+local nativeNull
+if scenario=="native-null-donation" or scenario=="native-null-goal" then
+    nativeNull=assert(io.tmpfile())
+    env.json.null=function() return nativeNull end
+    env.json.isnull=function(value) return value==nil or value==nativeNull end
+    env.json.parse=function(text) local value=codec.decode(text);if value.milestoneCents==codec.null then value.milestoneCents=nativeNull end;return value end
+end
 -- The companion has no filesystem, shell, package, clock or dynamic-code access.
 for _,name in ipairs({"type","pairs","ipairs","tonumber","tostring","pcall","math","table","string"}) do env[name]=_G[name] end
 setmetatable(app, { __index=function(_,key) error("Undocumented app API: "..tostring(key)) end })
@@ -127,10 +135,26 @@ if scenario=="invalid-settings" then config.url=42 end
 if scenario=="invalid-token" then config.token=math.huge end
 if scenario=="reload" then shared.sa_owned_ids={900001,900002}; users["900001"]={id=900001}; users["900002"]={id=900002} end
 if scenario=="invalid-settings" or scenario=="invalid-token" or scenario=="invalid-address" then
-    local ok,err=coroutine.resume(runner); assert(ok,err); assert(coroutine.status(runner)=="dead" and connectedCount==0); print("OK "..scenario); return
+    local ok,err=coroutine.resume(runner); assert(ok,err); assert(coroutine.status(runner)=="dead" and connectedCount==0); if nativeNull then nativeNull:close() end;print("OK "..scenario); return
 end
 tick()
-if scenario=="celebration-pending-cap" then
+if scenario=="milestone-whole-dollars" then
+    addUser(1); send(snapshot()); local packet=celebration("milestone"); packet.liveTotalCents=50000; packet.milestoneCents=50000
+    send(packet); tick(); assert(assetCount("sa_digit")==3 and assetCount("sa_dot")==0 and assetCount("sa_raised")==1,"whole-dollar milestone must omit .00")
+elseif scenario=="confetti-scatter" then
+    app.convertPercentToPosition=function(x,y) return {x=x*1000,y=y*1000} end
+    addUser(1); send(snapshot()); send(celebration("milestone")); tick()
+    local particles,scales={},{}; local lowX,highX,lowY,highY=1000,0,1000,0
+    for _,ob in ipairs(objects) do if ob.asset=="sa_confetti" and not ob.removed and ob.scale>0 then
+        particles[#particles+1]={ob=ob,y=ob.y}; scales[ob.scale]=true
+        lowX=math.min(lowX,ob.x);highX=math.max(highX,ob.x);lowY=math.min(lowY,ob.y);highY=math.max(highY,ob.y)
+    end end
+    assert(#particles==32 and highX-lowX>750 and highY-lowY>750,"confetti must cover the canvas, not one diagonal")
+    local sizes=0;for _ in pairs(scales) do sizes=sizes+1 end;assert(sizes>=5,"confetti pieces need varied sizes")
+    tick(0.25);tick();local slow,fast=1000,0
+    for _,entry in ipairs(particles) do local fall=(entry.y-entry.ob.y)%1000;slow=math.min(slow,fall);fast=math.max(fast,fall) end
+    assert(fast-slow>3,"confetti pieces need varied fall speeds")
+elseif scenario=="celebration-pending-cap" then
     for i=1,101 do addUser(i) end; send(snapshot()); send(celebration("goal")); tick(); assert(#objects==128 and shared.sa_pending_images==128)
     tick(2.1); tick(); assert(#objects==128 and count()==0)
 elseif scenario=="wire-celebration" then
@@ -150,12 +174,12 @@ elseif scenario=="celebration-missing-confetti" or scenario=="celebration-missin
     send({version=2,type="heartbeat",serverNowMs=1200}); assert(packets[#packets].type=="heartbeat")
 elseif scenario=="celebration-delay-cancel" then
     addUser(1); send(snapshot()); send(celebration("goal")); send({version=2,type="clear",mode="integration",generation=2}); tick(); assert(count()==0)
-elseif scenario=="ordinary-101" then
+elseif scenario=="ordinary-101" or scenario=="native-null-donation" then
     for i=1,101 do addUser(i) end; send(snapshot()); send(celebration()); tick();
     assert(assetCount("sa_heart")==101 and jumps==101 and assetCount("sa_thanks")==1)
     tick(5); tick(); assert(count()==0)
-elseif scenario=="milestone-banner" or scenario=="goal-banner" or scenario=="gear-preservation" then
-    local user=addUser(1); user.x=900; send(snapshot()); local kind=scenario=="goal-banner" and "goal" or "milestone"; send(celebration(kind)); tick();
+elseif scenario=="milestone-banner" or scenario=="goal-banner" or scenario=="native-null-goal" or scenario=="gear-preservation" then
+    local user=addUser(1); user.x=900; send(snapshot()); local kind=(scenario=="goal-banner" or scenario=="native-null-goal") and "goal" or "milestone"; send(celebration(kind)); tick();
     assert(assetCount("sa_confetti")==32 and assetCount(kind=="goal" and "sa_goal" or "sa_raised")==1 and dances==1)
     if kind=="milestone" then assert(assetCount("sa_digit")==6 and assetCount("sa_comma")==1 and assetCount("sa_dot")==1 and assetCount("sa_dollar")==1) end
     assert(user.gear=="sentinel"); tick(kind=="goal" and 20 or 18); tick(); assert(count()==0 and exits==1 and user.gear=="sentinel")
@@ -334,4 +358,4 @@ elseif scenario=="wire-contract" then
     local file=assert(io.open(arg[3],"rb")); local message=file:read("*a"); file:close(); raw(message); tick(); assert(packets[#packets].type=="ready")
     addUser(1); local event=hearts(); event.sessionId="session_é"; send(event); assert(count()==1)
 else error("unknown scenario") end
-print("OK "..scenario)
+if nativeNull then nativeNull:close() end;print("OK "..scenario)

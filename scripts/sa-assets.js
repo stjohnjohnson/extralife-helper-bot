@@ -41,7 +41,14 @@ function generateAssets(directory = resolve(__dirname, '../integrations/stream-a
     for (let i=0;i<10;i++) save('sa_digit_' + i, caption(String(i)));
     for (const [name,text] of Object.entries({ sa_dollar: '$', sa_comma: ',', sa_dot: '.', sa_thanks: 'THANK YOU!', sa_raised: ' RAISED THIS STREAM!', sa_goal: 'EXTRA LIFE GOAL REACHED!' })) save(name, caption(text));
     const confetti = new PNG({ width: 32, height: 8 });
-    for (let frame=0;frame<4;frame++) for (let y=1;y<7;y++) for (let x=1;x<7;x++) if (Math.abs(x-3)<(frame%2 ? 1 : 3)) pixel(confetti,frame*8+x,y,[255,185+frame*15,40+frame*20,240]);
+    // Broad paper faces throughout the tumble; no synchronized one-pixel edge frames.
+    const faces = [
+        ['00000000','01111110','01111110','01111110','01111110','00000000','00000000','00000000'],
+        ['00000000','00111100','00111100','01111000','01111000','11110000','00000000','00000000'],
+        ['00000000','00011000','00111100','01111110','01111110','00111100','00011000','00000000'],
+        ['00000000','01111000','00111100','00111100','00011110','00011110','00000000','00000000']
+    ];
+    for (const [frame,rows] of faces.entries()) for (const [y,row] of rows.entries()) for (let x=0;x<8;x++) if(row[x]==='1') pixel(confetti,frame*8+x,y,[255,195+frame*14,60+frame*25,255]);
     save('sa_confetti',confetti,4,8,8);
     const accent = new PNG({ width: 32, height: 32 });
     for (let y=1;y<31;y++) for (let x=1;x<31;x++) if (Math.abs(x-15.5)+Math.abs(y-15.5)<14 && (Math.abs(x-15.5)<4 || Math.abs(y-15.5)<4)) pixel(accent,x,y,[255,230,140,255]);

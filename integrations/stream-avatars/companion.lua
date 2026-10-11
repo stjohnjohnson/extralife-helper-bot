@@ -157,7 +157,7 @@ return function()
     end
     local function moneyGlyphs(cents)
         local dollars=tostring(math.floor(cents/100)); local grouped=dollars:reverse():gsub("(%d%d%d)","%1,"):reverse():gsub("^,","")
-        return "$"..grouped.."."..string.format("%02d",cents%100)
+        return "$"..grouped..(cents%100==0 and "" or "."..string.format("%02d",cents%100))
     end
     local function captionItems()
         if celebration and celebration.kind=="goal" then return {{asset="sa_goal_accent",width=32,height=32},{asset="sa_goal",width=431,height=23}} end
@@ -168,6 +168,12 @@ return function()
         end
         return {{asset="sa_thanks",width=179,height=23}}
     end
+    local function jsonNull(value)
+        if value==nil then return true end
+        -- Native MoonSharp represents null as userdata and exposes null() / isnull().
+        if type(json.isnull)=="function" then return json.isnull(value) end
+        return type(json.null)~="function" and value==json.null
+    end
     local function validCelebration(value)
         local allowed={version=true,type=true,mode=true,generation=true,sessionId=true,id=true,issuedAtMs=true,expiresAtMs=true,heartsUntilMs=true,partyUntilMs=true,kind=true,liveTotalCents=true,milestoneCents=true}
         for key,_ in pairs(value) do if not allowed[key] then return false end end
@@ -176,7 +182,7 @@ return function()
             integer(value.heartsUntilMs) and value.heartsUntilMs>=0 and value.heartsUntilMs<=value.issuedAtMs+10000 and
             integer(value.partyUntilMs) and value.partyUntilMs>=0 and value.partyUntilMs<=value.issuedAtMs+38000 and
             integer(value.liveTotalCents) and value.liveTotalCents>=0 and value.liveTotalCents<=9007199254740991 and
-            (value.milestoneCents==nil or value.milestoneCents==json.null or (integer(value.milestoneCents) and value.milestoneCents>0 and value.milestoneCents<=value.liveTotalCents))
+            (jsonNull(value.milestoneCents) or (integer(value.milestoneCents) and value.milestoneCents>0 and value.milestoneCents<=value.liveTotalCents))
     end
     local function acceptCelebration(value)
         local serverNow=elapsed*1000+serverOffset
@@ -207,9 +213,14 @@ return function()
         for i,item in ipairs(items) do place(captionLayer,i,item.asset,left+item.width*scale/2,bounds.y+bounds.height-20*scale,scale); left=left+(item.width+2)*scale end
         if celebration then
             for i=1,32 do
-                local x=bounds.x+4+((i*31+elapsed*23)%(bounds.width-8))
-                local y=bounds.y+4+((i*17-elapsed*45)%(bounds.height-8))
-                place(particleLayer,i,"sa_confetti",x,y,1)
+                -- Independent deterministic phases avoid rows of synchronized falling sticks.
+                local phase=(i*0.61803398875)%1
+                local fallPhase=(i*0.41421356237+0.37)%1
+                local speed=44+(i%9)*5
+                local sway=math.sin(elapsed*(0.7+(i%5)*0.13)+i)*18
+                local x=bounds.x+10+((phase*(bounds.width-20)+sway)%(bounds.width-20))
+                local y=bounds.y+10+((fallPhase*(bounds.height-20)-elapsed*speed)%(bounds.height-20))
+                place(particleLayer,i,"sa_confetti",x,y,1.2+(i%7)*0.15)
             end
         end
         local activeUsers, liveIds, unique = {}, {}, {}

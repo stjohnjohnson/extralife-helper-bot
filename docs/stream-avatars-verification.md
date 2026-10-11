@@ -12,11 +12,11 @@ CI runs the complete suite, lint, production dependency audit and Docker build o
 
 These checks verify executable logic and host API expectations. Actual application rendering, firewall/LAN access, image imports, chosen avatar spacing, OBS cropping and performance still need a real-environment run.
 
-Local checks pass `npm run lint`, the complete `npm test -- --runInBand` suite (**52 suites / 802 tests**, local Lua 5.5.0 plus 88 companion checks under locally compiled Lua 5.2.4; CI separately verifies 5.4 and 5.2), and `npm run audit:prod` with zero vulnerabilities. The regenerated ZIP passes the installed Stream Avatars ZIP-reader/import-type probe; the shipped parser compatibility code also passes against the installed MoonSharp codec.
+Local checks pass `npm run lint`, the complete `npm test -- --runInBand` suite (**52 suites / 807 tests**, local Lua 5.5.0 plus 92 companion checks under locally compiled Lua 5.2.4; CI separately verifies 5.4 and 5.2), and `npm run audit:prod` with zero vulnerabilities. The regenerated ZIP passes the installed Stream Avatars ZIP-reader/import-type probe; the shipped parser compatibility code also passes against the installed MoonSharp codec.
 
 ## Outstanding verification
 
-**Pending for this change:** Import/render the v2 donation package on the destination computer and verify Linux-to-gaming-computer LAN connectivity, OBS transparency/cropping, window resize behavior and dense-crowd frame rate. Local Mac animated hearts and a 100-viewer crowd were previously observed, as recorded below. Fixed 40-unit avatar-top spacing is suitable for the supplied art but needs visual checking for other avatar sizes. Reported avatar teleporting remains unresolved.
+**Pending for this change:** Import/render the v2 donation package on the destination computer and verify Linux-to-gaming-computer LAN connectivity, OBS transparency/cropping, window resize behavior and dense-crowd frame rate. Local Mac animated hearts and a 100-viewer crowd were previously observed, as recorded below. Fixed 40-unit avatar-top spacing is suitable for the supplied art but needs visual checking for other avatar sizes. The operator resolved the earlier height-lock/teleporting issue by changing display settings on 2026-10-11.
 
 The local Docker daemon is unavailable; CI checks the image build. Persistent-volume operation still belongs in the Linux acceptance run. Follow the [acceptance checklist](stream-avatars-setup.md#real-lan-and-obs-acceptance-run) before accepting issue #65.
 
@@ -74,7 +74,7 @@ References: [User runCommand](https://docs.streamavatars.com/lua-scripting-api/a
 
 The approved temporary subsystem runner replaces issue #67's reference to #65's interactive rehearsal. It covers the same preview cases with synthetic inputs through shared production code. It requires no game theme, donor identity linking or fresh-online check per effect; it displays no special incomplete-total caption. A normal CLI run never initializes physical Hue, even if Hue environment settings exist.
 
-The automated transport fixture is not a visual pass on the destination deployment. Existing foundation Mac observations above remain historical; they do not establish that the new confetti/captions/actions passed LAN/OBS acceptance. Native command restrictions, animation availability, teleporting, dense performance and persistent-volume deployment remain explicit manual checks.
+The automated transport fixture is not a visual pass on the destination deployment. Existing foundation Mac observations above remain historical; they do not establish that the new confetti/captions/actions passed LAN/OBS acceptance. Native command restrictions, animation availability, dense performance and persistent-volume deployment remain explicit manual checks. The earlier teleporting was resolved by the operator’s display-settings change.
 
 The v2 ZIP also passes the installed native Stream Avatars ZIP reader/import-type probe: 22 entries, 19 images, the 431×23 goal caption, four confetti frame timings and placeholder credentials. This is import-format evidence, not graphical acceptance. Production audit reports zero vulnerabilities.
 
@@ -83,3 +83,11 @@ The v2 ZIP also passes the installed native Stream Avatars ZIP reader/import-typ
 A fresh whole-branch review found two accounting edge cases, both fixed with failing-then-passing regression tests: campaign reconciliation now waits independently for its first fresh observation after startup/recovery, and revealed historical amounts no longer suppress unrelated new-gift milestones. Mixed scans are tested in both input orders; revelation-only crossings remain silent. Production's separate donation-accept/campaign-refresh sequence is covered.
 
 Deferred minor: the source collapses repeated IDs within one scan before reducer conflict diagnostics, so contradictory duplicate rows in that scan retain the first accepted amount without a warning. Conflicts against previously persisted facts are still diagnosed; no duplicate ID adds money twice.
+
+## Deployment feedback and native null fix (2026-10-11)
+
+The operator observed milestone captions, but no Thank you captions, goal effects, jumps or dances. A read-only synthetic probe against the installed MoonSharp assembly reproduced the packet-validation cause: `json.parse` represents a null milestone as userdata, `json.null` is a function, and equality with nil or that function is false. The exact shipped validator accepted numeric milestone packets but rejected ordinary and goal packets. The corrected validator uses native `json.isnull` with a portable constant-null fallback; the same installed-runtime probe accepts all three actual JSON packet kinds afterwards. Portable Lua tests reproduce the function/userdata contract and assert captions, actions and expiry.
+
+Gold confetti now uses paper faces at every animation frame, scattered phases, varied sizes/fall speeds and lateral sway instead of one synchronized diagonal. Tests check canvas coverage, speed/size variation and readable faces. Whole-dollar milestones show `$500` / `$1,550`; nonzero cents retain their exact value. The updated ZIP still contains 19 images and 22 entries.
+
+The red “Height is fixed in settings” messages and teleporting were resolved by the operator’s display settings. Retesting the corrected companion on the destination remains pending; native command settings/available avatar animations still affect dancing.

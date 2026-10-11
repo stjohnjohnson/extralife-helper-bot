@@ -20,3 +20,13 @@ test('celebration PNGs and manifests are transparent, correctly tiled and determ
         for (const name of files) expect(fs.readFileSync(join(dir, name))).toEqual(fs.readFileSync(join('integrations/stream-avatars/assets', name)));
     } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
+
+test('gold confetti keeps a visible paper face throughout its tumble',()=>{
+    const png=PNG.sync.read(fs.readFileSync('integrations/stream-avatars/assets/sa_confetti.png'));
+    const manifest=JSON.parse(fs.readFileSync('integrations/stream-avatars/assets/sa_confetti.json'));
+    for(let frame=0;frame<manifest.frames;frame++){
+        const columns=new Set();
+        for(let y=0;y<manifest.frameHeight;y++)for(let x=0;x<manifest.frameWidth;x++)if(png.data[(y*png.width+frame*manifest.frameWidth+x)*4+3]>0)columns.add(x);
+        expect(columns.size).toBeGreaterThanOrEqual(3);
+    }
+});
