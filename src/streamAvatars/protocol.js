@@ -1,4 +1,4 @@
-const features = ['hearts', 'crowd', 'session', 'celebrations'];
+const features = ['hearts', 'crowd', 'session', 'celebrations', 'donation-recognition'];
 const finite = value => Number.isFinite(value);
 const positive = value => finite(value) && value > 0;
 const id = value => typeof value === 'string' && value.length > 0 && value.length <= 128;
@@ -14,7 +14,7 @@ function decodeClientMessage(raw) {
     if (value.type === 'heartbeat' && exact(value, ['version', 'type'])) return value;
     if (value.type === 'diagnostic' && exact(value, ['version', 'type', 'code']) && ['missing-heart-image', 'missing-celebration-image', 'unsupported-message', 'render-error', 'custom-service-required', 'action-error', 'density-limit'].includes(value.code)) return value;
     if (value.type === 'ready' && exact(value, ['version', 'type', 'capabilities', 'resolution']) &&
-        Array.isArray(value.capabilities) && value.capabilities.length <= 4 && value.capabilities.every(item => features.includes(item)) &&
+        Array.isArray(value.capabilities) && value.capabilities.length <= 5 && value.capabilities.every(item => features.includes(item)) &&
         exact(value.resolution, ['width', 'height']) && positive(value.resolution.width) && positive(value.resolution.height)) return value;
     invalid();
 }
@@ -25,19 +25,28 @@ function validateServerMessage(value) {
     if (value.type === 'crowd' && exact(value, ['version', 'type', 'mode', 'generation', 'crowdIds']) && value.mode === 'integration' && crowdIds(value.crowdIds)) return value;
     if (value.type === 'hearts' && exact(value, ['version', 'type', 'mode', 'generation', 'sessionId', 'id', 'issuedAtMs', 'expiresAtMs', 'durationMs']) &&
         id(value.sessionId) && id(value.id) && finite(value.issuedAtMs) && finite(value.expiresAtMs) && value.expiresAtMs > value.issuedAtMs && value.expiresAtMs - value.issuedAtMs <= 10000 && value.durationMs === 5000) return value;
-    if (value.type === 'celebration' && exact(value, ['version', 'type', 'mode', 'generation', 'sessionId', 'id', 'issuedAtMs', 'expiresAtMs', 'heartsUntilMs', 'partyUntilMs', 'kind', 'liveTotalCents', 'milestoneCents']) &&
+    if (value.type === 'celebration' && exact(value, ['version', 'type', 'mode', 'generation', 'sessionId', 'id', 'issuedAtMs', 'expiresAtMs', 'heartsUntilMs', 'partyUntilMs', 'kind', 'liveTotalCents', 'milestoneCents', 'donationCount', 'donationTotalCents', 'recognitionStartedAtMs', 'recognitionAction']) &&
         id(value.sessionId) && id(value.id) && ['donation', 'milestone', 'goal'].includes(value.kind) &&
         finite(value.issuedAtMs) && finite(value.expiresAtMs) && value.expiresAtMs > value.issuedAtMs && value.expiresAtMs <= value.issuedAtMs + 10000 &&
         [value.heartsUntilMs, value.partyUntilMs].every(time => Number.isSafeInteger(time) && time >= 0) && value.heartsUntilMs <= value.issuedAtMs + 10000 && value.partyUntilMs <= value.issuedAtMs + 38000 &&
+        validRecognition(value) &&
         Number.isSafeInteger(value.liveTotalCents) && value.liveTotalCents >= 0 && (value.milestoneCents === null || (Number.isSafeInteger(value.milestoneCents) && value.milestoneCents > 0 && value.milestoneCents <= value.liveTotalCents))) return value;
     if (value.type === 'snapshot' && exact(value, ['version', 'type', 'mode', 'generation', 'serverNowMs', 'session', 'elapsedMs', 'integration', 'features']) &&
         finite(value.serverNowMs) && finite(value.elapsedMs) && value.elapsedMs >= 0 &&
         exact(value.integration, ['active', 'crowdIds']) && typeof value.integration.active === 'boolean' && crowdIds(value.integration.crowdIds) &&
-        Array.isArray(value.features) && value.features.length <= 4 && value.features.every(item => features.includes(item))) {
+        Array.isArray(value.features) && value.features.length <= 5 && value.features.every(item => features.includes(item))) {
         if (!validPublicSession(value.session)) invalid();
         return value;
     }
     invalid();
+}
+function validRecognition(value) {
+    const safe = n => Number.isSafeInteger(n) && n >= 0;
+    if (!safe(value.donationCount) || !(value.donationTotalCents === null || safe(value.donationTotalCents))) return false;
+    if (value.donationCount === 0) return value.donationTotalCents === 0 && value.recognitionStartedAtMs === null && value.recognitionAction === null && value.heartsUntilMs === 0;
+    return safe(value.recognitionStartedAtMs) && value.recognitionStartedAtMs <= value.issuedAtMs &&
+        value.heartsUntilMs >= value.recognitionStartedAtMs && value.heartsUntilMs <= value.recognitionStartedAtMs + 10000 &&
+        ['jump', 'hug'].includes(value.recognitionAction);
 }
 function publicSession(state) {
     return Object.fromEntries(['sessionId', 'startedAtMs', 'endedAtMs', 'liveTotalCents', 'chapter', 'campaignGoalReached'].map(key => [key, state[key]]));

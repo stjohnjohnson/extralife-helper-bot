@@ -66,7 +66,11 @@ function reduceDonations(state, { scan, campaign = null, reconcile = false, reco
     // Reveal old money silently before attributing any crossing to this batch's fresh gifts.
     const baselineCount = Math.max(previousCount, Math.floor(historicalTotalCents / intervalCents));
     const milestoneCents = !silent && !changedInterval && count > baselineCount && newIds.length ? count * intervalCents : null;
-    const intent = !silent && (newIds.length || goalReached) ? { sessionId: next.sessionId, donationIds: newIds,
+    const donationTotalCents = newIds.reduce((total,id) => {
+        const amount = next.donationLedger[id].amountCents;
+        return total === null || amount === null ? null : addCents(total, amount);
+    }, 0);
+    const intent = !silent && (newIds.length || goalReached) ? { sessionId: next.sessionId, donationIds: newIds, donationCount: newIds.length, donationTotalCents,
         liveTotalCents: next.liveTotalCents, milestoneCents, goalReached } : null;
     return { state: next, intent, diagnostics: [...diagnostics] };
 }

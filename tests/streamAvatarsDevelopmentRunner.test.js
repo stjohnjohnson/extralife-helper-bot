@@ -18,7 +18,7 @@ function companion(address, packets) {
     socket.on('open', () => socket.send(JSON.stringify({ version: 2, type: 'auth', token })));
     socket.on('message', raw => {
         const value = JSON.parse(raw); packets.push(value);
-        if (value.type === 'snapshot') socket.send(JSON.stringify({ version: 2, type: 'ready', capabilities: ['celebrations'], resolution: { width: 1920, height: 1080 } }));
+        if (value.type === 'snapshot') socket.send(JSON.stringify({ version: 2, type: 'ready', capabilities: ['celebrations', 'donation-recognition'], resolution: { width: 1920, height: 1080 } }));
         if (value.type === 'heartbeat') socket.send(JSON.stringify({ version: 2, type: 'heartbeat' }));
     }); return socket;
 }

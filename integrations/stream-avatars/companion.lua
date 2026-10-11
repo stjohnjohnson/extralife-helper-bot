@@ -207,8 +207,16 @@ return function()
         return type(json.null)~="function" and value==json.null
     end
     local function validCelebration(value)
-        local allowed={version=true,type=true,mode=true,generation=true,sessionId=true,id=true,issuedAtMs=true,expiresAtMs=true,heartsUntilMs=true,partyUntilMs=true,kind=true,liveTotalCents=true,milestoneCents=true}
+        local allowed={version=true,type=true,mode=true,generation=true,sessionId=true,id=true,issuedAtMs=true,expiresAtMs=true,heartsUntilMs=true,partyUntilMs=true,kind=true,liveTotalCents=true,milestoneCents=true,donationCount=true,donationTotalCents=true,recognitionStartedAtMs=true,recognitionAction=true}
         for key,_ in pairs(value) do if not allowed[key] then return false end end
+        if value.donationTotalCents==nil or value.recognitionStartedAtMs==nil or value.recognitionAction==nil then return false end
+        local count=value.donationCount
+        local amount=value.donationTotalCents
+        local start=value.recognitionStartedAtMs
+        if not integer(count) or count<0 or count>9007199254740991 or not (jsonNull(amount) or (integer(amount) and amount>=0 and amount<=9007199254740991)) then return false end
+        if count==0 then
+            if amount~=0 or not jsonNull(start) or not jsonNull(value.recognitionAction) or value.heartsUntilMs~=0 then return false end
+        elseif not integer(start) or start<0 or not integer(value.issuedAtMs) or start>value.issuedAtMs or not integer(value.heartsUntilMs) or value.heartsUntilMs<start or value.heartsUntilMs>start+10000 or (value.recognitionAction~="jump" and value.recognitionAction~="hug") then return false end
         return (value.kind=="donation" or value.kind=="milestone" or value.kind=="goal") and type(value.id)=="string" and #value.id>0 and #value.id<=128 and
             integer(value.issuedAtMs) and integer(value.expiresAtMs) and value.expiresAtMs>value.issuedAtMs and value.expiresAtMs<=value.issuedAtMs+10000 and
             integer(value.heartsUntilMs) and value.heartsUntilMs>=0 and value.heartsUntilMs<=value.issuedAtMs+10000 and
@@ -307,7 +315,7 @@ return function()
             if value.mode=="production" then previewHostSet=false end
             reconcileCrowd(value.mode=="integration" and value.integration.crowdIds or {})
             local resolution=app.getResolution()
-            send({version=2,type="ready",capabilities={"hearts","crowd","session","celebrations"},resolution={width=resolution.x,height=resolution.y}})
+            send({version=2,type="ready",capabilities={"hearts","crowd","session","celebrations","donation-recognition"},resolution={width=resolution.x,height=resolution.y}})
         elseif value.type=="crowd" and snapshot and snapshot.mode=="integration" and value.mode==snapshot.mode and value.generation==snapshot.generation and validCrowd(value.crowdIds) then
             reconcileCrowd(value.crowdIds)
         elseif value.type=="celebration" and snapshot and value.mode==snapshot.mode and value.generation==snapshot.generation and value.sessionId==snapshot.session.sessionId then

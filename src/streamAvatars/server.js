@@ -15,7 +15,7 @@ async function startBridgeServer({ config, getSnapshot, onClientMessage = async 
         wss.handleUpgrade(req, socket, head, connection => wss.emit('connection', connection));
     };
     function sendTo(socket, record, message) {
-        if (!record.authenticated || socket.readyState !== WebSocket.OPEN || (message.type === 'celebration' && !record.capabilities?.includes('celebrations'))) return false;
+        if (!record.authenticated || socket.readyState !== WebSocket.OPEN || (message.type === 'celebration' && !record.capabilities?.includes('donation-recognition'))) return false;
         const body = JSON.stringify(validateServerMessage(message));
         if (socket.bufferedAmount + Buffer.byteLength(body) > 65536 || record.pending >= 32) { socket.terminate(); return false; }
         record.pending++; socket.send(body, () => { record.pending--; }); return true;
@@ -45,7 +45,7 @@ async function startBridgeServer({ config, getSnapshot, onClientMessage = async 
                 record.inboundTail = record.inboundTail.then(async () => {
                     if (record.alive && socket.readyState === WebSocket.OPEN) {
                         if (message.type === 'ready') {
-                            if (!message.capabilities.includes('celebrations')) throw new Error('Import latest companion v2');
+                            if (!message.capabilities.includes('celebrations') || !message.capabilities.includes('donation-recognition')) throw new Error('Import latest companion v2');
                             record.capabilities = message.capabilities;
                         }
                         await onClientMessage(message);
@@ -77,7 +77,7 @@ async function startBridgeServer({ config, getSnapshot, onClientMessage = async 
         if (signal?.aborted) throw new Error('Stream Avatars startup aborted');
     } catch (error) { await stop(); throw error; }
     return { address: listener.address,
-        getStatus: () => ({ authenticatedClients: [...clients.values()].filter(record => record.authenticated).length, readyClients: [...clients.values()].filter(record => record.authenticated && record.capabilities?.includes('celebrations')).length }),
+        getStatus: () => ({ authenticatedClients: [...clients.values()].filter(record => record.authenticated).length, readyClients: [...clients.values()].filter(record => record.authenticated && record.capabilities?.includes('celebrations') && record.capabilities?.includes('donation-recognition')).length }),
         async drain() {
             const deadline = Date.now() + 2000;
             while ([...clients.values()].some(record => record.pending > 0) && Date.now() < deadline) await delay(10);

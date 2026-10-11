@@ -22,7 +22,8 @@
 -- SOFTWARE.
 --
 
-local json = { _version = "0.1.2" }
+-- Test-host extension: preserve explicit JSON null fields like MoonSharp.
+local json = { _version = "0.1.2", null = {} }
 
 -------------------------------------------------------------------------------
 -- Encode
@@ -122,6 +123,7 @@ local type_func_map = {
 
 
 encode = function(val, stack)
+  if val == json.null then return "null" end
   local t = type(val)
   local f = type_func_map[t]
   if f then
@@ -158,7 +160,7 @@ local literals      = create_set("true", "false", "null")
 local literal_map = {
   [ "true"  ] = true,
   [ "false" ] = false,
-  [ "null"  ] = nil,
+  [ "null"  ] = json.null,
 }
 
 

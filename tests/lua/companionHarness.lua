@@ -11,7 +11,7 @@ local function hostParse(text)
     return codec.decode(text)
 end
 local function hostSerialize(value) return (codec.encode(value):gsub("/", "\\/")) end
-local function clone(value) if type(value) ~= "table" then return value end local copy={} for k,v in pairs(value) do copy[k]=clone(v) end return copy end
+local function clone(value) if type(value) ~= "table" or value==codec.null then return value end local copy={} for k,v in pairs(value) do copy[k]=clone(v) end return copy end
 local connectedCount, leaves, removals = 0, 0, 0
 local jumps, dances, exits = 0, 0, 0
 local config = { url = "ws://127.0.0.1/sa/socket", token = "private-test-token", image = "sa_heart" }
@@ -129,7 +129,7 @@ end
 local function count() local n=0 for _,ob in ipairs(objects) do if not ob.removed and ob.imageLoaded and ob.scale>0 then n=n+1 end end return n end
 local function assetCount(prefix) local n=0 for _,ob in ipairs(objects) do if not ob.removed and ob.imageLoaded and ob.scale>0 and ob.asset and (ob.asset==prefix or (prefix=="sa_digit" and ob.asset:find("sa_digit_",1,true))) then n=n+1 end end return n end
 local function celebration(kind,id)
-    return {version=2,type="celebration",mode="integration",generation=1,sessionId="session",id=id or "celebration",issuedAtMs=1000,expiresAtMs=11000,heartsUntilMs=6000,partyUntilMs=kind=="goal" and 21000 or (kind=="milestone" and 19000 or 0),kind=kind or "donation",liveTotalCents=154350,milestoneCents=kind=="milestone" and 150000 or codec.null}
+    return {version=2,type="celebration",mode="integration",generation=1,sessionId="session",id=id or "celebration",issuedAtMs=1000,expiresAtMs=11000,donationCount=1,donationTotalCents=2500,recognitionStartedAtMs=1000,recognitionAction="jump",heartsUntilMs=6000,partyUntilMs=kind=="goal" and 21000 or (kind=="milestone" and 19000 or 0),kind=kind or "donation",liveTotalCents=154350,milestoneCents=kind=="milestone" and 150000 or codec.null}
 end
 local function active() for _,ob in ipairs(objects) do if not ob.removed and ob.imageLoaded and ob.scale>0 then return ob end end end
 if scenario=="host-json-escapes" then
@@ -143,7 +143,13 @@ if scenario=="invalid-settings" or scenario=="invalid-token" or scenario=="inval
     local ok,err=coroutine.resume(runner); assert(ok,err); assert(coroutine.status(runner)=="dead" and connectedCount==0); if nativeNull then nativeNull:close() end;print("OK "..scenario); return
 end
 tick()
-if scenario=="async-dance-manual-interruption" then
+if scenario=="recognition-schema" then
+    addUser(1);send(snapshot())
+    local bad={ {donationCount=-1}, {donationCount=1.5}, {donationTotalCents=-1}, {donationTotalCents=1.5}, {donationTotalCents=9007199254740992}, {recognitionAction="explode"}, {recognitionStartedAtMs=1001}, {heartsUntilMs=11001} }
+    for i,patch in ipairs(bad) do local v=celebration();v.id="bad-"..i;for k,x in pairs(patch) do v[k]=x end;send(v);assert(count()==0 and jumps==0,"must reject malformed recognition") end
+    for _,key in ipairs({"donationTotalCents","recognitionStartedAtMs","recognitionAction"}) do local v=celebration();v.id=key;v[key]=nil;send(v);assert(count()==0 and jumps==0,"must reject missing recognition fields") end
+    local v=celebration();v.donationTotalCents=codec.null;send(v);tick();assert(assetCount("sa_thanks")==1 and jumps==1)
+elseif scenario=="async-dance-manual-interruption" then
     local user=addUser(1);user.avatar="test-avatar";send(snapshot());send(celebration("milestone"))
     user.pendingDance=nil;user.state="CustomAnimation";user.animation="custom1"
     tick();tick(18);tick()

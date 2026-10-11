@@ -21,7 +21,7 @@ async function startStreamAvatars({ config, logger, signal, webServer, realClock
         const state = session.getSnapshot();
         return { version: 2, type: 'snapshot', mode, generation, serverNowMs: realClock.nowMs(), session: publicSession(state),
             elapsedMs: state.startedAtMs === null ? 0 : Math.max(0, (state.endedAtMs ?? realClock.nowMs()) - state.startedAtMs),
-            integration: { active: Boolean(integration), crowdIds }, features: ['hearts', 'crowd', 'session', 'celebrations'] };
+            integration: { active: Boolean(integration), crowdIds }, features: ['hearts', 'crowd', 'session', 'celebrations', 'donation-recognition'] };
     };
     const notify = invalidate => {
         if (!active) return;

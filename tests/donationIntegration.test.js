@@ -17,7 +17,7 @@ async function accept(donations, campaign) { return service.acceptDonations({ ex
 async function connect() {
     socket = new WebSocket(`ws://127.0.0.1:${service.address.port}/sa/socket`); await once(socket, 'open');
     const received = once(socket, 'message'); socket.send(JSON.stringify({ version: 2, type: 'auth', token: 't'.repeat(32) })); await received;
-    socket.send(JSON.stringify({ version: 2, type: 'ready', capabilities: ['celebrations'], resolution: { width: 1920, height: 1080 } }));
+    socket.send(JSON.stringify({ version: 2, type: 'ready', capabilities: ['celebrations', 'donation-recognition'], resolution: { width: 1920, height: 1080 } }));
     for (let i = 0; i < 30 && !service.getStatus().companionReady; i++) await new Promise(resolve => setTimeout(resolve, 2));
 }
 test('accounting waits for a window, reconciles without a companion, then recognizes donations in offline grace', async () => {

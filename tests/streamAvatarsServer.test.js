@@ -51,7 +51,7 @@ test('valid coalesced client frames are serialized rather than rejected', async 
     socket.send(JSON.stringify({ version: 2, type: 'auth', token })); await snapshotReceived;
     const closed = once(socket, 'close').then(() => 'closed');
     socket._socket.cork();
-    socket.send(JSON.stringify({ version: 2, type: 'ready', capabilities: ['hearts', 'celebrations'], resolution: { width: 1920, height: 200 } }));
+    socket.send(JSON.stringify({ version: 2, type: 'ready', capabilities: ['hearts', 'celebrations', 'donation-recognition'], resolution: { width: 1920, height: 200 } }));
     socket.send(JSON.stringify({ version: 2, type: 'heartbeat' })); socket._socket.uncork();
     expect(await Promise.race([handled.then(() => 'handled'), closed])).toBe('handled');
     expect(seen).toEqual(['ready', 'heartbeat']); expect(socket.readyState).toBe(WebSocket.OPEN);
@@ -65,4 +65,25 @@ test('v2 companion without celebration capability receives an actionable rejecti
     const closed = once(socket, 'close'); socket.send(JSON.stringify({ version: 2, type: 'ready', capabilities: ['hearts'], resolution: { width: 1920, height: 1080 } }));
     const [code, reason] = await closed; expect(code).toBe(1008); expect(reason.toString()).toContain('companion v2');
     expect(server.getStatus().readyClients).toBe(0);
+});
+
+async function rejectsOldCompanion(startServer) {
+    let admitted;const accepted=new Promise(resolve=>{admitted=resolve;});
+    server=await startServer({config:{host:'127.0.0.1',port:0,token},getSnapshot:snapshot,onClientMessage:async()=>admitted({accepted:true})});
+    const socket=await connect();const first=once(socket,'message');socket.send(JSON.stringify({version:2,type:'auth',token}));await first;
+    const result=Promise.race([once(socket,'close').then(([code,reason])=>({code,reason:reason.toString()})),accepted]);
+    socket.send(JSON.stringify({version:2,type:'ready',capabilities:['celebrations'],resolution:{width:1920,height:1080}}));socket.send(JSON.stringify({version:2,type:'heartbeat'}));
+    expect(await result).toMatchObject({code:1008,reason:expect.stringContaining('latest companion')});expect(server.getStatus().readyClients).toBe(0);
+}
+test('old celebration-only companion is rejected before being counted ready', () => rejectsOldCompanion(startBridgeServer));
+test('old companion readiness regression detects a removed capability gate', async () => {
+    const { readFileSync } = require('node:fs');
+    const Module = require('node:module');
+    const file = require.resolve('../src/streamAvatars/server');
+    const source = readFileSync(file, 'utf8');
+    const gate = ' || !message.capabilities.includes(\'donation-recognition\')';
+    expect(source).toContain(gate);
+    const mutated = new Module(file, module); mutated.filename = file; mutated.paths = Module._nodeModulePaths(require('node:path').dirname(file));
+    mutated._compile(source.replace(gate, ''), file);
+    await expect(rejectsOldCompanion(mutated.exports.startBridgeServer)).rejects.toThrow(/toMatchObject/);
 });

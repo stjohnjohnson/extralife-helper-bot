@@ -31,3 +31,19 @@ test('revelation-only crossings stay silent in a mixed batch',()=>{
     expect(r.intent).toMatchObject({donationIds:['new'],liveTotalCents:110000,milestoneCents:null});
     expect(r.state.donationCheckpointCount).toBe(2);
 });
+
+test('recognition attributes accepted new IDs once, not a historical money delta',()=>{
+    const seeded=apply(initial(),[gift('hidden',null)],{reconcile:true}).state;
+    const r=apply(seeded,[gift('hidden',60000),gift('a',1000),gift('b',1500),gift('a',9999)]);
+    expect(r.intent).toMatchObject({donationCount:2,donationTotalCents:2500,liveTotalCents:62500});
+    expect(apply(r.state,[gift('a',1000),gift('b',1500),gift('hidden',60000)]).intent).toBeNull();
+});
+test('recognition reads final accepted facts for same-scan revelations',()=>{
+    expect(apply(initial(),[gift('a',null),gift('a',2500)]).intent).toMatchObject({donationCount:1,donationTotalCents:2500});
+    expect(apply(initial(),[gift('a',1000),gift('hidden',null)]).intent).toMatchObject({donationCount:2,donationTotalCents:null});
+});
+test('delayed goal-only intent carries no new donation money',()=>{
+    let s=apply(initial(),[],{reconcile:true,campaign:campaign(90000)}).state;
+    s=apply(s,[gift('a',10000)],{campaign:campaign(90000,100000,200001)}).state;
+    expect(apply(s,[],{observedAtMs:250000,campaign:campaign(100000,100000,250000)}).intent).toMatchObject({donationCount:0,donationTotalCents:0});
+});
