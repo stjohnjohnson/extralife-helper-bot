@@ -91,6 +91,20 @@ describe('curated release notes', () => {
         expect(renderReleaseNotes(data)).not.toContain('hi#water');
     });
 
+    test.each(['breaking change: Upgrade runtime.', '  BREAKING CHANGE: Upgrade runtime.', '* Breaking Change: Upgrade runtime.'])('renders breaking notices recognized by the analyzer: %s', footer => {
+        const data = clone();
+        data.commits[1].message += '\n\n' + footer;
+        expect(renderReleaseNotes(data)).toContain('### Breaking changes\n\n- Upgrade runtime.');
+        data.commits[2].message += '\n\n' + footer;
+        expect(() => renderReleaseNotes(data)).toThrow(/breaking changes require release notes/);
+    });
+
+    test.each(['perf: reduce donation polling latency', 'Revert "feat: remove captions"\n\nThis reverts commit abc1234.'])('requires PR notes for analyzer-relevant commits: %s', message => {
+        const data = clone();
+        data.commits.push({ hash: hash(8), message });
+        expect(() => renderReleaseNotes(data)).toThrow(/not associated with a merged PR/);
+    });
+
     test('validates source PR URLs instead of trusting arbitrary metadata links', () => {
         const data = clone();
         data.prs[1].htmlUrl = 'https://example.com/pull/72';
@@ -185,12 +199,12 @@ describe('release integration', () => {
             const commit = message => git(['-c', 'user.name=Preview Test', '-c', 'user.email=test@example.com', '-c', 'commit.gpgsign=false', 'commit', '--allow-empty', '-m', message]);
             commit('chore: baseline');
             const base = git(['rev-parse', 'HEAD']);
-            commit('feat: first implementation');
+            commit('feat: first implementation\n\nBREAKING CHANGE: Abandoned intermediate protocol.');
             commit('fix: correct unreleased implementation');
             const head = git(['rev-parse', 'HEAD']);
             const eventPath = path.join(dir, 'event.json');
             fs.writeFileSync(eventPath, JSON.stringify({ repository: { full_name: 'stjohnjohnson/extralife-helper-bot' }, pull_request: {
-                number: 82, title: 'feat: donation celebrations', body: fixture.prs[1].body.replace('<!-- replaces-release-notes: #71 -->', ''),
+                number: 82, title: 'feat: donation celebrations', body: fixture.prs[1].body.replace('<!-- replaces-release-notes: #71 -->', '') + '\nBREAKING CHANGE: Import the final companion.',
                 html_url: `${fixture.repositoryUrl}/pull/82`, user: { login: 'author', type: 'User' },
                 base: { sha: base, repo: { full_name: 'stjohnjohnson/extralife-helper-bot' } }, head: { sha: head, repo: { full_name: 'stjohnjohnson/extralife-helper-bot' } }
             } }));
@@ -198,6 +212,8 @@ describe('release integration', () => {
             const notes = await preview(['--from', base, '--to', head, '--candidate-event', eventPath], { cwd: dir, env: { GITHUB_TOKEN: 'token' }, fetchImpl });
             expect(notes).toContain('campaign milestones');
             expect(notes).toContain('/pull/82');
+            expect(notes).toContain('### Breaking changes\n\n- Import the final companion.');
+            expect(notes).not.toContain('Abandoned intermediate protocol.');
             expect(fetchImpl).not.toHaveBeenCalled();
             expect(git(['rev-parse', 'HEAD'])).toBe(head);
         } finally {
@@ -232,14 +248,18 @@ describe('release integration', () => {
             const hook = await normalize(context,'generateNotes','./scripts/release-notes/plugin.js',{});
             if (typeof hook !== 'function') throw new Error('Plugin did not load');
             const actual=[];
-            for (const message of ['fix: repair captions','feat: add celebrations','feat: replace protocol\\n\\nBREAKING CHANGE: reimport companion']) {
+            for (const message of ['fix: repair captions','feat: add celebrations','feat: replace protocol\\n\\nBREAKING CHANGE: reimport companion',
+                'chore: upgrade runtime\\n\\nbreaking change: Upgrade runtime.',
+                'chore: upgrade runtime\\n\\n  BREAKING CHANGE: Upgrade runtime.',
+                'chore: upgrade runtime\\n\\n* Breaking Change: Upgrade runtime.',
+                'perf: reduce latency','Revert "feat: remove captions"\\n\\nThis reverts commit abc1234.']) {
                 actual.push(await analyzeCommits({}, {...context,commits:[{message,hash:'a'.repeat(40)}]}));
             }
             process.stdout.write(JSON.stringify(actual));
         `;
         const result = spawnSync(process.execPath, ['--input-type=module', '-e', script], { cwd: root, encoding: 'utf8' });
         expect(result.status).toBe(0);
-        expect(JSON.parse(result.stdout)).toEqual(['patch', 'minor', 'major']);
+        expect(JSON.parse(result.stdout)).toEqual(['patch', 'minor', 'major', 'major', 'major', 'major', 'patch', 'patch']);
     });
 
     test('preview CLI creates readable Markdown from a fixture without mutating git or publishing', () => {

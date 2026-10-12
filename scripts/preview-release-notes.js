@@ -23,7 +23,7 @@ async function main(args = process.argv.slice(2), { cwd = process.cwd(), env = p
         const from = resolve(options['--from']);
         const to = resolve(options['--to']);
         const hashes = git(['rev-list', '--reverse', `${from}..${to}`]).split('\n').filter(Boolean);
-        const commits = hashes.map(hash => ({ hash, message: git(['show', '-s', '--format=%B', hash]) }));
+        let commits = hashes.map(hash => ({ hash, message: git(['show', '-s', '--format=%B', hash]) }));
         const identity = repositoryIdentity(git(['remote', 'get-url', 'origin']));
         let candidate;
         let event;
@@ -41,6 +41,9 @@ async function main(args = process.argv.slice(2), { cwd = process.cwd(), env = p
             candidate = { number: pr.number, title: pr.title, body: pr.body, htmlUrl: pr.html_url, base: 'main',
                 mergedAt: null, mergeCommitSha: head, commitHashes: candidateHashes, author: pr.user, candidate: true };
             lookup = commits.filter(commit => !candidateHashes.includes(commit.hash));
+            // Preview the preferred squash result: the current PR title/body,
+            // rather than abandoned intermediate implementation messages.
+            commits = [...lookup, { hash: head, message: `${pr.title}\n\n${pr.body}` }];
         }
         let prs;
         try {

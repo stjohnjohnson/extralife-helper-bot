@@ -61,7 +61,7 @@ This file applies to the entire repository. Create additional `AGENTS.md` files 
 - Select the PR title's Conventional Commit type for the complete final change, with the highest applicable release impact. Do not classify a standalone user-facing fix as internal maintenance.
 - **Commit messages**: Use [Conventional Commits](https://www.conventionalcommits.org/) format for all commits:
   - Format: `type(scope): description`
-  - Types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`
+  - Types: `feat`, `fix`, `perf`, `revert`, `docs`, `style`, `refactor`, `test`, `chore`
   - Examples: 
     - `feat: add voice channel management with admin permissions`
     - `fix: resolve Discord authentication timeout`

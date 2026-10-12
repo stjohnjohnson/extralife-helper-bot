@@ -1,23 +1,6 @@
 const { parsePrDescription, validatePrDescription, isDependabotMaintenance } = require('./contract');
 const { repositoryIdentity } = require('./github');
-
-function breakingNotes(message) {
-    const notes = [];
-    let current;
-    for (const line of message.split(/\r?\n/)) {
-        const start = line.match(/^BREAKING(?: CHANGE|-CHANGE):\s*(.*)$/);
-        if (start) {
-            current = [];
-            notes.push(current);
-            if (start[1]) current.push(start[1]);
-        } else if (current && /^(?:[A-Za-z][A-Za-z -]+: |(?:Closes|Fixes|Refs) #\d|## )/.test(line)) {
-            current = undefined;
-        } else if (current && line.trim()) {
-            current.push(line.trim());
-        }
-    }
-    return notes.map(note => note.join(' ')).filter(Boolean);
-}
+const { breakingNotes, isReleaseRelevant } = require('./commit-metadata');
 
 function renderReleaseNotes({ prs, commits, repositoryUrl, lastRelease = {}, nextRelease = {} }) {
     const identity = repositoryIdentity(repositoryUrl);
@@ -52,7 +35,7 @@ function renderReleaseNotes({ prs, commits, repositoryUrl, lastRelease = {}, nex
         }
     }
     for (const commit of commits) {
-        if (/^(?:feat|fix)(?:\([^()]+\))?!?:/.test(commit.message) || breakingNotes(commit.message).length) {
+        if (isReleaseRelevant(commit.message)) {
             if (!sorted.some(pr => pr.mergeCommitSha === commit.hash || pr.commitHashes?.includes(commit.hash))) {
                 throw new Error(`Release commit ${commit.hash.slice(0, 7)} is not associated with a merged PR. Supply reviewed PR release notes before publishing.`);
             }

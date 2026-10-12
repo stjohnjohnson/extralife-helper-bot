@@ -1,9 +1,10 @@
+const { breakingNotes } = require('./commit-metadata');
 const SECTIONS = ['Summary', 'Release notes', 'Upgrade actions', 'Validation'];
-const TITLE = /^(feat|fix|docs|style|refactor|test|chore)(?:\([^()\r\n]+\))?(!)?: \S[^\r\n]*$/;
+const TITLE = /^(feat|fix|perf|revert|docs|style|refactor|test|chore)(?:\([^()\r\n]+\))?(!)?: \S[^\r\n]*$/;
 
 function isDependabotMaintenance({ title, author, body = '' }) {
     return author?.type === 'Bot' && author.login === 'dependabot[bot]' &&
-        /^chore\(deps(?:-[a-z]+)?\): /.test(title || '') && !/^BREAKING(?: CHANGE|-CHANGE):/m.test(body);
+        /^chore\(deps(?:-[a-z]+)?\): /.test(title || '') && !breakingNotes(body).length;
 }
 
 function visibleText(body) {
@@ -111,12 +112,12 @@ function validatePrDescription(pr) {
     if (isDependabotMaintenance(pr)) {
         return { errors, warnings };
     }
-    if (titleMatch?.[2] && !/^BREAKING CHANGE:\s*\S/m.test(pr.body || '')) {
+    if (titleMatch?.[2] && !/^[\s|*]*BREAKING CHANGE[:\s]+\S/im.test(pr.body || '')) {
         errors.push('Breaking PR titles require a BREAKING CHANGE: footer for version analysis.');
     }
     try {
         const parsed = parsePrDescription(pr.body);
-        if (parsed.internalOnly && (titleMatch?.[1] === 'feat' || titleMatch?.[2] || /^BREAKING(?: CHANGE|-CHANGE):/m.test(pr.body))) {
+        if (parsed.internalOnly && (titleMatch?.[1] === 'feat' || titleMatch?.[2] || breakingNotes(pr.body).length)) {
             errors.push('Features and breaking changes require user-facing release notes.');
         }
         const count = visibleText(pr.body).split(/\s+/).length;

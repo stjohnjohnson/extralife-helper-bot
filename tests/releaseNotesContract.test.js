@@ -37,6 +37,21 @@ describe('PR release-note contract', () => {
         expect(validatePrDescription({ title: 'feat!: replace protocol', body: body() + '\nBREAKING CHANGE: Reimport the companion.' }).errors).toEqual([]);
     });
 
+    test.each(['breaking change: Upgrade runtime.', '  BREAKING CHANGE: Upgrade runtime.', '* Breaking Change: Upgrade runtime.'])('recognizes analyzer-compatible breaking footers: %s', footer => {
+        expect(validatePrDescription({ title: 'chore: upgrade runtime', body: body('Internal only.') + '\n' + footer }).errors).not.toEqual([]);
+        expect(validatePrDescription({ title: 'chore(deps): upgrade runtime', author: { login: 'dependabot[bot]', type: 'Bot' }, body: footer }).errors).not.toEqual([]);
+        expect(validatePrDescription({ title: 'feat!: upgrade runtime', body: body() + '\n' + footer }).errors).toEqual([]);
+    });
+
+    test('metadata edits cannot create replacement skipped build checks', () => {
+        const ci = fs.readFileSync(path.join(__dirname, '../.github/workflows/ci.yml'), 'utf8');
+        expect(ci).not.toMatch(/edited|pr-description:|if:/);
+        const metadata = fs.readFileSync(path.join(__dirname, '../.github/workflows/pr-description.yml'), 'utf8');
+        expect(metadata).toContain('types: [opened, edited, synchronize, reopened]');
+        expect(metadata).toContain('name: PR description');
+        expect(metadata).not.toMatch(/^ {2}(?:build|lua-compatibility):/m);
+    });
+
     test.each([
         ['', 'empty body'],
         [body().replace('## Validation', '## Evidence'), 'missing section'],
