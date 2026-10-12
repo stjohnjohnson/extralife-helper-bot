@@ -21,6 +21,33 @@ This file applies to the entire repository. Create additional `AGENTS.md` files 
 - When replacing an earlier, still-unreleased PR's notes, add `<!-- replaces-release-notes: #NUMBER -->` (comma-separated numbers for multiple PRs). Restate retained behavior and all applicable upgrade actions in the replacement. Do not replace notes for an already-released PR.
 - Review the release notes and upgrade actions against the final diff before requesting review. The release tool reads these PR sections; writing quality is an agent and reviewer responsibility.
 
+### STE-style writing
+Apply ASD-STE100 writing principles to new or revised issues, pull requests, and release notes. This repository uses STE-style guidance, not verified compliance with the complete standard.
+The standard also controls vocabulary, word meanings, and parts of speech. Short sentences alone do not establish compliance.
+Use [ASD-STE100 Issue 9](https://www.asd-ste100.org/assets/files/ASD-STE100_ISSUE9.pdf) and the [official FAQ](https://www.asd-ste100.org/STE_faq.html) as references.
+
+- Keep each descriptive sentence within 25 words. Keep each instruction within 20 words. These limits follow rules 6.3 and 5.1, respectively.
+- Give each sentence one main topic. Divide sentences that combine the problem, cause, correction, and verification.
+- Use active voice when the person or system that performs the action is known. Name that person or system when necessary.
+- Describe completed changes with statements of behavior. Use direct commands for instructions, such as upgrade steps.
+- Give each instruction one action unless the actions must occur at the same time. Use numbered steps when order matters.
+- Put a condition before its instruction when readers must know the condition first. Keep explanations and deployment limitations separate from work steps.
+- Use the same term for the same thing. For example, use "donation" consistently instead of alternating between "donation" and "gift."
+- Use concrete words and explicit references. Explain unfamiliar abbreviations and technical terms. Avoid metaphors and compressed phrases such as "fundraising jumps" or "address/token."
+- Preserve exact commands, paths, settings, identifiers, and product names. Preserve Conventional Commit syntax, PR section names, release markers, and `BREAKING CHANGE:` footers.
+- Preserve technical meaning and necessary detail when shortening text. Review sentence structure, terminology, instructions, and current status before publication.
+
+Sentence limits differ from document length. A release-note bullet of roughly 30 words can contain two short sentences.
+The PR length target still applies to the complete description. Issues have no total word limit.
+Authors and reviewers apply this guidance; no automated language checker is required.
+
+Examples below illustrate the writing principles. They are not complete STE compliance checks.
+
+| Before | STE-style revision |
+| --- | --- |
+| Preserve the original lock and corrupt-state errors as `Error.cause`, keeping existing messages and recovery behavior. | The campaign store now retains the original lock and corrupt-state errors in `Error.cause`. Error messages and recovery behavior remain unchanged. |
+| Run `npm run sa:package`, import the ZIP and restore your connection address/token. | 1. Run `npm run sa:package`.<br>2. Import the ZIP into Stream Avatars.<br>3. Restore your connection address.<br>4. Restore your connection token. |
+
 ## Git worktree workflow
 - Before starting repository work, fetch `origin/main`. Fast-forward a clean primary `main` checkout with `git pull --ff-only origin main`; preserve local changes and report any divergence.
 - Create new task worktrees from the freshly fetched `origin/main`. Do not automatically merge or rebase `main` into existing task branches.
