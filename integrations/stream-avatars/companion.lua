@@ -597,11 +597,11 @@ return function()
         if value.type=="clear" then
             generationFloor=value.generation; clearAll(); reconcileCrowd({}); snapshot=nil
         elseif value.type=="snapshot" and validSnapshot(value) then
+            if jsonNull(value.theme) then value.theme=nil elseif jsonNull(value.theme.themeId) then value.theme.themeId=nil end
             if not snapshot or snapshot.generation~=value.generation or snapshot.mode~=value.mode or snapshot.campaign.campaignId~=value.campaign.campaignId then clearAll()
             elseif (snapshot.theme and snapshot.theme.gameIdentity)~=(value.theme and value.theme.gameIdentity) or
                 (snapshot.theme and snapshot.theme.themeId)~=(value.theme and value.theme.themeId) or
                 (snapshot.theme and snapshot.theme.packRevision)~=(value.theme and value.theme.packRevision) then clearEntrance() end
-            if jsonNull(value.theme) then value.theme=nil elseif jsonNull(value.theme.themeId) then value.theme.themeId=nil end
             generationFloor=value.generation; snapshot=value; serverOffset=value.serverNowMs-elapsed*1000; retryDelay=1
             if value.mode=="integration" and not previewHostSet then app.platformServiceSettings.SetStreamer(900000,"sa_integration_host"); previewHostSet=true end
             if value.mode=="production" then previewHostSet=false end

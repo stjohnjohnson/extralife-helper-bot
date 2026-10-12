@@ -128,3 +128,12 @@ test.each([
         for (const dir of dirs) await expect(fs.stat(dir)).rejects.toMatchObject({ code: 'ENOENT' });
     } finally { socket?.terminate(); }
 });
+
+test.each([' ', 'a'.repeat(201), '😀'.repeat(201), '\u0000\u200b', null, 42])('malformed game %j fails before temporary state, listener, readiness or Hue', async game => {
+    const logger = { info: jest.fn(), warn: jest.fn() }, wait = jest.fn(async () => { throw new Error('unexpected readiness wait'); });
+    const hueOutput = { initialize: jest.fn(), stop: jest.fn() }; const mkdir = jest.spyOn(fs, 'mkdtemp');
+    try {
+        await expect(runIntegration({ listenerConfig: { host: '127.0.0.1', port: 0 }, token, game, logger, wait, hueOutput })).rejects.toThrow(/game name/i);
+        expect(mkdir).not.toHaveBeenCalled(); expect(logger.info).not.toHaveBeenCalled(); expect(wait).not.toHaveBeenCalled(); expect(hueOutput.initialize).not.toHaveBeenCalled();
+    } finally { mkdir.mockRestore(); }
+});

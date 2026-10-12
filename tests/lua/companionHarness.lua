@@ -84,11 +84,23 @@ local env; env = {
 }
 -- MoonSharp json.null is a function; parsed JSON null is special userdata.
 local nativeNull
-if scenario=="native-null-donation" or scenario=="native-null-goal" or scenario=="native-null-hidden" or scenario=="native-null-goal-only" then
+if scenario:find("native-null",1,true) or scenario=="native-null-donation" or scenario=="native-null-goal" or scenario=="native-null-hidden" or scenario=="native-null-goal-only" then
     nativeNull=assert(io.tmpfile())
     env.json.null=function() return nativeNull end
     env.json.isnull=function(value) return value==nil or value==nativeNull end
-    env.json.parse=function(text) local value=codec.decode(text);for key,item in pairs(value) do if item==codec.null then value[key]=nativeNull end end;return value end
+    if scenario:find("-native-null-",1,true) then
+        local originalMetatable=debug.getmetatable(nativeNull)
+        local metatable={};for key,value in pairs(originalMetatable) do metatable[key]=value end
+        local close=nativeNull.close
+        metatable.__index=function(_,key) if key=="close" then return function(value) debug.setmetatable(value,originalMetatable);return close(value) end end error("cannot index native JsonNull: "..tostring(key)) end
+        debug.setmetatable(nativeNull,metatable)
+    end
+    local function nativeDecode(value)
+        if value==codec.null then return nativeNull end
+        if type(value)=="table" then for key,item in pairs(value) do value[key]=nativeDecode(item) end end
+        return value
+    end
+    env.json.parse=function(text) return nativeDecode(codec.decode(text)) end
 end
 -- Only the host-documented wall clock is exposed; no filesystem, shell, package
 -- or dynamic-code access. Native cooldowns do not follow scaled game time.
@@ -252,7 +264,17 @@ if gearScenario then
         assert(#gearCalls==0, "matching saved piece without ownership must be skipped"); send(snapshot()); advance(1.2); assert(#gearCalls==0); print("OK "..scenario); return
     end
     assert(u.getGear()[setName]==primary, "existing supported user must get finite primary hat")
-    if scenario=="gear-lifecycle" then
+    if scenario=="gear-native-null-recognition" or scenario=="gear-native-null-party" then
+        local party=scenario=="gear-native-null-party"
+        send(celebration(party and "milestone" or "donation"));tick()
+        local effect=active();assert(effect and not effect.removed)
+        local actions=jumps+dances;local nullSnapshot=snapshot();nullSnapshot.theme=codec.null
+        send(nullSnapshot);advance(1.3)
+        assert(not effect.removed and jumps+dances==actions and exits==0, "native-null game reset must preserve donation ownership")
+        assert(u.getGear()[setName]==nil and gearCalls[#gearCalls].duration==1, "native-null game reset must release the owned hat")
+        local calls=#gearCalls;advance(11);assert(#gearCalls==calls, "cleared native-null game must never renew the old hat")
+        for _,packet in ipairs(packets) do assert(packet.type~="diagnostic", "native null must not throw or reset unrelated owners") end
+    elseif scenario=="gear-lifecycle" then
         local first=#gearCalls; send(themed()); advance(1); assert(#gearCalls==first, "same theme must retain stable hat")
         local late=gearUser(2); advance(1.2); assert(late.getGear()[setName]==primary, "late arrival must get current hat")
         u.saved[setName]="latest-saved"; u.palette="red"; send(snapshot()); advance(1.3)
@@ -340,6 +362,13 @@ if themeScenario then
         local n=tonumber(scenario:match("(%d+)$")); for i=1,n do addUser(i,i*5,20) end
     elseif not worldFailure then addUser(1) end
     if scenario=="theme-backdrop-timeout" then allowImageCompletion=false end
+    if scenario=="theme-native-null-auth" then
+        send(snapshot());local ready=#packets
+        local value=snapshot();value.theme=codec.null;send(value)
+        assert(#packets==ready+1 and packets[#packets].type=="ready", "native-null negotiated snapshot must be installed after base auth")
+        send(celebration());tick();assert(assetCount("sa_heart")==1 and #captions()==0 and jumps==1)
+        print("OK "..scenario);return
+    end
     send(themed()); tick()
     if scenario=="theme-stale-load" then
         allowImageCompletion=false; send(themed(string.rep("c",64),string.rep("d",64))); assert(themes()==0)
@@ -405,6 +434,20 @@ if themeScenario then
             send(hearts()); assert(count()==9); send(entranceEvent()); assert(count()==9 and #captions()==1); tick(5.1); tick(); assert(themes()==8 and count()==8 and #captions()==1); tick(1); tick(); assert(themes()==8 and #captions()==0)
         elseif scenario=="theme-reconnect-no-entrance" then
             assert(jumps==0 and #captions()==0); send(entranceEvent()); assert(jumps==1); callbacks.websocket("sa_helper_bridge","OnClose","",""); tick(); assert(themes()==0 and #captions()==0); tick(1.1); send(themed()); tick(); assert(themes()==8 and jumps==1 and #captions()==0)
+        elseif scenario=="theme-native-null-recognition" or scenario=="theme-native-null-party" then
+            local party=scenario=="theme-native-null-party";send(celebration(party and "milestone" or "donation"));tick()
+            local effects={};for _,ob in ipairs(objects) do if not ob.layer and not ob.removed then effects[#effects+1]=ob end end
+            assert(#effects>0);local actions=jumps+dances;local value=snapshot();value.theme=codec.null;send(value);tick()
+            assert(themes()==0 and #captions()==0, "native-null theme must clear the world without replay")
+            for _,ob in ipairs(effects) do assert(not ob.removed, "native-null theme must preserve each donation object") end
+            assert(jumps+dances==actions and exits==0, "native-null theme must preserve donation actions")
+            for _,packet in ipairs(packets) do assert(packet.type~="diagnostic", "native null must not throw") end
+            send(entranceEvent("obsolete"));assert(#captions()==0 and jumps+dances==actions, "cleared snapshot must reject old entrance")
+        elseif scenario=="theme-native-null-repeated-neutral" then
+            local value=themed();value.theme.themeId=codec.null;value.theme.gameName="Just Chatting"
+            send(value);send(entranceEvent("neutral",value));local caption=captions()[1];assert(caption and themes()==0 and jumps==1)
+            for _=1,3 do send(value);tick(0.2);assert(captions()[1]==caption and not caption.removed and jumps==1, "unchanged native-null neutral snapshots must retain the entrance caption") end
+            tick(6);tick();assert(#captions()==0 and jumps==1, "neutral caption must expire without replay")
         elseif scenario=="theme-wire-neutral" then
         local value=themed(); value.theme.themeId=codec.null; send(value); assert(themes()==0, "native JSON null must clear theme")
     elseif scenario=="theme-donation-jump" or scenario=="theme-donation-hug" or scenario=="theme-donation-party" then

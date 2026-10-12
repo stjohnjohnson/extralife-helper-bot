@@ -45,3 +45,12 @@ test.each([
     expect(runIntegration).toHaveBeenCalledWith(expect.objectContaining(expected));
     expect(HueController).not.toHaveBeenCalled();
 });
+
+test.each([' ', 'a'.repeat(201), '😀'.repeat(201), '\u0000\u200b'])('malformed CLI game fails before even constructing Hue: %j', async game => {
+    await expect(run(['--game', game, '--hue'], env)).rejects.toThrow(/game name/i);
+    expect(runIntegration).not.toHaveBeenCalled(); expect(HueController).not.toHaveBeenCalled();
+});
+test.each(['Minecraft Bedrock', '😀'.repeat(200), '深夜のゲーム'])('valid Unicode names and aliases remain accepted: %s', async game => {
+    await run(['--game', game], env);
+    expect(runIntegration).toHaveBeenCalledWith(expect.objectContaining({ game }));
+});

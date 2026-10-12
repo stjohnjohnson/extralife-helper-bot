@@ -42,10 +42,11 @@ async function createSessionController({ store, clock, mode, channel, graceMs, c
                 (orderedAtMs === gameWatermark.observedAtMs && (observation.source !== 'twitch' || gameWatermark.source === 'twitch')))) return;
             const resolved = resolveGame(observation.gameName, gameConfig);
             const game = { ...resolved, observedAtMs: orderedAtMs, source: observation.source };
-            if (state.game?.identity === game.identity) { gameWatermark = game; return; }
+            const identityChanged = state.game?.identity !== game.identity;
+            if (!identityChanged && state.game.themeId === game.themeId && state.game.displayName === game.displayName) { gameWatermark = game; return; }
             const next = { ...structuredClone(state), game, revision: state.revision + 1 };
             await persist(next);
-            state = next; gameWatermark = game; publish({ announce });
+            state = next; gameWatermark = game; publish({ announce: announce && identityChanged });
             return { changed: true, game: structuredClone(game) };
         }); },
         reset() { return enqueue(async () => { state = await store.archiveAndReset(); recoveryRequired = false; gameWatermark = state.game; publish(); }); },

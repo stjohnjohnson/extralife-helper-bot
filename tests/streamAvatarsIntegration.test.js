@@ -190,3 +190,20 @@ test('a corrupt game file keeps campaign accounting available and can recover af
     expect((await service.dispatch({ name: 'game.recover' })).status).toBe('ok');
     expect(service.getStatus()).toMatchObject({ gameRecoveryRequired: false, game: { displayName: 'Minecraft' }, campaignTotalCents: 90000 });
 });
+
+test.each([['Minecraft', 'kitchen'], ['Unmapped Adventure', 'puzzle']])('restart reconciles %s mapping without entrances or campaign mutation', async (gameName, themeId) => {
+    await online(); await observeGame(gameName);
+    await service.acceptObservation({ expectedEpochId: service.getPollCheckpoint().epochId, batchId: 'baseline', observedAtMs: now, campaign: { observedAtMs: now, totalCents: 90000, goalCents: 100000 } });
+    await service.stop();
+    const before = await fs.readFile(join(directory, 'production/campaign.json'), 'utf8');
+    const themes = require('../src/streamAvatars/themes').loadThemeConfiguration({ defaults: { games: { [gameName]: themeId } } });
+    service = await startStreamAvatars({ webServer, config: { participantId: '123', twitch: { channel: 'streamer' }, streamAvatars: { config: { token: 't'.repeat(32), stateDir: directory, themes } } }, logger: { warn() {} }, realClock: { nowMs: () => now } });
+    await connectThemes(); const received = []; socket.on('message', raw => received.push(JSON.parse(raw)));
+    const checkpoint = service.getPollCheckpoint(); now++; await online(); await observeGame(gameName);
+    expect(service.getStatus().game).toMatchObject({ displayName: gameName, themeId });
+    await new Promise(resolve => setTimeout(resolve, 5));
+    expect(received.some(value => value.type === 'snapshot' && value.theme?.themeId === themeId)).toBe(true);
+    expect(received.some(value => value.type === 'game-entrance')).toBe(false);
+    expect(await fs.readFile(join(directory, 'production/campaign.json'), 'utf8')).toBe(before);
+    expect(service.getPollCheckpoint()).toEqual(checkpoint);
+});

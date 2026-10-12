@@ -2,7 +2,17 @@
 
 Campaign-progress celebrations supersede the original broadcast-total and simultaneous-party requirements in issue #67. Bot and companion now use protocol v3; reimport the ZIP and restore private address/token together with the bot update.
 
-## Rebased issue #66 evidence (2026-10-12)
+## Review correction evidence (2026-10-12)
+
+The follow-up fixes normalize native whole-theme and nested themeId nulls before comparing snapshot owners, silently reconcile changed presentation for a persisted game identity, and reject malformed `--game` names before temporary state, listening or Hue work. Twenty-four new regressions cover those cases, including userdata that throws on field access, preserved donation objects/actions and hat release, repeated neutral captions, remapped/previously unknown games, campaign independence and Unicode boundaries.
+
+With Node.js 24.21.0 and Lua 5.4.9, `npm run lint` and the complete `npm test -- --runInBand` pass: **1,338 tests across 63 suites**, coverage **93.64/89.58/95.94/97.51%** (statements/branches/functions/lines), with unchanged thresholds. The complete Lua 5.2.4 companion suite passes **262 tests**. The separate real candidate loopback run still dispatches all themes and both ordinary and milestone combinations and removes temporary state. Dependencies are unchanged from the zero-vulnerability production audit recorded below.
+
+The fixed candidate ZIP SHA256 is `d12279609ef0db0146002c7c7ce5d018f9f1762c1f9f6165c29116411e1ca2e3` (67 entries/64 PNGs; 52 script images/12 gear pieces). Default ZIP SHA256 is `2ac94c3ef27cac0cedcef9b592b3f5321634fe47972e7fdd1a28a4da39d64061` (25 entries/22 PNGs). Both are deterministic, with unchanged catalog revision, placeholders and empty avatar data. All 1,182 historical artwork/report files and all 42 candidates remain byte-identical. The prior reviewed ZIP is archived as `history/reviewed-52f6f81-5f9e51999ca3.zip`; the earlier 43-PNG archive remains intact. Strict release still refuses zero selected assets.
+
+The current build-25831299 metadata and eight-expression null checks apply to the exact prior reviewed artifact described in the [native contract](stream-avatars-native-contract.md#current-build-25831299-bounded-format-and-null-evidence). The final fixed ZIP's exact-hash native format refresh is pending separately; none of these checks establishes graphical import, native fitting or live behavior acceptance.
+
+## Initial rebase evidence (2026-10-12, reviewed head 52f6f81)
 
 Node.js 24.21.0 and Lua 5.4.9 passed `npm ci`, `npm run lint`, and the complete `npm test -- --runInBand`: 1,314 tests across 63 suites. Coverage is 93.64% statements, 89.52% branches, 95.94% functions and 97.51% lines, against unchanged 85/80/80/85 thresholds. The complete companion suite also passed 256 tests using Lua 5.2.4. `npm run audit:prod` found zero vulnerabilities; the full install audit still reports development dependency vulnerabilities.
 

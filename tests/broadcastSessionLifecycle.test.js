@@ -86,3 +86,22 @@ test('successful category write fences overlapping reads until confirmation; lat
     await controller.observeGame(game('PEAK', 950)); expect(controller.getSnapshot().game.displayName).toBe('PEAK');
     await controller.stop();
 });
+
+test.each([
+    ['Minecraft', 'Minecraft', 'kitchen'],
+    ['Unmapped Adventure', 'Unmapped Adventure', 'puzzle'],
+    ['Minecraft', 'MINECRAFT', 'block-world']
+])('restart silently reconciles persisted presentation for %s', async (name, displayName, themeId) => {
+    const store = memoryStore(); let controller = await gameController(store);
+    await controller.observeGame(game(name, 901)); const identity = controller.getSnapshot().game.identity; await controller.stop();
+    controller = await createSessionController({ store, clock: { nowMs: () => 1000 }, mode: 'production', channel: 'streamer', graceMs: 100, cadenceMs: 100, gameConfig: loadThemeConfiguration({ defaults: { games: { [displayName]: themeId } } }).config });
+    await controller.observe({ status: 'online', observedAtMs: 960, startedAtMs: 0, streamId: 'one' });
+    const notifications = []; controller.subscribe((state, change) => notifications.push({ state, change }));
+    const revision = controller.getSnapshot().revision;
+    await controller.observeGame(game(name, 970), { announce: true });
+    expect(controller.getSnapshot()).toMatchObject({ revision: revision + 1, game: { identity, displayName, themeId } });
+    expect(notifications).toHaveLength(1); expect(notifications[0].change.announce).toBe(false);
+    expect((await store.load()).game).toEqual(controller.getSnapshot().game);
+    await controller.observeGame(game(name, 980), { announce: true });
+    expect(notifications).toHaveLength(1); await controller.stop();
+});

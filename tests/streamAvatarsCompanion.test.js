@@ -97,7 +97,7 @@ test.each(['donation','milestone','goal','hidden','goal-only'])('Lua renders act
 
 const { buildThemeCatalog, buildThemeLayout } = require('../src/streamAvatars/themeLayout');
 const { candidate } = require('./fixtures/themeCandidates');
-const themeScenarios = ['theme-donation-jump', 'theme-donation-hug', 'theme-donation-party', 'theme-wire-neutral', 'theme-stale-load', 'theme-shared-game', 'theme-neutral', 'theme-missing-backdrop', 'theme-missing-prop', 'theme-backdrop-timeout', 'theme-resize', 'theme-small-bounds', 'theme-heart-coexistence', 'theme-reconnect-no-entrance', 'theme-production-gate', 'theme-revision', 'theme-load-timeout', 'theme-pending-cap', 'theme-scope-cancellation', 'entrance-timing', 'entrance-obsolete', 'entrance-caption', 'entrance-neutral', 'entrance-supersession', 'theme-density-0', 'theme-density-20', 'theme-density-100', 'theme-kitchen', 'entrance-caption-error', 'entrance-position-error', 'entrance-unicode'];
+const themeScenarios = ['theme-native-null-auth', 'theme-native-null-recognition', 'theme-native-null-party', 'theme-native-null-repeated-neutral', 'theme-donation-jump', 'theme-donation-hug', 'theme-donation-party', 'theme-wire-neutral', 'theme-stale-load', 'theme-shared-game', 'theme-neutral', 'theme-missing-backdrop', 'theme-missing-prop', 'theme-backdrop-timeout', 'theme-resize', 'theme-small-bounds', 'theme-heart-coexistence', 'theme-reconnect-no-entrance', 'theme-production-gate', 'theme-revision', 'theme-load-timeout', 'theme-pending-cap', 'theme-scope-cancellation', 'entrance-timing', 'entrance-obsolete', 'entrance-caption', 'entrance-neutral', 'entrance-supersession', 'theme-density-0', 'theme-density-20', 'theme-density-100', 'theme-kitchen', 'entrance-caption-error', 'entrance-position-error', 'entrance-unicode'];
 function themeSource() {
     const manifest = candidate();
     for (const asset of Object.values(manifest.assets)) {
@@ -159,7 +159,7 @@ function runGear(scenario, mutate = source => source) {
         const script = join(directory, 'companion.lua'); writeFileSync(script, mutate(source)); return run(script, scenario);
     } finally { rmSync(directory, { recursive: true, force: true }); }
 }
-test.each(['gear-lifecycle', 'gear-alternate', 'gear-foreign', 'gear-avatar', 'gear-generation', 'gear-renew', 'gear-failure-expiry', 'gear-expired-owner', 'gear-disconnect', 'gear-gates', 'gear-large-list', 'gear-native-wrappers', 'gear-initial-occupied', 'gear-wall-pause', 'gear-clock-backwards', 'gear-clock-invalid', 'gear-permission', 'gear-host-error', 'gear-unsupported-read', 'gear-reload'])('owned finite head hats: %s', scenario => {
+test.each(['gear-native-null-recognition', 'gear-native-null-party', 'gear-lifecycle', 'gear-alternate', 'gear-foreign', 'gear-avatar', 'gear-generation', 'gear-renew', 'gear-failure-expiry', 'gear-expired-owner', 'gear-disconnect', 'gear-gates', 'gear-large-list', 'gear-native-wrappers', 'gear-initial-occupied', 'gear-wall-pause', 'gear-clock-backwards', 'gear-clock-invalid', 'gear-permission', 'gear-host-error', 'gear-unsupported-read', 'gear-reload'])('owned finite head hats: %s', scenario => {
     const result = runGear(scenario); expect({ status: result.status, stderr: result.stderr, stdout: result.stdout.trim() }).toEqual({ status: 0, stderr: '', stdout: 'OK ' + scenario });
 });
 test.each([
