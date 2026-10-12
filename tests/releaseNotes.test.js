@@ -27,6 +27,25 @@ test('deduplicates final PR notes, retaining upgrades without intermediate or CI
     expect(result.upgradeActions).toEqual([{ text: 'Reimport and restore private settings.', number: 2, url: url + '/pull/2' }]);
 });
 
+test.each(['.', ')'])('accepts numbered upgrade steps with %s markers in authored order', async marker => {
+    const upgrades = `1${marker} Run npm run sa:package.\n2${marker} Import the companion ZIP.\n   Restore the private connection settings.\n3${marker} Remove obsolete theme variables.`;
+    const result = await finalize([pr(1, '- Add game-themed scenery.', upgrades)]);
+    expect(result.upgradeActions).toEqual([
+        { text: 'Run npm run sa:package.', number: 1, url: url + '/pull/1' },
+        { text: 'Import the companion ZIP. Restore the private connection settings.', number: 1, url: url + '/pull/1' },
+        { text: 'Remove obsolete theme variables.', number: 1, url: url + '/pull/1' }
+    ]);
+});
+
+test.each(['Run the package command.', '1. TODO', '1. TBD', '1. [Insert upgrade instructions]', '1. '])(
+    'rejects invalid upgrade instructions: %s', upgrades => {
+        return expect(finalize([pr(1, '- Add game-themed scenery.', upgrades)])).rejects.toThrow(/PR #1: complete Upgrade actions/);
+    });
+
+test('keeps release notes restricted to bullet lists', () => {
+    return expect(finalize([pr(1, '1. Add game-themed scenery.')])).rejects.toThrow(/PR #1: complete Release notes/);
+});
+
 test('limits inputs to merged main PRs in this release', async () => {
     const result = await finalize([pr(2, '- Celebrate donations.'), pr(1, '- Old.'), pr(3, '- Unmerged.', 'None.', { merged_at: null }),
         pr(4, '- Other branch.', 'None.', { base: { ref: 'other' } })], [commit(2)]);
@@ -103,7 +122,7 @@ test('validates the generator repository context and requires metadata credentia
 test('the real generator loads the configured writer, parses breaking notes and formats authored fields', () => {
     const root = path.join(__dirname, '..');
     const getConfig = pathToFileURL(path.join(root, 'node_modules/semantic-release/lib/get-config.js')).href;
-    const item = pr(1, '- Use the companion.', '- Reimport.');
+    const item = pr(1, '- Use the companion.', '1. Reimport.');
     const script = `import getConfig from ${JSON.stringify(getConfig)};
         import {analyzeCommits} from '@semantic-release/commit-analyzer';
         process.env.GITHUB_TOKEN='test';
