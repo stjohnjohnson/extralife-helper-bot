@@ -39,9 +39,9 @@ test('explicit candidate pack is portable, atomic and deterministic; approval fl
     expect(serialized).not.toContain(root); expect(serialized).not.toContain('sourceFile');
     const one = buildPackage({ themePackDir: destination, previewOnly: true });
     const two = buildPackage({ themePackDir: destination, previewOnly: true });
-    expect(one.imageCount).toBe(52); expect(one.archive).toEqual(two.archive);
+    expect(one.imageCount).toBe(54); expect(one.archive).toEqual(two.archive);
     const files = unzipSync(one.archive);
-    expect(Object.keys(files).filter(f => f.endsWith('.png'))).toHaveLength(52);
+    expect(Object.keys(files).filter(f => f.endsWith('.png'))).toHaveLength(54);
     expect(strFromU8(files['scripts/sa_helper_bridge/sa_helper_bridge.lua'])).toContain(pack.packRevision);
     expect(() => buildPackage({ themePackDir: destination })).toThrow(/rehearsal|preview/i);
     expect(() => workflow.promote({ destination: path.join(root, 'prod') })).toThrow(/selection|release|unapproved/i);
@@ -56,7 +56,7 @@ test('strict promotion needs exact current image selections and native import pr
     fs.writeFileSync(file, original);
     const pack = workflow.promote({ destination: path.join(root, 'prod') });
     expect(pack.catalog.previewOnly).toBe(false); expect(pack.catalog.rehearsalOnly).toBe(false);
-    expect(buildPackage({ themePackDir: path.join(root, 'prod') }).imageCount).toBe(52);
+    expect(buildPackage({ themePackDir: path.join(root, 'prod') }).imageCount).toBe(54);
     const image = path.join(root, 'prod', pack.catalog.assets[0].exportFile); fs.appendFileSync(image, 'tamper');
     expect(() => buildPackage({ themePackDir: path.join(root, 'prod') })).toThrow(/checksum/i);
 });
@@ -157,9 +157,9 @@ test('scenery-only candidate contains thirty designs and no catalog or native ge
     expect(pack.catalog.assets).toHaveLength(30); expect(pack.catalog).not.toHaveProperty('gear');
     expect(fs.readdirSync(destination).sort()).toEqual(['assets','catalog.json','manifest.json','provenance.json']);
     const result = buildPackage({ themePackDir: destination, previewOnly: true });
-    expect(result.imageCount).toBe(52);
+    expect(result.imageCount).toBe(54);
     const files = unzipSync(result.archive);
-    expect(Object.keys(files).filter(f => f.endsWith('.png'))).toHaveLength(52);
+    expect(Object.keys(files).filter(f => f.endsWith('.png'))).toHaveLength(54);
     expect(Object.keys(files).some(f => f.startsWith('gear/'))).toBe(false);
     const native = JSON.parse(strFromU8(files['data.txt'])); expect(native.gear).toEqual({}); expect(native.avatar).toEqual({});
 });

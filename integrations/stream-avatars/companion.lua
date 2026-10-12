@@ -5,6 +5,7 @@ script_trigger_type = "On Connect"
 local HEART_WIDTH, HEART_HEIGHT = 32, 32
 local RAISED_WIDTH = 143
 local MAX_HEARTS, AVATAR_TOP = 50, 40
+local STATUS_SIZE, STATUS_TIMEOUT = 64, 30
 -- Only the portable package builder may embed trusted image IDs and geometry.
 -- Empty until explicit candidate packaging or separately gated production promotion.
 local THEME_CATALOG_JSON = nil
@@ -102,6 +103,7 @@ return function()
     local loadSequence = get("sa_load_sequence") or 0
     local elapsed, serverOffset, updateElapsed = 0, 0, 0
     local retryAt, retryDelay, rotation, wasConnected = 0, 1, 0, false
+    local statusImages, lastBridgeAt, statusWarning, statusDisabled = {}, nil, false, false
     local address = settings.address or settings.url
     if #address==0 or address:find("%s") then log("SA bridge: invalid connection address"); return end
     settings.url = address:match("^wss?://") and address or ("ws://"..address..(address:match(":%d+$") and "" or ":3000").."/sa/socket")
@@ -129,6 +131,59 @@ return function()
             -- alive until it returns, then let the worker discard the image.
             set(entry.key,"cancelled")
         else set(entry.key,nil); pcall(entry.object.destroy) end
+    end
+    local function hideStatus()
+        for _,entry in pairs(statusImages) do if not entry.failed then pcall(entry.object.setScale,0,0) end end
+    end
+    local function warnStatus()
+        if not statusWarning then
+            statusWarning=true
+            log("SA bridge: connection indicator unavailable; reimport the latest ZIP and reload")
+        end
+    end
+    local function statusImage(asset, now)
+        local entry=statusImages[asset]
+        if not entry then
+            local pending=get("sa_pending_images") or 0
+            if pending>=128 then return nil end
+            loadSequence=loadSequence+1; set("sa_load_sequence",loadSequence)
+            local key="sa_image_"..loadSequence
+            entry={object=app.createGameObject(),key=key,deadline=now+2}; statusImages[asset]=entry
+            entry.object.setScale(0,0)
+            set("sa_pending_images",pending+1); entry.pending=true
+            entry.loader=async("sa_load_heart",entry.object,key,asset)
+        end
+        if entry.failed then return nil end
+        if not entry.loaded then
+            if get(entry.key)=="loaded" then
+                entry.loaded=true; set(entry.key,nil)
+                entry.object.image.sorting(0,"afterForeground")
+            elseif get(entry.key)=="failed" or now>=entry.deadline then
+                release(entry); entry.failed=true; warnStatus(); return nil
+            end
+        end
+        return entry.loaded and entry or nil
+    end
+    local function renderStatus()
+        hideStatus()
+        if statusDisabled then return end
+        local host=app.getStreamerUser()
+        if not host or not host.isActive then return end
+        local now=os.time()
+        if not number(now) then return end
+        local bounds=gameBounds()
+        if not bounds or bounds.width<STATUS_SIZE or bounds.height<STATUS_SIZE then return end
+        local pos=host.getPosition()
+        if not number(pos.x) or not number(pos.y) then return end
+        local unknown=statusImage("sa_bridge_unknown",now)
+        local logo=statusImage("sa_bridge_healthy",now)
+        local healthy=snapshot and get("sa_connected") and lastBridgeAt and now>=lastBridgeAt and now-lastBridgeAt<STATUS_TIMEOUT
+        local entry=healthy and logo or unknown
+        if not entry then return end
+        local half=STATUS_SIZE/2
+        local x=math.max(bounds.x+half,math.min(bounds.x+bounds.width-half,pos.x))
+        local y=math.max(bounds.y+half,math.min(bounds.y+bounds.height-half,pos.y+AVATAR_TOP+HEART_HEIGHT+half+8))
+        entry.object.setPosition(x,y); entry.object.setScale(1,1)
     end
     local clearCelebration
     local function clearObjects()
@@ -179,7 +234,7 @@ return function()
         set("sa_owned_ids",idsToRemember)
     end
     local function cleanup()
-        clearAll(); reconcileCrowd({}); snapshot=nil; generationFloor=-1
+        clearAll(); reconcileCrowd({}); snapshot=nil; generationFloor=-1; lastBridgeAt=nil
     end
     local function validCrowd(ids)
         if type(ids)~="table" or #ids>100 then return false end
@@ -482,6 +537,7 @@ return function()
         if value.type=="game-entrance" and jsonNull(value.themeId) then value.themeId=nil end
         if value.type=="heartbeat" and number(value.serverNowMs) then
             serverOffset=value.serverNowMs-elapsed*1000
+            if snapshot then lastBridgeAt=os.time() end
             send({version=3,type="heartbeat"}); return
         end
         if (value.mode~="production" and value.mode~="integration") or not integer(value.generation) or value.generation<generationFloor or value.generation<0 then return end
@@ -493,7 +549,7 @@ return function()
             elseif (snapshot.theme and snapshot.theme.gameIdentity)~=(value.theme and value.theme.gameIdentity) or
                 (snapshot.theme and snapshot.theme.themeId)~=(value.theme and value.theme.themeId) or
                 (snapshot.theme and snapshot.theme.packRevision)~=(value.theme and value.theme.packRevision) then clearEntrance() end
-            generationFloor=value.generation; snapshot=value; serverOffset=value.serverNowMs-elapsed*1000; retryDelay=1
+            generationFloor=value.generation; snapshot=value; serverOffset=value.serverNowMs-elapsed*1000; retryDelay=1; lastBridgeAt=os.time()
             if value.mode=="integration" and not previewHostSet then app.platformServiceSettings.SetStreamer(900000,"sa_integration_host"); previewHostSet=true end
             if value.mode=="production" then previewHostSet=false end
             reconcileCrowd(value.mode=="integration" and value.integration.crowdIds or {}); reconcileTheme()
@@ -645,6 +701,19 @@ return function()
             local ok,value=pcall(json.parse,raw)
             if ok then local handled=pcall(handleMessage,value); if not handled then clearAll(); diagnostic("render-error") end
             else diagnostic("unsupported-message") end
+        end
+        -- Bridge health follows wall time even when Unity's game time is paused.
+        local statusOk=pcall(renderStatus)
+        if not statusOk then
+            hideStatus(); warnStatus(); statusDisabled=true
+            for _,entry in pairs(statusImages) do if not entry.failed then
+                if entry.loader then release(entry)
+                else
+                    pcall(entry.object.destroy); set(entry.key,nil)
+                    if entry.pending then set("sa_pending_images",math.max(0,(get("sa_pending_images") or 1)-1)) end
+                end
+                entry.failed=true
+            end end
         end
         if updateElapsed>=0.05 then
             renderEntranceActions()

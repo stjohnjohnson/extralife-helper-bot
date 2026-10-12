@@ -69,7 +69,7 @@ General application settings, Twitch login, avatar capacity, and OBS scenes are 
 
 Use the current v3 companion with `campaign`, `celebrations`, and `donation-recognition` capabilities.
 Older packages without these capabilities are rejected.
-The default ZIP contains 52 images: 22 campaign images, six backdrop tiles, and 24 scenery props.
+The default ZIP contains 54 images: 22 campaign images, two connection indicators, six backdrop tiles, and 24 scenery props.
 Game mappings and scenery ship with the bot; no theme environment settings are required.
 The companion does not change avatar gear or display game-title text.
 
@@ -85,6 +85,14 @@ The companion does not change avatar gear or display game-title text.
 
 The legacy `url` companion setting remains accepted.
 The bot's legacy voice-overlay listener settings remain fallbacks when corresponding `WEB_*` settings are absent.
+
+## Host connection indicator
+
+An animated Extra Life logo above the host avatar confirms an authenticated bot connection with fresh snapshots or heartbeats. The original eight-frame animation loops at five frames per second. A gold question mark replaces it while connecting, disconnected, or after 30 seconds without a validated snapshot or heartbeat. Heartbeats before an authenticated snapshot cannot activate the logo. Connection freshness uses wall time, even when game time is paused.
+
+Both indicators follow Stream Avatars' own streamer avatar. They hide when that avatar is absent or inactive, or the canvas cannot fit the 64 × 64 frame. They do not attach to another viewer. Donation hearts appear below the indicator. If an indicator image cannot load, the companion logs an unavailable-indicator message and continues other effects. Reimport the latest ZIP and reload the companion to restore missing images.
+
+This indicator confirms bridge connectivity, not every rendered effect or external bot service. A stopped companion cannot update its own indicator. No additional settings are required. After an upgrade, reimport the generated ZIP and restore the private connection address and token.
 
 ## Donation and scenery behavior
 

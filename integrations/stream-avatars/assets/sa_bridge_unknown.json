@@ -1,0 +1,11 @@
+{
+  "name": "sa_bridge_unknown",
+  "file": "sa_bridge_unknown.png",
+  "frameWidth": 64,
+  "frameHeight": 64,
+  "frames": 1,
+  "rows": 1,
+  "framesPerSecond": 1,
+  "loop": true,
+  "transparent": true
+}

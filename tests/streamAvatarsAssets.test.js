@@ -3,11 +3,12 @@ const { join } = require('node:path');
 const { tmpdir } = require('node:os');
 const { PNG } = require('pngjs');
 const { generateAssets } = require('../scripts/sa-assets');
-test('celebration PNGs and manifests are transparent, correctly tiled and deterministic', () => {
+test('generated celebration and status PNGs are transparent, correctly tiled and deterministic', () => {
     const dir = fs.mkdtempSync(join(tmpdir(), 'sa-assets-'));
     try {
         generateAssets(dir); const files = fs.readdirSync(dir).sort();
-        expect(files.filter(name => name.endsWith('.json'))).toHaveLength(21);
+        expect(files.filter(name => name.endsWith('.json'))).toHaveLength(22);
+        expect(files).toContain('sa_bridge_unknown.json');
         const first = files.map(name => fs.readFileSync(join(dir, name)));
         generateAssets(dir); expect(files.map(name => fs.readFileSync(join(dir, name)))).toEqual(first);
         for (const name of files.filter(name => name.endsWith('.json'))) {

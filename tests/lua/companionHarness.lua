@@ -2,6 +2,10 @@ local script, scenario = arg[1], arg[2]
 local shared, packets, users, objects, callbacks = {}, {}, {}, {}, {}
 local codec = dofile("tests/lua/vendor/json.lua")
 local logs = {}
+local statusScenario = scenario:match("^status%-")
+local statusHost
+local statusCreateFailure = scenario=="status-create-error"
+local statusCreateCalls = 0
 local themeScenario = scenario:match("^theme%-") or scenario:match("^entrance%-")
 local themeRevision = themeScenario and arg[3] or string.rep("a",64)
 if not themeRevision then themeRevision=string.rep("a",64) end
@@ -30,6 +34,10 @@ if scenario=="address-wss" then config={address="wss://bridge.example/sa/socket"
 if scenario=="address-ipv6" then config={address="[::1]",token=config.token}; expectedUrl="ws://[::1]:3000/sa/socket" end
 if scenario=="invalid-address" then config={address=" ",token=config.token} end
 local app = {}
+app.getStreamerUser = function()
+    if scenario=="status-host-error" then error("private host lookup failure") end
+    return statusHost
+end
 app.getResolution = function() return { x = 1920, y = 1080 } end
 app.convertPercentToPosition = function(x,y) return { x = x * 1000, y = y * 200 } end
 app.removeWebSocket = function(title) assert(title=="sa_helper_bridge"); removals=removals+1 end
@@ -41,7 +49,8 @@ app.platformServiceSettings = {
     SetUserLeave = function(id) assert(type(id)=="number" and id>=900001 and id<=900100); users[tostring(id)] = nil; leaves = leaves+1 end
 }
 app.createGameObject = function()
-    local ob; ob = { removed = false, scale = 1, image = { anchor = function(where,dimensions) assert(where=="center" and dimensions==true); ob.anchored=true end, sorting = function(value,layer) assert(value==0 or value==1 or value==2); assert(layer=="behindBackground" or layer=="background"); if scenario=="theme-prop-sorting-error" and ob.name:find("scenery_one") then error("private native sorting failure") end; ob.layer=layer; ob.order=value end }, text = { setText = function(value) assert(type(value)=="string"); ob.caption=value end, setSize = function(value) assert(type(value)=="number" and value>0); ob.fontSize=value end } }
+    if statusCreateFailure then statusCreateCalls=statusCreateCalls+1; error("private object creation failure") end
+    local ob; ob = { removed = false, scale = 1, image = { anchor = function(where,dimensions) assert(where=="center" and dimensions==true); ob.anchored=true end, sorting = function(value,layer) assert(value==0 or value==1 or value==2); assert(layer=="behindBackground" or layer=="background" or (ob.name and ob.name:match("^sa_bridge_") and layer=="afterForeground")); if scenario=="theme-prop-sorting-error" and ob.name:find("scenery_one") then error("private native sorting failure") end; ob.layer=layer; ob.order=value end }, text = { setText = function(value) assert(type(value)=="string"); ob.caption=value end, setSize = function(value) assert(type(value)=="number" and value>0); ob.fontSize=value end } }
     local initialScaleFailure=scenario=="theme-prop-initial-scale-error" and #objects==4
     ob.setScale = function(x,y) assert(x==y); if initialScaleFailure and x==0 and not ob.name then error("private initial scale failure") end; if scenario=="theme-prop-scale-error" and x>0 and ob.name and ob.name:find("scenery_one") then error("private native scale failure") end; ob.scale=x end
     ob.setPosition = function(x,y) if scenario=="theme-prop-position-error" and ob.name and ob.name:find("scenery_one") then error("private native position failure") end; assert(not ob.removed and type(x)=="number" and type(y)=="number" and x==x and y==y and math.abs(x)<math.huge and math.abs(y)<math.huge); ob.x=x; ob.y=y end
@@ -49,7 +58,7 @@ app.createGameObject = function()
     objects[#objects+1]=ob; return ob
 end
 local loaders, loaderSequence = {}, 0
-local allowImageCompletion = scenario~="pending-image-stop" and scenario~="theme-stale-load"
+local allowImageCompletion = scenario~="pending-image-stop" and scenario~="theme-stale-load" and scenario~="status-delayed-image"
 local env; env = {
     getApp = function() return app end,
     get = function(key)
@@ -59,6 +68,12 @@ local env; env = {
     load = function() shared.data = config end,
     getUsers = function() local list={} for _,user in pairs(users) do list[#list+1]=user end return list end,
     applyImage = function(ob,name) assert(type(name)=="string" and name:match("^sa_") and not ob.removed); ob.asset=name; ob.name=name; if themeScenario and name~="sa_heart" then assert(ob.scale==0, "pending theme must be invisible") end; if (scenario=="celebration-missing-confetti" and name=="sa_confetti") or (scenario=="celebration-missing-heart" and name=="sa_heart") then error("missing layer") end; if scenario=="missing-image" then error("missing image") end
+        if statusScenario and name:match("^sa_bridge_") then
+            assert(ob.scale==0, "pending status images must be invisible")
+            if scenario=="status-missing-image" and name=="sa_bridge_healthy" then error("private missing status image") end
+            if scenario=="status-delayed-image" and name=="sa_bridge_healthy" then while not allowImageCompletion do coroutine.yield() end end
+            if scenario=="status-image-timeout" then while true do coroutine.yield() end end
+        end
         if scenario=="theme-missing-backdrop" and name:find("backdrop") then error("missing backdrop") end
         if scenario=="theme-missing-prop" and name:find("scenery_one") then error("missing prop") end
         if scenario=="theme-backdrop-timeout" and name:find("backdrop") then
@@ -191,6 +206,7 @@ if scenario=="host-json-escapes" then
     config.token="private/test\\path/token"
     local ok=pcall(hostParse,hostSerialize(config)); assert(not ok, "must reproduce embedded codec failure")
 end
+if statusScenario then statusHost=addUser("host",50,20); addUser("viewer",700,20) end
 if scenario=="invalid-settings" then config.url=42 end
 if scenario=="invalid-token" then config.token=math.huge end
 if scenario=="reload" then shared.sa_owned_ids={900001,900002}; users["900001"]={id=900001}; users["900002"]={id=900002} end
@@ -198,6 +214,69 @@ if scenario=="invalid-settings" or scenario=="invalid-token" or scenario=="inval
     local ok,err=coroutine.resume(runner); assert(ok,err); assert(coroutine.status(runner)=="dead" and connectedCount==0); if nativeNull then nativeNull:close() end;print("OK "..scenario); return
 end
 tick()
+if statusScenario then
+    local function visible(name)
+        local list={}; for _,ob in ipairs(objects) do if not ob.removed and ob.scale>0 and ob.name==name then list[#list+1]=ob end end
+        return list
+    end
+    local function status(healthy)
+        assert(#visible("sa_bridge_healthy")== (healthy and 1 or 0), "healthy logo must match authenticated fresh bridge state")
+        assert(#visible("sa_bridge_unknown")== (healthy and 0 or 1), "question mark must cover unconfirmed bridge state")
+    end
+    if scenario=="status-create-error" then
+        for i=1,100 do tick() end
+        assert(statusCreateCalls==1 and (shared.sa_pending_images or 0)==0, "status allocation failure must not retry or consume other image budgets")
+        statusCreateFailure=false; send(snapshot()); send(celebration()); assert(#visible("sa_heart")==2, "status allocation failure must preserve donation rendering")
+    elseif scenario=="status-host-error" then
+        send(snapshot()); send(celebration()); assert(#visible("sa_heart")==2, "host lookup failure must preserve donation rendering")
+    elseif scenario=="status-image-timeout" then
+        send(snapshot()); tick(0,3); for i=1,100 do tick(0,1) end
+        assert(#objects==2 and #visible("sa_bridge_healthy")==0 and #visible("sa_bridge_unknown")==0, "failed status loads must remain bounded and hidden")
+        send(celebration()); assert(#visible("sa_heart")==2, "status image timeout must preserve donation rendering")
+    elseif scenario=="status-missing-image" then
+        send(snapshot()); status(false); send(celebration()); assert(#visible("sa_heart")==2, "missing logo must preserve donation rendering")
+    elseif scenario=="status-delayed-image" then
+        send(snapshot()); status(false); callbacks.websocket("sa_helper_bridge","OnClose","",""); tick(); allowImageCompletion=true; tick(); status(false)
+    else
+        status(false)
+        if scenario=="status-startup" then
+            send({version=3,type="heartbeat",serverNowMs=1000}); status(false)
+            local bad=snapshot(); bad.campaign.totalCents=-1; send(bad); status(false)
+        else
+            send(snapshot()); tick(); status(true)
+            if scenario=="status-timeout" then
+                tick(0,31); status(false)
+                send({version=3,type="heartbeat",serverNowMs=32000}); status(true)
+            elseif scenario=="status-reconnect" or scenario=="status-close-open-race" then
+                callbacks.websocket("sa_helper_bridge","OnClose","","")
+                if scenario=="status-close-open-race" then callbacks.websocket("sa_helper_bridge","OnOpen","","") end
+                tick(); status(false)
+                if scenario=="status-reconnect" then tick(1.1); tick(); status(false) end
+                send({version=3,type="heartbeat",serverNowMs=2000}); status(false)
+                send(snapshot()); tick(); status(true)
+            elseif scenario=="status-host-movement" then
+                local ob=visible("sa_bridge_healthy")[1]; assert(ob.x==50 and ob.y>76 and ob.layer=="afterForeground", "logo must sit above the host and donation hearts")
+                statusHost.x=400; tick(); assert(visible("sa_bridge_healthy")[1].x==400, "logo must follow the actual host")
+                statusHost.isActive=false; tick(); assert(#visible("sa_bridge_healthy")==0 and #visible("sa_bridge_unknown")==0, "inactive host must hide status")
+                statusHost=nil; tick(); assert(#visible("sa_bridge_healthy")==0 and #visible("sa_bridge_unknown")==0, "missing host must not attach status to a viewer")
+                statusHost=users.host; statusHost.isActive=true; tick(); status(true)
+                app.convertPercentToPosition=function(x,y) return {x=-200+x*400,y=y*100} end
+                tick(); ob=visible("sa_bridge_healthy")[1]; assert(ob.x==168 and ob.y==68, "full status frame must stay inside resized bounds")
+            elseif scenario=="status-clear" then
+                send({version=3,type="clear",mode="integration",generation=2}); status(false)
+                send(snapshot("integration",2)); status(true)
+                assert(#objects==2, "campaign clears must reuse the two status assets")
+            elseif scenario=="status-donation" then
+                send(celebration()); status(true); assert(#visible("sa_heart")==2, "status must coexist with donation hearts")
+                callbacks.websocket("sa_helper_bridge","OnClose","",""); tick(); status(false); assert(#visible("sa_heart")==0, "disconnect must clear donations and preserve the question mark")
+            elseif scenario=="status-backward-clock" then
+                tick(0,-2); status(false)
+            end
+        end
+    end
+    for _,message in ipairs(logs) do assert(not message:find("private host",1,true) and not message:find("private missing",1,true), "status logging must not expose native exception details") end
+    print("OK "..scenario); return
+end
 local function captionText()
     local text=""
     local phrases={sa_dollar="$",sa_comma=",",sa_dot=".",sa_separator=" - ",sa_from=" FROM ",sa_donations=" DONATIONS - ",sa_thanks="THANK YOU!",sa_raised=" RAISED!",sa_goal="EXTRA LIFE GOAL REACHED!"}

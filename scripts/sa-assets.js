@@ -19,7 +19,8 @@ const font = {
     U:['10001','10001','10001','10001','10001','10001','01110'], X:['10001','10001','01010','00100','01010','10001','10001'],
     Y:['10001','10001','01010','00100','00100','00100','00100'], '!':['00100','00100','00100','00100','00100','00000','00100'],
     '$':['00100','01111','10100','01110','00101','11110','00100'], ',':['00000','00000','00000','00000','00000','00100','01000'],
-    '-':['00000','00000','00000','11111','00000','00000','00000'], '.':['00000','00000','00000','00000','00000','00000','00100'], ' ':Array(7).fill('00000')
+    '-':['00000','00000','00000','11111','00000','00000','00000'], '.':['00000','00000','00000','00000','00000','00000','00100'],
+    '?':['01110','10001','00001','00010','00100','00000','00100'], ' ':Array(7).fill('00000')
 };
 function pixel(png, x, y, color) { if (x < 0 || y < 0 || x >= png.width || y >= png.height) return; const at = (y * png.width + x) * 4; color.forEach((v,i) => { png.data[at+i] = v; }); }
 function caption(text) {
@@ -53,6 +54,14 @@ function generateAssets(directory = resolve(__dirname, '../integrations/stream-a
     const accent = new PNG({ width: 32, height: 32 });
     for (let y=1;y<31;y++) for (let x=1;x<31;x++) if (Math.abs(x-15.5)+Math.abs(y-15.5)<14 && (Math.abs(x-15.5)<4 || Math.abs(y-15.5)<4)) pixel(accent,x,y,[255,230,140,255]);
     save('sa_goal_accent',accent);
+    const unknown = new PNG({ width: 64, height: 64 });
+    for (const [y,row] of font['?'].entries()) for (let x=0;x<5;x++) if(row[x]==='1') {
+        for (let dy=0;dy<5;dy++) for (let dx=0;dx<5;dx++) pixel(unknown,20+x*5+dx+2,14+y*5+dy+2,[36,25,9,240]);
+    }
+    for (const [y,row] of font['?'].entries()) for (let x=0;x<5;x++) if(row[x]==='1') {
+        for (let dy=0;dy<5;dy++) for (let dx=0;dx<5;dx++) pixel(unknown,20+x*5+dx,14+y*5+dy,[255,225,125,255]);
+    }
+    save('sa_bridge_unknown',unknown);
 }
 if (require.main === module) generateAssets();
 module.exports = { generateAssets };
