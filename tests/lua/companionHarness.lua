@@ -15,7 +15,11 @@ local function clone(value) if type(value) ~= "table" or value==codec.null then 
 local connectedCount, leaves, removals = 0, 0, 0
 local jumps, dances, exits = 0, 0, 0
 local hugs, commands = {}, {}
+local hostClock, cooldownWarnings = 0, 0
+local cooldownScenario = scenario:match("^cooldown%-") ~= nil
 local config = { url = "ws://127.0.0.1/sa/socket", token = "private-test-token", image = "sa_heart" }
+if scenario=="cooldown-custom" then config.danceCooldownSeconds=25 end
+if scenario=="cooldown-invalid" then config.hugCooldownSeconds="10" end
 local expectedUrl=config.url
 if scenario=="address-ip" then config={address="192.168.1.42",token=config.token}; expectedUrl="ws://192.168.1.42:3000/sa/socket" end
 if scenario=="address-port" then config={address="192.168.1.42:4444",token=config.token}; expectedUrl="ws://192.168.1.42:4444/sa/socket" end
@@ -71,7 +75,9 @@ if scenario=="native-null-donation" or scenario=="native-null-goal" or scenario=
     env.json.isnull=function(value) return value==nil or value==nativeNull end
     env.json.parse=function(text) local value=codec.decode(text);for key,item in pairs(value) do if item==codec.null then value[key]=nativeNull end end;return value end
 end
--- The companion has no filesystem, shell, package, clock or dynamic-code access.
+-- Only the host-documented wall clock is exposed; no filesystem, shell, package
+-- or dynamic-code access. Native cooldowns do not follow scaled game time.
+env.os={time=function() return math.floor(hostClock) end}
 local hostMath={};for key,value in pairs(math) do hostMath[key]=value end
 hostMath.random=function(limit) return scenario=="hug-shuffle" and 1 or limit end
 for _,name in ipairs({"type","pairs","ipairs","tonumber","tostring","pcall","math","table","string"}) do env[name]=_G[name] end
@@ -98,7 +104,8 @@ if (scenario=="missing-image-host" or scenario=="image-pending-cap") then
 end
 local start = assert(loadfile(script, "t", env))()
 local runner=coroutine.create(start)
-local function tick(delta)
+local function tick(delta,wallDelta)
+    hostClock=hostClock+(wallDelta or delta or 0.05)
     for _,pair in ipairs(hugs) do
         pair.frames=pair.frames+1
         if pair.frames==3 then pair.from.state="Hug";if users[tostring(pair.to.id)]==pair.to and pair.to.state=="Idle" then pair.to.state="Targeted" end end
@@ -132,6 +139,14 @@ local function addUser(id,x,y)
         local target=command:match("^!{cmd:hug} ([A-Za-z0-9_:%-]+)$")
         commands[#commands+1]={from=tostring(user.id),target=target,command=command}
         assert(quiet==true and (command=="!{cmd:jump}" or command=="!{cmd:dance}" or target),"must use validated native commands")
+        if cooldownScenario and (target or command=="!{cmd:dance}") then
+            local action=target and "hug" or "dance"
+            local duration=action=="dance" and (config.danceCooldownSeconds or 10) or 10
+            user.lastAction=user.lastAction or {}
+            if user.lastAction[action] and hostClock-user.lastAction[action]<duration then cooldownWarnings=cooldownWarnings+1;return end
+            user.lastAction[action]=hostClock
+            if scenario=="cooldown-dance-rejected" then return end
+        end
         if target then
             if scenario=="hug-exception" then error("hug unavailable") end
             local partner=assert(users[target]);assert(partner~=user,"must not self-pair")
@@ -155,7 +170,7 @@ end
 if scenario=="invalid-settings" then config.url=42 end
 if scenario=="invalid-token" then config.token=math.huge end
 if scenario=="reload" then shared.sa_owned_ids={900001,900002}; users["900001"]={id=900001}; users["900002"]={id=900002} end
-if scenario=="invalid-settings" or scenario=="invalid-token" or scenario=="invalid-address" then
+if scenario=="invalid-settings" or scenario=="invalid-token" or scenario=="invalid-address" or scenario=="cooldown-invalid" then
     local ok,err=coroutine.resume(runner); assert(ok,err); assert(coroutine.status(runner)=="dead" and connectedCount==0); if nativeNull then nativeNull:close() end;print("OK "..scenario); return
 end
 tick()
@@ -210,6 +225,7 @@ elseif scenario=="hug-once" then
     assert(#hugs==1 and jumps==0,"amount updates must retain handled window")
     addUser(3);addUser(4);tick();assert(#hugs==2,"late joins pair only with unhandled users")
     for i=1,35 do tick() end
+    tick(11) -- Advance the native per-user timer as well as the server clock.
     v=timedGift(12000,"new-window");v.recognitionAction="hug";send(v);assert(#hugs==4,"new start must reset actions")
 elseif scenario=="hug-busy" or scenario=="jump-busy" then
     for i=1,6 do local u=addUser(i);if i<=4 then u.state=({"MiniGame","Hug","Targeted","CustomAnimation"})[i] end end
@@ -284,6 +300,47 @@ elseif scenario=="recognition-schema" then
     for i,patch in ipairs(bad) do local v=celebration();v.id="bad-"..i;for k,x in pairs(patch) do v[k]=x end;send(v);assert(count()==0 and jumps==0,"must reject malformed recognition") end
     for _,key in ipairs({"donationTotalCents","recognitionStartedAtMs","recognitionAction"}) do local v=celebration();v.id=key;v[key]=nil;send(v);assert(count()==0 and jumps==0,"must reject missing recognition fields") end
     local v=celebration();v.donationTotalCents=codec.null;send(v);tick();assert(assetCount("sa_thanks")==1 and jumps==1)
+elseif scenario=="cooldown-dance-once" or scenario=="cooldown-dance-rejected" then
+    local user=addUser(1);send(snapshot());send(celebration("milestone"))
+    -- A mapped dance completes; a rejected request never enters a dance state.
+    user.state="Wander";user.animation="idle"
+    for i=1,17 do tick(1) end
+    assert(#commands==1 and dances==(scenario=="cooldown-dance-rejected" and 0 or 1) and cooldownWarnings==0,"a party must never retry a completed or rejected dance")
+elseif scenario=="cooldown-dance-upgrade" then
+    local user=addUser(1);send(snapshot());send(celebration("milestone"));user.state="Idle"
+    tick(3);local goal=celebration("goal","upgrade");goal.issuedAtMs=4000;goal.expiresAtMs=14000;goal.partyUntilMs=24000;send(goal)
+    assert(#commands==1 and cooldownWarnings==0 and assetCount("sa_goal")==1,"a goal upgrade must retain the party's attempted users")
+elseif scenario=="cooldown-dance-busy" then
+    local user=addUser(1);user.state="MiniGame";send(snapshot());send(celebration("milestone"));tick(3)
+    assert(#commands==0);user.state="Wander";tick();assert(dances==1,"busy users may join once they become eligible")
+    user.state="Idle";tick(3);assert(#commands==1 and cooldownWarnings==0)
+elseif scenario=="cooldown-clear" or scenario=="cooldown-reload" or scenario=="cooldown-disconnect" or scenario=="cooldown-custom" then
+    local user=addUser(1);send(snapshot());send(celebration("milestone"));tick(3)
+    if scenario=="cooldown-reload" then runner=coroutine.create(assert(loadfile(script,"t",env))());tick()
+    elseif scenario=="cooldown-disconnect" then callbacks.websocket("sa_helper_bridge","OnClose","","");tick();callbacks.websocket("sa_helper_bridge","OnOpen","","")
+    else send({version=2,type="clear",mode="integration",generation=2}) end
+    send(snapshot("integration",2));local fresh=celebration("goal","new-party");fresh.generation=2;send(fresh)
+    assert(dances==1 and #commands==1 and cooldownWarnings==0,"a reset must retain the native action budget")
+    tick(8);tick();assert(dances==(scenario=="cooldown-custom" and 1 or 2) and cooldownWarnings==0,"admit once when the native timer expires")
+    if scenario=="cooldown-custom" then tick(12);tick();assert(#commands==1,"a custom cooldown can outlast the whole party") end
+elseif scenario=="cooldown-boundary" then
+    local user=addUser(1);send(snapshot());send(celebration("milestone"));send({version=2,type="clear",mode="integration",generation=2})
+    send(snapshot("integration",2));local fresh=celebration("goal","boundary");fresh.generation=2;send(fresh)
+    tick(9.75);tick();assert(#commands==1 and cooldownWarnings==0,"whole-second truncation must not issue an early request")
+    tick(1.1);tick();assert(#commands==2 and cooldownWarnings==0,"request becomes eligible after the full native timer")
+elseif scenario=="cooldown-game-clock" then
+    local user=addUser(1);send(snapshot());send(celebration("milestone"));send({version=2,type="clear",mode="integration",generation=2})
+    send(snapshot("integration",2));local fresh=celebration("goal","fast-clock");fresh.generation=2;send(fresh)
+    tick(11,0.2);tick()
+    assert(#commands==1 and cooldownWarnings==0,"game time must not expire a real-time native cooldown")
+elseif scenario=="cooldown-hug" or scenario=="cooldown-hug-reload" then
+    local a,b=addUser(1),addUser(2);send(snapshot());local v=celebration();v.recognitionAction="hug";send(v)
+    for i=1,35 do tick() end;tick(4)
+    if scenario=="cooldown-hug-reload" then runner=coroutine.create(assert(loadfile(script,"t",env))());tick() end
+    send(snapshot());v=celebration("donation","second");v.issuedAtMs=1001;v.recognitionStartedAtMs=1001;v.recognitionAction="hug";send(v)
+    assert(#hugs==1 and jumps==2 and cooldownWarnings==0,"a nearby hug window must use jump fallback without sending a cooldown request")
+    tick(11);send(snapshot());v=celebration("donation","third");v.issuedAtMs=1002;v.recognitionStartedAtMs=1002;v.recognitionAction="hug";send(v)
+    assert(#hugs==2 and cooldownWarnings==0,"hugs become available after their native cooldown")
 elseif scenario=="async-dance-manual-interruption" then
     local user=addUser(1);user.avatar="test-avatar";send(snapshot());send(celebration("milestone"))
     user.pendingDance=nil;user.state="CustomAnimation";user.animation="custom1"

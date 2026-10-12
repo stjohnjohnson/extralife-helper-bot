@@ -55,6 +55,27 @@ return function()
     end
     local function number(value) return type(value)=="number" and value==value and value~=math.huge and value~=-math.huge end
     local function integer(value) return number(value) and value%1==0 end
+    local actionCooldowns={dance=settings.danceCooldownSeconds,hug=settings.hugCooldownSeconds}
+    if actionCooldowns.dance==nil then actionCooldowns.dance=10 end
+    if actionCooldowns.hug==nil then actionCooldowns.hug=10 end
+    for _,seconds in pairs(actionCooldowns) do
+        if not number(seconds) or seconds<0 or seconds>86400 then log("SA bridge: action cooldown seconds must be numbers from 0 to 86400"); return end
+    end
+    -- Native timers use real time, while yield() returns scaled game time.
+    -- os.time() is also used by the host's Lua cooldown helper. Persist only
+    -- our requests; clears/reconnects/reloads must not reset their timers.
+    local actionRequests=get("sa_action_requests") or {}
+    local pruneActionsAt=os.time()
+    local function claimAction(action,user)
+        local id=tostring(user.id)
+        local request=actionRequests[id] or {}
+        local now=os.time()
+        if request[action] and now<request[action] then return false end
+        -- Whole-second clock: one extra second covers timestamp truncation.
+        request[action]=now+actionCooldowns[action]+1
+        actionRequests[id]=request; set("sa_action_requests",actionRequests)
+        return true
+    end
     local app = getApp()
     local socket = "sa_helper_bridge"
     local objects, owned, seen, seenOrder = {}, {}, {}, {}
@@ -289,7 +310,7 @@ return function()
             else
                 local a,b=eligible(initiator),eligible(partner)
                 local target=tostring(partner.id)
-                if a and b and target:match("^[A-Za-z0-9_:%-]+$") then
+                if a and b and target:match("^[A-Za-z0-9_:%-]+$") and claimAction("hug",initiator) then
                     -- The native hug travels to and temporarily controls its partner.
                     -- One initiating request; let the host finish both sides itself.
                     handled[tostring(initiator.id)]=true; handled[target]=true
@@ -338,11 +359,13 @@ return function()
                 local pos=user.getPosition()
                 place(heartLayer,id,"sa_heart",math.max(bounds.x+16,math.min(bounds.x+bounds.width-16,pos.x)),math.max(bounds.y+16,math.min(bounds.y+bounds.height-16,pos.y+AVATAR_TOP+16)),1)
             end
-            if celebration and not dancing[id] and not pendingDances[id] and (not actionAttempts[id] or elapsed-actionAttempts[id]>=2) then
-                actionAttempts[id]=elapsed
+            if celebration and not dancing[id] and not pendingDances[id] and not actionAttempts[id] then
                 local ok=pcall(function()
                     -- Respect actions already running, including an existing dance.
-                    if ordinaryState(user.getState()) then
+                    if ordinaryState(user.getState()) and claimAction("dance",user) then
+                        -- One request per party, including goal upgrades. A
+                        -- finished/rejected animation is not permission to retry.
+                        actionAttempts[id]=true
                         -- Native state changes complete on a later frame. Track
                         -- only this bounded request, never an existing dance.
                         pendingDances[id]={user=user,avatar=user.avatar,untilTime=elapsed+2}
@@ -464,6 +487,18 @@ return function()
         end
         if updateElapsed>=0.05 then local ok=pcall(renderTick); if not ok then clearObjects(); diagnostic("render-error") end; updateElapsed=0 end
         local delta=yield()
-        if number(delta) and delta>0 then elapsed=elapsed+delta; updateElapsed=updateElapsed+delta end
+        if number(delta) and delta>0 then
+            elapsed=elapsed+delta; updateElapsed=updateElapsed+delta
+            local now=os.time()
+            if now>=pruneActionsAt then
+                local changed=false
+                for id,request in pairs(actionRequests) do
+                    for action,untilTime in pairs(request) do if now>=untilTime then request[action]=nil; changed=true end end
+                    if not request.dance and not request.hug then actionRequests[id]=nil end
+                end
+                if changed then set("sa_action_requests",actionRequests) end
+                pruneActionsAt=now+1
+            end
+        end
     end
 end
