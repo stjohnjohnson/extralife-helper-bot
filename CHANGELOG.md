@@ -1,3 +1,16 @@
+# [4.10.0](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v4.9.0...v4.10.0) (2026-10-12)
+
+
+### Bug Fixes
+
+* **deps:** support major dependency updates from PR 61 ([84b80a9](https://github.com/stjohnjohnson/extralife-helper-bot/commit/84b80a9468fb71ce1945d6de6e57f91163aac9d1))
+* **stream-avatars:** preserve campaign store error causes ([1d9428e](https://github.com/stjohnjohnson/extralife-helper-bot/commit/1d9428eb21234f2641dfafe835a4484da1bc3c23))
+
+
+### Features
+
+* **analysis:** show cumulative donations on viewer timeline ([b4f95fb](https://github.com/stjohnjohnson/extralife-helper-bot/commit/b4f95fbb0a83218967d70f4ec020d66ad35b287c))
+
 # [4.9.0](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v4.8.0...v4.9.0) (2026-10-12)
 
 
