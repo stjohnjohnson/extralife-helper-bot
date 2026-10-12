@@ -13,8 +13,6 @@ services:
     # Shared listener: enable either web integration in .env and restrict LAN access
     # ports:
     #   - "3000:3000"
-    # Uncomment for development with hot-reload
-    # command: npm run dev
 
 volumes:
   stream-avatars-state:
