@@ -19,7 +19,7 @@ This file applies to the entire repository. Create additional `AGENTS.md` files 
 - Use `Internal only.` in the release-notes section for maintenance without user-facing impact. Features and breaking changes require actual release notes. Dependabot's non-breaking `chore(deps...)` PRs are the sole template exception; dependency fixes and breaking updates follow the normal contract.
 - List required commands, settings, migrations, and material deployment limitations under upgrade actions; write `None.` when no action is required. Summarize validation with command names and concise results, and link the tracking issue. Breaking PR titles also require a `BREAKING CHANGE:` footer because the existing version analyzer uses that footer.
 - When replacing an earlier, still-unreleased PR's notes, add `<!-- replaces-release-notes: #NUMBER -->` (comma-separated numbers for multiple PRs). Restate retained behavior and all applicable upgrade actions in the replacement. Do not replace notes for an already-released PR.
-- Run `npm run pr:check -- --event PATH` with a PR event JSON file and `npm run release:preview -- --from REF --to REF --candidate-event PATH` before review. Resolve metadata errors and inspect the preview for accuracy; structural checks cannot judge prose quality.
+- Review the release notes and upgrade actions against the final diff before requesting review. The release tool reads these PR sections; writing quality is an agent and reviewer responsibility.
 
 ## Git worktree workflow
 - Before starting repository work, fetch `origin/main`. Fast-forward a clean primary `main` checkout with `git pull --ff-only origin main`; preserve local changes and report any divergence.
