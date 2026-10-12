@@ -1,0 +1,605 @@
+{
+  "schemaVersion": 1,
+  "assets": {
+    "block-world.backdrop.minimal-strip": {
+      "assetId": "block-world.backdrop.minimal-strip",
+      "theme": "block-world",
+      "kind": "backdrop",
+      "attemptId": "block-world.backdrop.minimal-strip-60286675-980a-4a19-8228-396ea10d4404",
+      "sha256": "f51304432507352d5cbc07a7746c50ac9f15dece238a01fdaf13c75132cbb0d9",
+      "exportFile": "assets/block-world.backdrop.minimal-strip.png",
+      "geometry": {
+        "frame": {
+          "width": 480,
+          "height": 64,
+          "frameCount": 1,
+          "fps": 0
+        },
+        "anchor": {
+          "x": 240,
+          "y": 64
+        }
+      }
+    },
+    "block-world.scenery.block-planter": {
+      "assetId": "block-world.scenery.block-planter",
+      "theme": "block-world",
+      "kind": "scenery",
+      "attemptId": "block-world.scenery.block-planter-0ff076e0-d3bd-4309-8422-4276bad46d40",
+      "sha256": "859ddaa4d18818b245543bb387291ed7de616b0dea84d849fb08ee2cca15f14f",
+      "exportFile": "assets/block-world.scenery.block-planter.png",
+      "geometry": {
+        "frame": {
+          "width": 96,
+          "height": 64,
+          "frameCount": 1,
+          "fps": 0
+        },
+        "anchor": {
+          "x": 48,
+          "y": 60
+        }
+      }
+    },
+    "block-world.scenery.grass-tuft": {
+      "assetId": "block-world.scenery.grass-tuft",
+      "theme": "block-world",
+      "kind": "scenery",
+      "attemptId": "block-world.scenery.grass-tuft-181b43b5-10ef-419c-9450-28cb00c1ec06",
+      "sha256": "3c496da03602339f4e081871a0a5eb359f76e9f4297f0f70cb0f3f9f94b56576",
+      "exportFile": "assets/block-world.scenery.grass-tuft.png",
+      "geometry": {
+        "frame": {
+          "width": 32,
+          "height": 32,
+          "frameCount": 1,
+          "fps": 0
+        },
+        "anchor": {
+          "x": 16,
+          "y": 28
+        }
+      }
+    },
+    "block-world.scenery.ore-cube": {
+      "assetId": "block-world.scenery.ore-cube",
+      "theme": "block-world",
+      "kind": "scenery",
+      "attemptId": "block-world.scenery.ore-cube-1cffabfb-7b85-4615-8c6f-acf88dd25bb9",
+      "sha256": "6c67459c126d22253dfde36a6c6aa6306180a6b38a9247650b6ec543672e85de",
+      "exportFile": "assets/block-world.scenery.ore-cube.png",
+      "geometry": {
+        "frame": {
+          "width": 64,
+          "height": 64,
+          "frameCount": 1,
+          "fps": 0
+        },
+        "anchor": {
+          "x": 32,
+          "y": 60
+        }
+      }
+    },
+    "block-world.scenery.torch-post": {
+      "assetId": "block-world.scenery.torch-post",
+      "theme": "block-world",
+      "kind": "scenery",
+      "attemptId": "block-world.scenery.torch-post-a76a23e1-ab5d-4309-9d6e-65ac8d1dc33a",
+      "sha256": "eb2ab18d8054642398778a9a1facd922ce46839a9ffcb6d9804ee5c9e4b38970",
+      "exportFile": "assets/block-world.scenery.torch-post.png",
+      "geometry": {
+        "frame": {
+          "width": 32,
+          "height": 64,
+          "frameCount": 1,
+          "fps": 0
+        },
+        "anchor": {
+          "x": 16,
+          "y": 60
+        }
+      }
+    },
+    "kitchen.backdrop.minimal-strip": {
+      "assetId": "kitchen.backdrop.minimal-strip",
+      "theme": "kitchen",
+      "kind": "backdrop",
+      "attemptId": "kitchen.backdrop.minimal-strip-3cd6aef2-1323-46e8-bca2-f4b9241b61c8",
+      "sha256": "7a1e0d6c3e2fbceda06d5d90a021499d80b83084eb9c4a922ce416f2d5c1b9f0",
+      "exportFile": "assets/kitchen.backdrop.minimal-strip.png",
+      "geometry": {
+        "frame": {
+          "width": 480,
+          "height": 64,
+          "frameCount": 1,
+          "fps": 0
+        },
+        "anchor": {
+          "x": 240,
+          "y": 64
+        }
+      }
+    },
+    "kitchen.scenery.pot-utensils": {
+      "assetId": "kitchen.scenery.pot-utensils",
+      "theme": "kitchen",
+      "kind": "scenery",
+      "attemptId": "kitchen.scenery.pot-utensils-6073c7ab-9c18-4d79-8a46-1780cb0b8a67",
+      "sha256": "1481ab91cbc13b8161954b6b7ddf1042d52b18083ec50303962a3b5ad110757a",
+      "exportFile": "assets/kitchen.scenery.pot-utensils.png",
+      "geometry": {
+        "frame": {
+          "width": 64,
+          "height": 64,
+          "frameCount": 1,
+          "fps": 0
+        },
+        "anchor": {
+          "x": 32,
+          "y": 60
+        }
+      }
+    },
+    "kitchen.scenery.prep-counter": {
+      "assetId": "kitchen.scenery.prep-counter",
+      "theme": "kitchen",
+      "kind": "scenery",
+      "attemptId": "kitchen.scenery.prep-counter-42ced16a-f0aa-41db-aeba-ab82274bc692",
+      "sha256": "28e2e76d8265d38da2c47dda9a0a17140b7baa9fbe2999c003f1165ddc7614cc",
+      "exportFile": "assets/kitchen.scenery.prep-counter.png",
+      "geometry": {
+        "frame": {
+          "width": 96,
+          "height": 64,
+          "frameCount": 1,
+          "fps": 0
+        },
+        "anchor": {
+          "x": 48,
+          "y": 60
+        }
+      }
+    },
+    "kitchen.scenery.tomato-herb": {
+      "assetId": "kitchen.scenery.tomato-herb",
+      "theme": "kitchen",
+      "kind": "scenery",
+      "attemptId": "kitchen.scenery.tomato-herb-b1c938bb-2f29-4b5d-b767-2e990aa84e3c",
+      "sha256": "2e96bb3048a103f1ef022fb47ec8771a635c21cc0c0a04736e71d0e090d6cb0f",
+      "exportFile": "assets/kitchen.scenery.tomato-herb.png",
+      "geometry": {
+        "frame": {
+          "width": 32,
+          "height": 32,
+          "frameCount": 1,
+          "fps": 0
+        },
+        "anchor": {
+          "x": 16,
+          "y": 28
+        }
+      }
+    },
+    "kitchen.scenery.utensil-stand": {
+      "assetId": "kitchen.scenery.utensil-stand",
+      "theme": "kitchen",
+      "kind": "scenery",
+      "attemptId": "kitchen.scenery.utensil-stand-66afd31c-3592-4786-9993-eff4122a6062",
+      "sha256": "47569a61b40d95461bb8e7865ec9e6ea371e121a13e24f32b107db614ddc7801",
+      "exportFile": "assets/kitchen.scenery.utensil-stand.png",
+      "geometry": {
+        "frame": {
+          "width": 32,
+          "height": 64,
+          "frameCount": 1,
+          "fps": 0
+        },
+        "anchor": {
+          "x": 16,
+          "y": 60
+        }
+      }
+    },
+    "outdoor.backdrop.minimal-strip": {
+      "assetId": "outdoor.backdrop.minimal-strip",
+      "theme": "outdoor",
+      "kind": "backdrop",
+      "attemptId": "outdoor.backdrop.minimal-strip-8b5c9db1-0d24-4ead-831e-4ccd246c8703",
+      "sha256": "554a503783b3a1b6e65099faa3974d8e79909c5f9c841f5545dae44a55a141ac",
+      "exportFile": "assets/outdoor.backdrop.minimal-strip.png",
+      "geometry": {
+        "frame": {
+          "width": 480,
+          "height": 64,
+          "frameCount": 1,
+          "fps": 0
+        },
+        "anchor": {
+          "x": 240,
+          "y": 64
+        }
+      }
+    },
+    "outdoor.scenery.boulder-fern": {
+      "assetId": "outdoor.scenery.boulder-fern",
+      "theme": "outdoor",
+      "kind": "scenery",
+      "attemptId": "outdoor.scenery.boulder-fern-32ea3489-264e-4d48-809d-89a6690dd635",
+      "sha256": "3fbd947eb51c23132a7a63bca25e664429f47365af0827be2454f60295f7f661",
+      "exportFile": "assets/outdoor.scenery.boulder-fern.png",
+      "geometry": {
+        "frame": {
+          "width": 96,
+          "height": 64,
+          "frameCount": 1,
+          "fps": 0
+        },
+        "anchor": {
+          "x": 48,
+          "y": 60
+        }
+      }
+    },
+    "outdoor.scenery.camp-supplies": {
+      "assetId": "outdoor.scenery.camp-supplies",
+      "theme": "outdoor",
+      "kind": "scenery",
+      "attemptId": "outdoor.scenery.camp-supplies-2298dc2d-40bb-4142-bcfc-760fbfa7b85a",
+      "sha256": "44288914ecf6423967452675b9a68cdea27daec17da7bb609b3ef7407a509f52",
+      "exportFile": "assets/outdoor.scenery.camp-supplies.png",
+      "geometry": {
+        "frame": {
+          "width": 64,
+          "height": 64,
+          "frameCount": 1,
+          "fps": 0
+        },
+        "anchor": {
+          "x": 32,
+          "y": 60
+        }
+      }
+    },
+    "outdoor.scenery.pebble-grass": {
+      "assetId": "outdoor.scenery.pebble-grass",
+      "theme": "outdoor",
+      "kind": "scenery",
+      "attemptId": "outdoor.scenery.pebble-grass-0aa7c84c-4952-4461-a899-34efb15f64c9",
+      "sha256": "3cdc08eea586f186b4c853a746c1f27422e57350224093247ded0fafb8032d1e",
+      "exportFile": "assets/outdoor.scenery.pebble-grass.png",
+      "geometry": {
+        "frame": {
+          "width": 32,
+          "height": 32,
+          "frameCount": 1,
+          "fps": 0
+        },
+        "anchor": {
+          "x": 16,
+          "y": 28
+        }
+      }
+    },
+    "outdoor.scenery.trail-sign": {
+      "assetId": "outdoor.scenery.trail-sign",
+      "theme": "outdoor",
+      "kind": "scenery",
+      "attemptId": "outdoor.scenery.trail-sign-cc8c863e-04a1-4b36-8735-d1d213d68913",
+      "sha256": "7aa5e633071cb2afffeea3f4c5c1c018761340f28ec5d5901b8bda5332eabcdb",
+      "exportFile": "assets/outdoor.scenery.trail-sign.png",
+      "geometry": {
+        "frame": {
+          "width": 32,
+          "height": 64,
+          "frameCount": 1,
+          "fps": 0
+        },
+        "anchor": {
+          "x": 16,
+          "y": 60
+        }
+      }
+    },
+    "party.backdrop.minimal-strip": {
+      "assetId": "party.backdrop.minimal-strip",
+      "theme": "party",
+      "kind": "backdrop",
+      "attemptId": "party.backdrop.minimal-strip-621dca58-e7d9-44ac-8343-058356342ea7",
+      "sha256": "cb32adfb168da1360738936216908bd81d2d2c3c8a1bb593a720c91d85bc25e5",
+      "exportFile": "assets/party.backdrop.minimal-strip.png",
+      "geometry": {
+        "frame": {
+          "width": 480,
+          "height": 64,
+          "frameCount": 1,
+          "fps": 0
+        },
+        "anchor": {
+          "x": 240,
+          "y": 64
+        }
+      }
+    },
+    "party.scenery.pennant-pole": {
+      "assetId": "party.scenery.pennant-pole",
+      "theme": "party",
+      "kind": "scenery",
+      "attemptId": "party.scenery.pennant-pole-6c36e3f2-b504-4d57-956a-75e5b9dbfb27",
+      "sha256": "2e49d28b2cac7d0e5ec933e3738dc7eecf5ed4a6fa6ae9a2988682e34ad6fa84",
+      "exportFile": "assets/party.scenery.pennant-pole.png",
+      "geometry": {
+        "frame": {
+          "width": 32,
+          "height": 64,
+          "frameCount": 1,
+          "fps": 0
+        },
+        "anchor": {
+          "x": 16,
+          "y": 60
+        }
+      }
+    },
+    "party.scenery.pinwheel": {
+      "assetId": "party.scenery.pinwheel",
+      "theme": "party",
+      "kind": "scenery",
+      "attemptId": "party.scenery.pinwheel-0f6acce2-9880-42a0-aebb-819b5728866f",
+      "sha256": "37316b9f97321cc7c365cc8a9868f61f7a8e6a0f9560bcd329e5494c5196b5ab",
+      "exportFile": "assets/party.scenery.pinwheel.png",
+      "geometry": {
+        "frame": {
+          "width": 32,
+          "height": 32,
+          "frameCount": 1,
+          "fps": 0
+        },
+        "anchor": {
+          "x": 16,
+          "y": 28
+        }
+      }
+    },
+    "party.scenery.play-blocks": {
+      "assetId": "party.scenery.play-blocks",
+      "theme": "party",
+      "kind": "scenery",
+      "attemptId": "party.scenery.play-blocks-3dd423e7-5ea2-47ea-a4bb-573d6de4190e",
+      "sha256": "51a4d3ad3eace512c2262449dbc03242bf6ee60d40e500077623c39fe6ec984b",
+      "exportFile": "assets/party.scenery.play-blocks.png",
+      "geometry": {
+        "frame": {
+          "width": 96,
+          "height": 64,
+          "frameCount": 1,
+          "fps": 0
+        },
+        "anchor": {
+          "x": 48,
+          "y": 60
+        }
+      }
+    },
+    "party.scenery.toy-ball": {
+      "assetId": "party.scenery.toy-ball",
+      "theme": "party",
+      "kind": "scenery",
+      "attemptId": "party.scenery.toy-ball-8722ec40-5d60-4b71-99d0-76f5260196ac",
+      "sha256": "2a90fb1c54b52de19c3617019b4c9bba73b821e6418241c313d988b7dca79425",
+      "exportFile": "assets/party.scenery.toy-ball.png",
+      "geometry": {
+        "frame": {
+          "width": 64,
+          "height": 64,
+          "frameCount": 1,
+          "fps": 0
+        },
+        "anchor": {
+          "x": 32,
+          "y": 60
+        }
+      }
+    },
+    "puzzle.backdrop.minimal-strip": {
+      "assetId": "puzzle.backdrop.minimal-strip",
+      "theme": "puzzle",
+      "kind": "backdrop",
+      "attemptId": "puzzle.backdrop.minimal-strip-16ba8eaa-62b9-4a22-8ccc-aaea69893738",
+      "sha256": "99359c091778d016aef2a7a3b6cb1ee4b63f71701f8e3c375ccfeb3072f14da2",
+      "exportFile": "assets/puzzle.backdrop.minimal-strip.png",
+      "geometry": {
+        "frame": {
+          "width": 480,
+          "height": 64,
+          "frameCount": 1,
+          "fps": 0
+        },
+        "anchor": {
+          "x": 240,
+          "y": 64
+        }
+      }
+    },
+    "puzzle.scenery.chunky-key": {
+      "assetId": "puzzle.scenery.chunky-key",
+      "theme": "puzzle",
+      "kind": "scenery",
+      "attemptId": "puzzle.scenery.chunky-key-35b6a342-c89d-4efb-9f35-90999af34964",
+      "sha256": "1a39d4bb3b3c1c05c4121176e688262129d26d7ef5f45bfe03c2a758f7242cd9",
+      "exportFile": "assets/puzzle.scenery.chunky-key.png",
+      "geometry": {
+        "frame": {
+          "width": 32,
+          "height": 32,
+          "frameCount": 1,
+          "fps": 0
+        },
+        "anchor": {
+          "x": 16,
+          "y": 28
+        }
+      }
+    },
+    "puzzle.scenery.key-rack": {
+      "assetId": "puzzle.scenery.key-rack",
+      "theme": "puzzle",
+      "kind": "scenery",
+      "attemptId": "puzzle.scenery.key-rack-8cfa8c2f-92c9-4fad-bd3a-e72b311a65c9",
+      "sha256": "008f38bd251ee3604f88e93849199f4cd39632a4b47948d0242e471e643a303b",
+      "exportFile": "assets/puzzle.scenery.key-rack.png",
+      "geometry": {
+        "frame": {
+          "width": 32,
+          "height": 64,
+          "frameCount": 1,
+          "fps": 0
+        },
+        "anchor": {
+          "x": 16,
+          "y": 60
+        }
+      }
+    },
+    "puzzle.scenery.lock-dial": {
+      "assetId": "puzzle.scenery.lock-dial",
+      "theme": "puzzle",
+      "kind": "scenery",
+      "attemptId": "puzzle.scenery.lock-dial-a0b0a1b2-47d4-46e3-bc8e-8ecfd4ff1033",
+      "sha256": "1f9c1fc1f1f3992faa14c36d120b5f11aae0ae736e8fe381c1a22b909c18a6c1",
+      "exportFile": "assets/puzzle.scenery.lock-dial.png",
+      "geometry": {
+        "frame": {
+          "width": 64,
+          "height": 64,
+          "frameCount": 1,
+          "fps": 0
+        },
+        "anchor": {
+          "x": 32,
+          "y": 60
+        }
+      }
+    },
+    "puzzle.scenery.puzzle-workbench": {
+      "assetId": "puzzle.scenery.puzzle-workbench",
+      "theme": "puzzle",
+      "kind": "scenery",
+      "attemptId": "puzzle.scenery.puzzle-workbench-9832a38e-a887-419a-b683-2ba3cf6b2ce1",
+      "sha256": "9aafe00f2228e16bd21b7b4271495bd43aef78181b9384f3e1051a5a255c3790",
+      "exportFile": "assets/puzzle.scenery.puzzle-workbench.png",
+      "geometry": {
+        "frame": {
+          "width": 96,
+          "height": 64,
+          "frameCount": 1,
+          "fps": 0
+        },
+        "anchor": {
+          "x": 48,
+          "y": 60
+        }
+      }
+    },
+    "space-salvage.backdrop.minimal-strip": {
+      "assetId": "space-salvage.backdrop.minimal-strip",
+      "theme": "space-salvage",
+      "kind": "backdrop",
+      "attemptId": "space-salvage.backdrop.minimal-strip-dfe91002-a296-4926-bc0b-692dc555423f",
+      "sha256": "c1531f9f3ff1e3b46eaf048a7608e681b6137004a58460222c1541837c171b36",
+      "exportFile": "assets/space-salvage.backdrop.minimal-strip.png",
+      "geometry": {
+        "frame": {
+          "width": 480,
+          "height": 64,
+          "frameCount": 1,
+          "fps": 0
+        },
+        "anchor": {
+          "x": 240,
+          "y": 64
+        }
+      }
+    },
+    "space-salvage.scenery.bolt-tools": {
+      "assetId": "space-salvage.scenery.bolt-tools",
+      "theme": "space-salvage",
+      "kind": "scenery",
+      "attemptId": "space-salvage.scenery.bolt-tools-3d6cc960-1d23-4fa7-9859-b916a79745cc",
+      "sha256": "c898bc5fdabec5b546a3273c0d5e892dfcd043b554a28a9d1f8398668a2a161f",
+      "exportFile": "assets/space-salvage.scenery.bolt-tools.png",
+      "geometry": {
+        "frame": {
+          "width": 32,
+          "height": 32,
+          "frameCount": 1,
+          "fps": 0
+        },
+        "anchor": {
+          "x": 16,
+          "y": 28
+        }
+      }
+    },
+    "space-salvage.scenery.cargo-crate": {
+      "assetId": "space-salvage.scenery.cargo-crate",
+      "theme": "space-salvage",
+      "kind": "scenery",
+      "attemptId": "space-salvage.scenery.cargo-crate-e87a84bd-438b-475c-9aea-3aac4ed68ed9",
+      "sha256": "aec71c715bb662f6327d7fd0b65621706f34817400210f3661ae956cf039e187",
+      "exportFile": "assets/space-salvage.scenery.cargo-crate.png",
+      "geometry": {
+        "frame": {
+          "width": 64,
+          "height": 64,
+          "frameCount": 1,
+          "fps": 0
+        },
+        "anchor": {
+          "x": 32,
+          "y": 60
+        }
+      }
+    },
+    "space-salvage.scenery.salvage-machine": {
+      "assetId": "space-salvage.scenery.salvage-machine",
+      "theme": "space-salvage",
+      "kind": "scenery",
+      "attemptId": "space-salvage.scenery.salvage-machine-72bc1e73-1fb2-46f6-be97-1811d97331e9",
+      "sha256": "046efab5bb85efe9f3243eeb160943a855044893b584c27b1e0554bfc7f26d72",
+      "exportFile": "assets/space-salvage.scenery.salvage-machine.png",
+      "geometry": {
+        "frame": {
+          "width": 96,
+          "height": 64,
+          "frameCount": 1,
+          "fps": 0
+        },
+        "anchor": {
+          "x": 48,
+          "y": 60
+        }
+      }
+    },
+    "space-salvage.scenery.warning-beacon": {
+      "assetId": "space-salvage.scenery.warning-beacon",
+      "theme": "space-salvage",
+      "kind": "scenery",
+      "attemptId": "space-salvage.scenery.warning-beacon-c3eac18f-7329-46b4-b8c3-a25285972d9c",
+      "sha256": "151607e53560ee59f0f1687da411c6e393984f64a6d5f87ea147a6eeed1e1458",
+      "exportFile": "assets/space-salvage.scenery.warning-beacon.png",
+      "geometry": {
+        "frame": {
+          "width": 32,
+          "height": 64,
+          "frameCount": 1,
+          "fps": 0
+        },
+        "anchor": {
+          "x": 16,
+          "y": 60
+        }
+      }
+    }
+  }
+}

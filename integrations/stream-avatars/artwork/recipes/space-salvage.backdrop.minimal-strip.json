@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1,
+  "assetId": "space-salvage.backdrop.minimal-strip",
+  "styleRevision": "pixel-v1",
+  "referenceIds": [],
+  "exactPrompt": "Use case: stylized-concept. Asset ID: space-salvage.backdrop.minimal-strip. Generate ONE low wide minimal horizontally repeatable background strip: Low muted hull trim with sparse recessed bulkhead panels. It sits behind separate foreground props and avatars; do not bake them into this asset. Match coarse compact side-view pixel art, simple square pixel clusters and flat muted dark colors drawn from #202330, #41445B, #F4E8CE, #946B49, #66A66C, #59B8B0, #699AD9, #F0C75E, #DE884E, #D66A72. Much lower contrast than foreground art, no fine detail. A flat thin base band extends across the whole silhouette; raised details are sparse and shallow. Both ends must contain only identical flat uniform base colors and height so literal repeats join quietly; avoid motifs at either join. Intended export tile480x64 with maximum40px visible height and a thin4-8px base. Target a wide shallow body approximately12:1 or wider with ample transparent source margins; logical size is export intent, not tool output resolution. Real transparent alpha above the low silhouette, no opaque sky/wall/footer rectangle. No text, logos, people, avatar bodies, gear, foreground props, detached decorations, exterior shadow/glow/haze, perspective floor, antialiasing, gradients or clipping. Preserve style of references without copying their subjects."
+}

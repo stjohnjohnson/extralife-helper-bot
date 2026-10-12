@@ -206,7 +206,7 @@ describe('application lifecycle', () => {
         expect(tmi.Client).toHaveBeenCalledTimes(1);
         expect(connect).toHaveBeenCalledTimes(1);
         expect(HueController).toHaveBeenCalledWith(validConfig, mockLogger);
-        expect(startViewerCountMonitoring).toHaveBeenCalledWith(validConfig, mockLogger);
+        expect(startViewerCountMonitoring).toHaveBeenCalledWith(validConfig, mockLogger, { onObservation: expect.any(Function), onGameObservation: expect.any(Function) });
         expect(getUserDonations).toHaveBeenCalledWith('participant-1');
         expect(() => application.start({ config: validConfig })).toThrow('Application already started');
     });
@@ -267,7 +267,8 @@ describe('application lifecycle', () => {
             newPresence,
             validConfig,
             mockTwitchClient,
-            mockLogger
+            mockLogger,
+            expect.any(Function)
         );
     });
 
@@ -580,14 +581,23 @@ describe('optional overlay application integration', () => {
 describe('optional Stream Avatars application lifecycle', () => {
     beforeEach(() => { jest.clearAllMocks(); mockDiscordClient.channels.cache.get.mockReturnValue({ id: 'channel', guild: { id: 'guild' }, setName: jest.fn().mockResolvedValue() }); });
     afterEach(async () => { await application.stop(); });
-    test('starts before Discord ready without coupling viewer observations to campaign tracking', async () => {
-        const service = { stop: jest.fn().mockResolvedValue() };
+    test('starts before Discord ready, forwards observations, and stops cleanly', async () => {
+        const service = { observeProduction: jest.fn().mockResolvedValue(), observeGame: jest.fn().mockResolvedValue(), stop: jest.fn().mockResolvedValue() };
         startStreamAvatars.mockResolvedValue(service);
         const startup = application.start({ config: { ...validConfig, streamAvatars: { enabled: true, config: {} } } });
         await flushPromises(); await flushPromises(); expect(startStreamAvatars).toHaveBeenCalledTimes(1);
-        expect(startViewerCountMonitoring.mock.calls[0][2]).toBeUndefined();
+        const callback = startViewerCountMonitoring.mock.calls[0][2].onObservation;
+        await callback({ status: 'offline', observedAtMs: 1 }); expect(service.observeProduction).toHaveBeenCalledTimes(1);
+        const onGame = startViewerCountMonitoring.mock.calls[0][2].onGameObservation;
+        const game = { gameName: 'Minecraft', observedAtMs: 1, source: 'twitch' };
+        await onGame(game); expect(service.observeGame).toHaveBeenCalledWith(game);
+        await registeredHandler(mockDiscordClient.on, 'presenceUpdate')({}, { userId: 'discord-user' });
+        const onCategory = handlePresenceUpdate.mock.calls.at(-1)[5];
+        await onCategory({ ...game, source: 'discord-category' }); expect(service.observeGame).toHaveBeenCalledTimes(2);
         registeredHandler(mockDiscordClient.once, 'ready')(); await startup; await application.stop();
         expect(service.stop).toHaveBeenCalledTimes(1);
+        await callback({ status: 'offline', observedAtMs: 2 }); expect(service.observeProduction).toHaveBeenCalledTimes(1);
+        await onGame(game); await onCategory(game); expect(service.observeGame).toHaveBeenCalledTimes(2);
     });
     test('optional failure cannot stop existing services or expose secrets in log', async () => {
         startStreamAvatars.mockRejectedValue(new Error('secret token'));

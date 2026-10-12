@@ -9,28 +9,34 @@ const { once } = require('node:events');
 const { spawn } = require('node:child_process');
 const WebSocket = require('ws');
 const { createManualClock } = require('./helpers/manualClock');
+const { createThemePack } = require('./helpers/themePack');
+let packRoot, candidatePack;
+beforeAll(async () => { packRoot = await fs.mkdtemp(join(tmpdir(), 'sa-runner-pack-')); candidatePack = createThemePack(packRoot); });
+afterAll(async () => { await fs.rm(packRoot, { recursive: true, force: true }); });
 const { runIntegration } = require('../src/streamAvatars/integration');
 const { parseAction } = require('../src/streamAvatars/actions');
 const { startWebServer } = require('../src/webServer');
 const token = 'integration-test-token';
-function companion(address, packets) {
+function companion(address, packets, themes = false) {
     const socket = new WebSocket(`ws://127.0.0.1:${address.port}/sa/socket`);
     socket.on('error', () => {});
     socket.on('open', () => socket.send(JSON.stringify({ version: 3, type: 'auth', token })));
     socket.on('message', raw => {
         const value = JSON.parse(raw); packets.push(value);
-        if (value.type === 'snapshot') socket.send(JSON.stringify({ version: 3, type: 'ready', capabilities: ['campaign', 'celebrations', 'donation-recognition'], resolution: { width: 1920, height: 1080 } }));
+        if (value.type === 'snapshot') socket.send(JSON.stringify({ version: 3, type: 'ready', capabilities: ['campaign', 'celebrations', 'donation-recognition', ...(themes ? ['themes'] : [])], resolution: { width: 1920, height: 1080 } }));
         if (value.type === 'heartbeat') socket.send(JSON.stringify({ version: 3, type: 'heartbeat' }));
     }); return socket;
 }
 test.each(['random','jump','hug'])('temporary subsystem runs every fixture with %s without real clients or production state', async recognition => {
     const packets = [], dirs = [], messages = []; let socket; const time = createManualClock(Date.now());
     const hue = { initialize: jest.fn().mockResolvedValue(true), celebrateDonation: jest.fn().mockResolvedValue(), stop: jest.fn().mockResolvedValue() };
-    const logger = { warn: jest.fn(), info(message, metadata) { messages.push(message); if (metadata?.address) { dirs.push(metadata.stateDir); socket = companion(metadata.address, packets); } } };
+    const logger = { warn: jest.fn(), info(message, metadata) { messages.push(message); if (metadata?.address) { dirs.push(metadata.stateDir); socket = companion(metadata.address, packets, true); } } };
     try {
-        const result = await runIntegration({ listenerConfig: { host: '127.0.0.1', port: 0 }, token, logger, recognition, clock: time.clock, timers: time.timers, hueOutput: hue,
+        const result = await runIntegration({ listenerConfig: { host: '127.0.0.1', port: 0 }, token, candidatePackDir: candidatePack.directory, logger, recognition, clock: time.clock, timers: time.timers, hueOutput: hue,
             wait: async ms => { await time.advance(ms); await new Promise(resolve => setTimeout(resolve, 2)); } });
-        expect(result).toMatchObject({ completedScenarios: ['ordinary','anonymous','batch','milestone','large','goal'], finalTotalCents: 100000 });
+        expect(result).toMatchObject({ completedScenarios: ['ordinary','anonymous','batch','milestone','large','goal','block-world','kitchen','outdoor','puzzle','space-salvage','party','Raft','PEAK','Minecraft Bedrock','neutral'], finalTotalCents: 100000 });
+        expect(packets.filter(value => value.type === 'game-entrance').map(value => value.themeId)).toEqual(['block-world','kitchen','outdoor','puzzle','space-salvage','party','outdoor','outdoor','block-world',null]);
+        expect(packets.filter(value => value.type === 'snapshot' && value.theme).at(-1).theme).toMatchObject({ themeId: null, packRevision: candidatePack.packRevision });
         const effects = packets.filter(value => value.type === 'celebration');
         expect(effects.map(value => [value.phase,value.kind])).toEqual([
             ['recognition','donation'],['recognition','donation'],['recognition','donation'],
@@ -49,7 +55,7 @@ test.each(['random','jump','hug'])('temporary subsystem runs every fixture with 
 });
 test('readiness timeout releases the port and stops optional Hue', async () => {
     let now = 10000000, address; const hue = { initialize: jest.fn(), stop: jest.fn().mockResolvedValue() };
-    await expect(runIntegration({ listenerConfig: { host: '127.0.0.1', port: 0 }, token, hueOutput: hue, clock: { nowMs: () => now }, wait: async ms => { now+=ms; },
+    await expect(runIntegration({ listenerConfig: { host: '127.0.0.1', port: 0 }, token, scenario: 'ordinary', hueOutput: hue, clock: { nowMs: () => now }, wait: async ms => { now+=ms; },
         logger: { warn() {}, info(message, details) { if (details?.address) address=details.address; } } })).rejects.toThrow(/60000|companion.*ready/i);
     const listener = await startWebServer({ config: { host: '127.0.0.1', port: address.port } }); await listener.stop();
     expect(hue.initialize).not.toHaveBeenCalled(); expect(hue.stop).toHaveBeenCalledTimes(1);
@@ -59,7 +65,7 @@ test.each(['hearts','crowd 20','clear','rehearsal start'])('production rejects r
 });
 test('port conflict preserves the original listener', async () => {
     const listener = await startWebServer({ config: { host: '127.0.0.1', port: 0 } });
-    try { await expect(runIntegration({ listenerConfig: { host: '127.0.0.1', port: listener.address.port }, token })).rejects.toMatchObject({ code: 'EADDRINUSE' }); }
+    try { await expect(runIntegration({ listenerConfig: { host: '127.0.0.1', port: listener.address.port }, token, scenario: 'ordinary' })).rejects.toMatchObject({ code: 'EADDRINUSE' }); }
     finally { await listener.stop(); }
 });
 test.each(['SIGINT','SIGTERM'])('CLI uses only listener/token and %s delivers cleanup without touching production state or Hue', async signal => {
@@ -94,4 +100,97 @@ test('runner rejects unknown recognition before creating a listener', async () =
     const logger = { info: jest.fn(), warn: jest.fn() };
     await expect(runIntegration({ listenerConfig: { host: '127.0.0.1', port: 0 }, token, recognition: 'explode', logger, wait: async () => { throw new Error('listener was created'); } })).rejects.toThrow(/recognition/);
     expect(logger.info).not.toHaveBeenCalled();
+});
+
+test.each([
+    [{ scenario: 'themes', theme: 'all' }, ['block-world','kitchen','outdoor','puzzle','space-salvage','party','Raft','PEAK','Minecraft Bedrock','neutral'], 10],
+    [{ scenario: 'ordinary', theme: 'kitchen' }, ['ordinary'], 1],
+    [{ scenario: 'themes', game: 'PEAK' }, ['PEAK'], 1],
+    [{ scenario: 'all', theme: 'all' }, ['ordinary','anonymous','batch','milestone','large','goal','block-world','kitchen','outdoor','puzzle','space-salvage','party','Raft','PEAK','Minecraft Bedrock','neutral'], 10],
+    [{ scenario: 'all', theme: 'block-world' }, ['ordinary','anonymous','batch','milestone','large','goal','block-world','kitchen','outdoor','puzzle','space-salvage','party','Raft','PEAK','Minecraft Bedrock','neutral'], 11],
+    [{ scenario: 'all', game: 'Keep Talking and Nobody Explodes' }, ['ordinary','anonymous','batch','milestone','large','goal','block-world','kitchen','outdoor','puzzle','space-salvage','party','Raft','PEAK','Minecraft Bedrock','neutral'], 11]
+])('existing theme previews run over the new real socket runner: %j', async (options, completed, entranceCount) => {
+    const packets = [], dirs = []; let socket; const time = createManualClock(Date.now());
+    const logger = { warn: jest.fn(), info(message, details) {
+        if (!details?.address) return;
+        dirs.push(details.stateDir);
+        socket = new WebSocket(`ws://127.0.0.1:${details.address.port}/sa/socket`);
+        socket.on('open', () => socket.send(JSON.stringify({ version: 3, type: 'auth', token })));
+        socket.on('message', raw => {
+            const value = JSON.parse(raw); packets.push(value);
+            if (value.type === 'snapshot') socket.send(JSON.stringify({ version: 3, type: 'ready', capabilities: ['campaign','celebrations','donation-recognition','themes'], resolution: { width: 1920, height: 1080 } }));
+        });
+    } };
+    try {
+        const result = await runIntegration({ listenerConfig: { host: '127.0.0.1', port: 0 }, token, candidatePackDir: candidatePack.directory, logger, clock: time.clock, timers: time.timers, ...options,
+            wait: async ms => { await time.advance(ms); await new Promise(resolve => setTimeout(resolve, 2)); } });
+        expect(result.completedScenarios).toEqual(completed);
+        const entrances = packets.filter(value => value.type === 'game-entrance');
+        expect(entrances.length).toBe(entranceCount);
+        expect(entrances.every(value => value.version === 3 && value.mode === 'integration' && value.campaignId === 'integration')).toBe(true);
+        if (options.scenario === 'ordinary') {
+            const entranceAt = packets.findIndex(value => value.type === 'game-entrance');
+            const giftAt = packets.findIndex(value => value.type === 'celebration');
+            expect(packets.slice(entranceAt, giftAt).some(value => value.type === 'clear')).toBe(false);
+            expect(packets.some(value => value.type === 'celebration' && value.donationTotalCents === 2500)).toBe(true);
+            expect(packets.filter(value => value.type === 'snapshot' && value.theme).every(value => value.theme.themeId === 'kitchen')).toBe(true);
+        } else {
+            expect(packets.filter(value => value.type === 'snapshot' && value.theme).at(-1).theme.themeId).toBe(options.game === 'PEAK' ? 'outdoor' : null);
+            if (options.scenario === 'all') expect(packets.filter(value => value.type === 'celebration' && value.phase === 'recognition')).toHaveLength(6);
+        }
+        for (const dir of dirs) await expect(fs.stat(dir)).rejects.toMatchObject({ code: 'ENOENT' });
+    } finally { socket?.terminate(); }
+});
+
+test.each([' ', 'a'.repeat(201), '😀'.repeat(201), '\u0000\u200b', null, 42])('malformed game %j fails before temporary state, listener, readiness or Hue', async game => {
+    const logger = { info: jest.fn(), warn: jest.fn() }, wait = jest.fn(async () => { throw new Error('unexpected readiness wait'); });
+    const hueOutput = { initialize: jest.fn(), stop: jest.fn() }; const mkdir = jest.spyOn(fs, 'mkdtemp');
+    try {
+        await expect(runIntegration({ listenerConfig: { host: '127.0.0.1', port: 0 }, token, game, logger, wait, hueOutput })).rejects.toThrow(/game name/i);
+        expect(mkdir).not.toHaveBeenCalled(); expect(logger.info).not.toHaveBeenCalled(); expect(wait).not.toHaveBeenCalled(); expect(hueOutput.initialize).not.toHaveBeenCalled();
+    } finally { mkdir.mockRestore(); }
+});
+
+
+test('all requires theme readiness from an older donation-capable v3 companion before any fixture', async () => {
+    const packets = [], dirs = []; let socket, address; const time = createManualClock(Date.now());
+    const hue = { initialize: jest.fn(), stop: jest.fn().mockResolvedValue() };
+    const logger = { warn() {}, info(message, details) { if (details?.address) { address = details.address; dirs.push(details.stateDir); socket = companion(address, packets); } } };
+    try {
+        await expect(runIntegration({ listenerConfig: { host: '127.0.0.1', port: 0 }, token, scenario: 'all', candidatePackDir: candidatePack.directory, logger,
+            clock: time.clock, timers: time.timers, hueOutput: hue, wait: async ms => { await time.advance(ms); await new Promise(resolve => setTimeout(resolve, 1)); }
+        })).rejects.toThrow(/themes.*matching|matching.*themes/i);
+        expect(packets.some(value => ['celebration','game-entrance'].includes(value.type))).toBe(false);
+        expect(hue.initialize).not.toHaveBeenCalled(); expect(hue.stop).toHaveBeenCalledTimes(1);
+        for (const dir of dirs) await expect(fs.stat(dir)).rejects.toMatchObject({ code: 'ENOENT' });
+        const listener = await startWebServer({ config: { host: '127.0.0.1', port: address.port } }); await listener.stop();
+    } finally { socket?.terminate(); }
+});
+
+test('invalid required pack rejects before temporary state, listener, readiness and Hue', async () => {
+    const mkdir = jest.spyOn(fs, 'mkdtemp'), logger = { info: jest.fn(), warn: jest.fn() }, wait = jest.fn();
+    const hueOutput = { initialize: jest.fn(), stop: jest.fn() };
+    try {
+        await expect(runIntegration({ listenerConfig: { host: '127.0.0.1', port: 0 }, token, candidatePackDir: join(packRoot, 'missing'), logger, wait, hueOutput })).rejects.toThrow(/theme pack.*candidate-pack|candidate-pack.*theme pack/i);
+        expect(mkdir).not.toHaveBeenCalled(); expect(logger.info).not.toHaveBeenCalled(); expect(wait).not.toHaveBeenCalled(); expect(hueOutput.initialize).not.toHaveBeenCalled();
+    } finally { mkdir.mockRestore(); }
+});
+
+
+test.each([
+    ['themes','kitchen','missing-theme-image'], ['themes','kitchen','theme-render-error'],
+    ['themes','kitchen','render-error'], ['themes','kitchen','custom-service-required'],
+    ['ordinary',undefined,'missing-heart-image'], ['ordinary',undefined,'missing-celebration-image']
+])('required visual failure %s/%s/%s during the last dwell cannot report completion', async (scenario, theme, code) => {
+    let socket; const time = createManualClock(Date.now());
+    const logger = { warn: jest.fn(), info(message, details) {
+        if (!details?.address) return;
+        socket = companion(details.address, [], true);
+        socket.on('message', raw => { if (['game-entrance','celebration'].includes(JSON.parse(raw).type)) socket.send(JSON.stringify({ version: 3, type: 'diagnostic', code })); });
+    } };
+    try {
+        await expect(runIntegration({ listenerConfig: { host: '127.0.0.1', port: 0 }, token, scenario, theme, candidatePackDir: candidatePack.directory,
+            logger, clock: time.clock, timers: time.timers, wait: async ms => { await time.advance(ms); await new Promise(resolve => setTimeout(resolve, 2)); }
+        })).rejects.toThrow(new RegExp(code + '.*import|import.*' + code, 'i'));
+    } finally { socket?.terminate(); }
 });

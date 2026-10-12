@@ -1,5 +1,5 @@
 const { EventEmitter } = require('events');
-const https = require('https');
+let https = require('https');
 
 jest.mock('https', () => ({ request: jest.fn() }));
 
@@ -287,5 +287,70 @@ describe('Twitch API integration boundaries', () => {
 
         expect(logger.warn).toHaveBeenCalledWith('Game category not found on Twitch', { game: 'Unknown Game' });
         expect(twitchClient.say).not.toHaveBeenCalled();
+    });
+});
+describe('successful category observation boundary', () => {
+    const config = { twitch: { channel: 'streamer', clientId: 'client', clientSecret: 'secret', refreshToken: 'refresh' }, gameUpdates: { userId: 'user' } };
+    const logger = { debug() {}, info() {}, warn() {}, error() {} };
+    beforeEach(() => { jest.resetModules(); https = require('https'); https.request.mockReset(); });
+    test('observes the actual matched category after PATCH with its request-start time, before isolated chat failure', async () => {
+        let now = 1000; const observations = []; const spy = jest.spyOn(Date, 'now').mockImplementation(() => now);
+        try {
+            queueResponses({ body: '{"access_token":"token","expires_in":3600}' }, { body: '{"data":[{"id":"streamer"}]}' }, { body: '{"data":[{"id":"game","name":"Minecraft"}]}' });
+            https.request.mockImplementationOnce((options, callback) => {
+                const request = new EventEmitter(); request.write = () => {}; request.end = () => { now = 3000; const response = new EventEmitter(); response.statusCode = 204; callback(response); response.emit('end'); }; return request;
+            });
+            await require('../src/gameUpdates').handlePresenceUpdate(null, { userId: 'user', activities: [{ type: 0, name: 'Minecraft Bedrock' }] }, config, { say: async () => { throw new Error('chat offline'); } }, logger, observation => { now = 5000; observations.push(observation); });
+            expect(observations).toEqual([{ gameName: 'Minecraft', observedAtMs: 1000, confirmedAtMs: 3000, source: 'discord-category' }]);
+        } finally { spy.mockRestore(); }
+    });
+    test('failed PATCH emits no category observation and successful callback errors do not suppress chat', async () => {
+        const run = async (patch, callback, client) => {
+            jest.resetModules(); https = require('https'); https.request.mockReset();
+            queueResponses({ body: '{"access_token":"token","expires_in":3600}' }, { body: '{"data":[{"id":"streamer"}]}' }, { body: '{"data":[{"id":"game","name":"Raft"}]}' }, patch);
+            await require('../src/gameUpdates').sendGameUpdateNotification('Raft', config, client, logger, callback);
+        };
+        const observations = [];
+        await run({ statusCode: 500, body: '{"message":"failure"}' }, value => observations.push(value), null); expect(observations).toEqual([]);
+        const messages = []; await run({ statusCode: 204 }, () => { throw new Error('disk failure'); }, { say: async (channel, message) => messages.push({ channel, message }) });
+        expect(messages).toEqual([{ channel: 'streamer', message: 'Now playing Raft!' }]);
+    });
+});
+describe('overlapping category write and viewer read', () => {
+    test('PATCH start100 / poll start110 / PATCH success120 / old poll return130 retains new category, then post-success poll wins', async () => {
+        jest.resetModules(); https = require('https'); https.request.mockReset();
+        let now = 90; const spy = jest.spyOn(Date, 'now').mockImplementation(() => now);
+        let controller;
+        try {
+            const { createSessionController } = require('../src/gameSession');
+            const { loadThemeConfiguration } = require('../src/streamAvatars/themes');
+            const config = { twitch: { channel: 'streamer', clientId: 'client', clientSecret: 'secret', refreshToken: 'refresh' }, gameUpdates: {} };
+            const logger = { debug() {}, info() {}, warn() {}, error() {} }; const observations = [];
+            controller = await createSessionController({ store: { load: async () => null, save: async () => {}, flush: async () => {}, close: async () => {} }, clock: { nowMs: () => now }, mode: 'production', channel: 'streamer', graceMs: 900000, cadenceMs: 60000, newSessionId: () => 'session', gameConfig: loadThemeConfiguration().config });
+            await controller.observe({ status: 'online', observedAtMs: 90, startedAtMs: 0, streamId: 'stream' });
+            await controller.observeGame({ gameName: 'Minecraft', observedAtMs: 90, source: 'twitch' });
+            queueResponses({ body: '{"access_token":"token","expires_in":3600}' }, { body: '{"data":[{"id":"streamer"}]}' }, { body: '{"data":[{"id":"plateup","name":"PlateUp!"}]}' });
+            const deferResponse = () => {
+                let complete; let started; const pending = new Promise(resolve => { started = resolve; });
+                https.request.mockImplementationOnce((options, callback) => {
+                    const request = new EventEmitter(); request.write = () => {}; request.end = () => {
+                        complete = (body, statusCode = 200) => { const response = new EventEmitter(); response.statusCode = statusCode; callback(response); if (body) response.emit('data', body); response.emit('end'); }; started();
+                    }; return request;
+                });
+                return { pending, complete: (...args) => complete(...args) };
+            };
+            const patch = deferResponse(); now = 100;
+            const changed = require('../src/gameUpdates').sendGameUpdateNotification('PlateUp!', config, null, logger, async observation => { observations.push(observation); await controller.observeGame(observation); });
+            await patch.pending;
+            const { logViewerCount } = require('../src/viewerMonitoring'); const read = deferResponse(); now = 110;
+            const poll = logViewerCount(config, logger, () => true, { nowMs: () => now, onObservation: value => controller.observe(value), onGameObservation: async value => { observations.push(value); await controller.observeGame(value); } });
+            await read.pending; now = 120; patch.complete('', 204); await changed;
+            now = 130; read.complete('{"data":[{"id":"stream","started_at":"1970-01-01T00:00:00.000Z","game_name":"Minecraft"}]}'); await poll;
+            expect(controller.getSnapshot().game).toMatchObject({ displayName: 'PlateUp!', observedAtMs: 120, source: 'discord-category' });
+            expect(observations).toEqual([{ gameName: 'PlateUp!', observedAtMs: 100, confirmedAtMs: 120, source: 'discord-category' }, { gameName: 'Minecraft', observedAtMs: 110, source: 'twitch' }]);
+            now = 140; queueResponses({ body: '{"data":[{"id":"stream","started_at":"1970-01-01T00:00:00.000Z","game_name":"Raft"}]}' });
+            await logViewerCount(config, logger, () => true, { nowMs: () => now, onObservation: value => controller.observe(value), onGameObservation: value => controller.observeGame(value) });
+            expect(controller.getSnapshot().game).toMatchObject({ displayName: 'Raft', observedAtMs: 140, source: 'twitch' });
+        } finally { await controller?.stop(); spy.mockRestore(); }
     });
 });

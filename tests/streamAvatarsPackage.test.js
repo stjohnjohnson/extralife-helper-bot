@@ -29,11 +29,15 @@ describe('portable Stream Avatars packages', () => {
     test('contains the shipped script, placeholder settings, and native looping animation metadata', () => {
         const result = buildPackage({ integrationDir });
         const entries = decode(result.archive);
-        expect(result.imageCount).toBe(22);
+        expect(result.imageCount).toBe(52);
         expect(Object.keys(entries).sort()).toEqual([
-            'data.txt', ...fs.readdirSync(path.join(shipped, 'assets')).filter(name => name.endsWith('.json')).map(name => `${commandPath}${JSON.parse(fs.readFileSync(path.join(shipped, 'assets', name))).name}.png`), `${commandPath}sa_helper_bridge.lua`, `${commandPath}sa_helper_bridge_settings.json`
+            'data.txt', ...require('../src/streamAvatars/themeRelease').loadThemePack({ directory: require('../src/streamAvatars/themeRelease').BUNDLED_THEME_PACK_DIR }).catalog.assets.map(asset => `${commandPath}${asset.image}.png`), ...fs.readdirSync(path.join(shipped, 'assets')).filter(name => name.endsWith('.json')).map(name => `${commandPath}${JSON.parse(fs.readFileSync(path.join(shipped, 'assets', name))).name}.png`), `${commandPath}sa_helper_bridge.lua`, `${commandPath}sa_helper_bridge_settings.json`
         ].sort());
-        expect(Buffer.from(entries[`${commandPath}sa_helper_bridge.lua`])).toEqual(fs.readFileSync(path.join(shipped, 'companion.lua')));
+        const lua = strFromU8(entries[`${commandPath}sa_helper_bridge.lua`]);
+        const catalog = JSON.parse(lua.match(/local THEME_CATALOG_JSON = \[\[([^]*?)\]\]/)[1]);
+        expect(catalog.previewOnly).toBe(false);
+        expect(Object.keys(catalog.themes)).toHaveLength(6);
+        expect(lua.replace(/local THEME_CATALOG_JSON = \[\[([^]*?)\]\]/, 'local THEME_CATALOG_JSON = nil')).toBe(fs.readFileSync(path.join(shipped, 'companion.lua'), 'utf8'));
         expect(Buffer.from(entries[`${commandPath}sa_heart.png`])).toEqual(fs.readFileSync(path.join(shipped, 'assets/heart.png')));
         const data = json(entries, 'data.txt');
         expect(Object.keys(data).sort()).toEqual(['avatar', 'gear', 'backgrounds', 'backgroundObj', 'boss', 'playerClass', 'nametags', 'commands', 'languages'].sort());
@@ -51,11 +55,39 @@ describe('portable Stream Avatars packages', () => {
         });
     });
 
+    test('candidate package embeds portable rehearsal-only layouts and verified images', () => {
+        const assets = {};
+        for (const [name, kind, width, height] of [['base', 'backdrop', 480, 64], ['one', 'scenery', 96, 64], ['two', 'scenery', 64, 64], ['three', 'scenery', 32, 64], ['four', 'scenery', 32, 32]]) {
+            const bytes = PNG.sync.write({ width, height, data: Buffer.alloc(width * height * 4) });
+            fs.writeFileSync(path.join(directory, `${name}.png`), bytes);
+            const assetId = `block-world.${kind}.${name}`;
+            assets[assetId] = { assetId, theme: 'block-world', kind, sha256: require('node:crypto').createHash('sha256').update(bytes).digest('hex'), exportFile: `${name}.png`, imagePath: '/PRIVATE_MACHINE_SENTINEL', geometry: { frame: { width, height }, anchor: { x: width / 2, y: height } } };
+        }
+        const themeManifest = { assets, approved: false };
+        for (const asset of Object.values(assets)) Object.assign(asset, { scale: 999, originX: 0, originY: 0 });
+        expect(() => buildPackage({ integrationDir, themeManifest, themeAssetsDir: directory })).toThrow(/promotion/);
+        const result = buildPackage({ integrationDir, themeManifest, themeAssetsDir: directory, previewOnly: true });
+        expect(result.imageCount).toBe(27);
+        expect(result.packRevision).toMatch(/^[a-f0-9]{64}$/);
+        const entries = decode(result.archive);
+        const script = strFromU8(entries[`${commandPath}sa_helper_bridge.lua`]);
+        expect(script).not.toContain('PRIVATE_MACHINE_SENTINEL');
+        expect(script).not.toContain(directory);
+        const catalogJson = script.match(/local THEME_CATALOG_JSON = \[\[([^]*?)\]\]/)[1];
+        const catalog = JSON.parse(catalogJson);
+        expect(catalog).toMatchObject({ previewOnly: true, packRevision: result.packRevision, profile: { referenceWidth: 1920, bandHeight: 120, baselineOffset: 4 } });
+        expect(catalog.themes['block-world'].tiles).toHaveLength(4);
+        expect(catalog.themes['block-world'].props).toHaveLength(4);
+        expect(json(entries, 'data.txt').commands.sa_helper_bridge.scriptImages.sa_block_world_backdrop_base).toMatchObject({ width: 480, height: 64, scale: 1, originX: 0.5, originY: 0.5, details: { loopTotal: 61 } });
+        assets[Object.keys(assets)[0]].sha256 = 'f'.repeat(64);
+        expect(() => buildPackage({ integrationDir, themeManifest, themeAssetsDir: directory, previewOnly: true })).toThrow(/checksum/);
+    });
+
     test('automatically includes new manifests with independent FPS and looping', () => {
         fs.writeFileSync(path.join(integrationDir, 'assets/second.json'), JSON.stringify({ ...manifest, name: 'sa_second', framesPerSecond: 24, loop: false }));
         const result = buildPackage({ integrationDir });
         const entries = decode(result.archive);
-        expect(result.imageCount).toBe(23);
+        expect(result.imageCount).toBe(53);
         expect(entries[`${commandPath}sa_second.png`]).toEqual(entries[`${commandPath}sa_heart.png`]);
         expect(json(entries, 'data.txt').commands.sa_helper_bridge.scriptImages.sa_second.details)
             .toMatchObject({ fps: 24, fpsPerFrame: Array(8).fill(24), loopTotal: 1 });
@@ -115,7 +147,7 @@ describe('portable Stream Avatars packages', () => {
 
     test('includes manifests with an uppercase extension on every OS', () => {
         fs.renameSync(path.join(integrationDir, 'assets/heart.json'), path.join(integrationDir, 'assets/heart.JSON'));
-        expect(buildPackage({ integrationDir }).imageCount).toBe(22);
+        expect(buildPackage({ integrationDir }).imageCount).toBe(52);
     });
 
     test('rejects corrupt or truncated PNG chunks', () => {
@@ -206,13 +238,13 @@ describe('portable Stream Avatars packages', () => {
             cwd: directory, encoding: 'utf8', env: { ...process.env, STREAM_AVATARS_TOKEN: 'PRIVATE_CLI_SENTINEL' }
         });
         expect(result.status).toBe(0);
-        expect(result.stdout).toContain('22 images');
+        expect(result.stdout).toContain('52 images');
         expect(result.stdout).toContain(output);
         const entries = decode(fs.readFileSync(output));
         expect(json(entries, `${commandPath}sa_helper_bridge_settings.json`).token).toBe('REPLACE_WITH_PRIVATE_TOKEN');
     });
 
-    test.each([['--unknown'], ['--output'], ['--output', 'no-extension'], ['--output', 'a.zip', 'extra']])('CLI rejects invalid arguments %j', (...args) => {
+    test.each([['--unknown'], ['--output'], ['--output', 'no-extension'], ['--output', 'a.zip', 'extra'], ['--theme-pack', ''], ['--candidate-pack', '']])('CLI rejects invalid arguments %j', (...args) => {
         const result = spawnSync(process.execPath, [path.resolve(__dirname, '../scripts/sa-package.js'), ...args], { cwd: directory, encoding: 'utf8' });
         expect(result.status).toBe(1);
         expect(result.stderr).toContain('Usage:');

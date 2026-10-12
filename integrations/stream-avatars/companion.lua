@@ -5,6 +5,10 @@ script_trigger_type = "On Connect"
 local HEART_WIDTH, HEART_HEIGHT = 32, 32
 local RAISED_WIDTH = 143
 local MAX_HEARTS, AVATAR_TOP = 50, 40
+-- Only the portable package builder may embed trusted image IDs and geometry.
+-- Empty until explicit candidate packaging or separately gated production promotion.
+local THEME_CATALOG_JSON = nil
+local REFERENCE_WIDTH, BAND_HEIGHT, BASELINE_OFFSET = 1920, 120, 4
 
 -- Some bundled MoonSharp versions serialize / as \/ but cannot parse it.
 -- get() internally round-trips tables with this codec, including our URL and
@@ -22,6 +26,15 @@ end
 -- a child coroutine so transport, expiry and cleanup continue independently.
 function sa_load_heart(object, key, asset)
     local ok=pcall(function() applyImage(object,asset or "sa_heart") end)
+    set("sa_pending_images",math.max(0,(get("sa_pending_images") or 1)-1))
+    if get(key)=="cancelled" then object.destroy(); set(key,nil); return end
+    if not ok then set(key,"failed"); return end
+    object.image.anchor("center",true)
+    set(key,"loaded")
+end
+
+function sa_load_theme(object, key, image)
+    local ok=pcall(function() applyImage(object,image) end)
     set("sa_pending_images",math.max(0,(get("sa_pending_images") or 1)-1))
     if get(key)=="cancelled" then object.destroy(); set(key,nil); return end
     if not ok then set(key,"failed"); return end
@@ -81,6 +94,10 @@ return function()
     local socket = "sa_helper_bridge"
     local objects, owned, seen, seenOrder = {}, {}, {}, {}
     local snapshot, effect = nil, nil
+    local themeObjects, chapterObjects = {}, {} -- Chapter owner reserved; no chapter art.
+    local themeLoadToken, themeKey, themeLayout, entrance = 0, nil, nil, nil
+    local themeDiagnosticAt, themeRenderDiagnosticAt = 0, 0
+    local catalog = THEME_CATALOG_JSON and json.parse(THEME_CATALOG_JSON) or {themes={}}
     local generationFloor = -1
     local loadSequence = get("sa_load_sequence") or 0
     local elapsed, serverOffset, updateElapsed = 0, 0, 0
@@ -98,6 +115,13 @@ return function()
     end
     local function send(value) app.sendWebsocketMessage(socket, json.serialize(value)) end
     local function diagnostic(code) send({version=3,type="diagnostic",code=code}) end
+    local function themeDiagnostic()
+        -- Coalesce repeated tiles and rapid theme reloads across world owners.
+        if elapsed>=themeDiagnosticAt then diagnostic("missing-theme-image"); themeDiagnosticAt=elapsed+30 end
+    end
+    local function themeRenderDiagnostic()
+        if elapsed>=themeRenderDiagnosticAt then diagnostic("theme-render-error"); themeRenderDiagnosticAt=elapsed+30 end
+    end
     local function release(entry)
         local status=get(entry.key)
         if not entry.loaded and status~="failed" and status~="loaded" then
@@ -112,6 +136,37 @@ return function()
         for _,entry in pairs(objects) do release(entry) end
         objects = {}; effect = nil
     end
+    local function clearEntrance()
+        entrance=nil
+    end
+    local function clearTheme()
+        themeLoadToken=themeLoadToken+1
+        for _,entry in pairs(themeObjects) do if not entry.skipped then release(entry) end end
+        themeObjects={}; themeLayout=nil; themeKey=nil
+    end
+    local function clearAll()
+        clearObjects(); clearTheme(); clearEntrance()
+        for _,entry in pairs(chapterObjects) do release(entry) end; chapterObjects={}
+    end
+    local function reconcileTheme()
+        local theme=snapshot and snapshot.theme
+        local allowed=not catalog.previewOnly or (snapshot and snapshot.mode=="integration" and snapshot.integration.active)
+        local layout=allowed and theme and theme.packRevision==catalog.packRevision and catalog.themes[theme.themeId] or nil
+        local key=layout and (theme.themeId..":"..theme.packRevision) or nil
+        if key==themeKey then return end
+        clearTheme(); themeKey=key; themeLayout=layout
+    end
+    local function validIdentity(value) return type(value)=="string" and #value==64 and not value:find("[^a-f0-9]") end
+    local function validTheme(theme)
+        if theme==nil or (type(json.isnull)=="function" and json.isnull(theme)) or (type(json.null)~="function" and theme==json.null) then return true end
+        if type(theme)~="table" or not validIdentity(theme.gameIdentity) or not validIdentity(theme.packRevision) or type(theme.gameName)~="string" or #theme.gameName==0 or #theme.gameName>800 then return false end
+        local allowed={ ["block-world"]=true,kitchen=true,outdoor=true,puzzle=true,["space-salvage"]=true,party=true }
+        return theme.themeId==nil or (type(json.isnull)=="function" and json.isnull(theme.themeId)) or (type(json.null)~="function" and theme.themeId==json.null) or allowed[theme.themeId]==true
+    end
+    local function startEntrance()
+        clearEntrance()
+        entrance={ends=elapsed+6}
+    end
     local function reconcileCrowd(ids)
         local desired = {}
         for _,name in ipairs(ids) do
@@ -124,7 +179,7 @@ return function()
         set("sa_owned_ids",idsToRemember)
     end
     local function cleanup()
-        clearObjects(); reconcileCrowd({}); snapshot=nil; generationFloor=-1
+        clearAll(); reconcileCrowd({}); snapshot=nil; generationFloor=-1
     end
     local function validCrowd(ids)
         if type(ids)~="table" or #ids>100 then return false end
@@ -148,14 +203,16 @@ return function()
     end
     local function validSnapshot(value)
         local c=value.campaign
-        if not exact(value,{version=true,type=true,mode=true,generation=true,serverNowMs=true,campaign=true,integration=true,features=true}) or
+        local keys={version=true,type=true,mode=true,generation=true,serverNowMs=true,campaign=true,integration=true,features=true}
+        if value.theme~=nil then keys.theme=true end
+        if not validTheme(value.theme) or not exact(value,keys) or
             not exact(c,{campaignId=true,initialized=true,totalCents=true,goalCents=true,nextMilestoneCents=true,goalHandled=true}) or
             type(c.campaignId)~="string" or #c.campaignId==0 or #c.campaignId>128 or type(c.initialized)~="boolean" or type(c.goalHandled)~="boolean" then return false end
         if c.initialized then
             if not integer(c.totalCents) or c.totalCents<0 or c.totalCents>9007199254740991 or not integer(c.goalCents) or c.goalCents<=0 or c.goalCents>9007199254740991 or
                 not (jsonNull(c.nextMilestoneCents) or (integer(c.nextMilestoneCents) and c.nextMilestoneCents>c.totalCents and c.nextMilestoneCents<=9007199254740991)) then return false end
         elseif not jsonNull(c.totalCents) or not jsonNull(c.goalCents) or not jsonNull(c.nextMilestoneCents) then return false end
-        return number(value.serverNowMs) and type(value.features)=="table" and #value.features<=5 and type(value.integration)=="table" and
+        return number(value.serverNowMs) and type(value.features)=="table" and #value.features<=6 and type(value.integration)=="table" and
             type(value.integration.active)=="boolean" and validCrowd(value.integration.crowdIds)
     end
     -- Separate registries contain only objects created by this companion.
@@ -407,27 +464,51 @@ return function()
         saveDances()
         for id,entry in pairs(heartLayer) do if not liveIds[id] then if entry.object then release(entry) end; heartLayer[id]=nil end end
     end
+    local function renderEntranceActions()
+        if not entrance then return end
+        local deadline=entrance.ends
+        clearEntrance()
+        if elapsed>=deadline then return end
+        -- Donation recognition/parties own native actions for this frame, including
+        -- hug requests whose host state transition has not completed yet.
+        if recognition or celebration then return end
+        for _,user in ipairs(getUsers()) do if eligible(user) then
+            local ok=pcall(function() user.runCommand("!{cmd:jump}",true) end)
+            if not ok then report("action-error") end
+        end end
+    end
     local function handleMessage(value)
         if type(value)~="table" or value.version~=3 then diagnostic("unsupported-message"); return end
+        if value.type=="game-entrance" and jsonNull(value.themeId) then value.themeId=nil end
         if value.type=="heartbeat" and number(value.serverNowMs) then
             serverOffset=value.serverNowMs-elapsed*1000
             send({version=3,type="heartbeat"}); return
         end
         if (value.mode~="production" and value.mode~="integration") or not integer(value.generation) or value.generation<generationFloor or value.generation<0 then return end
         if value.type=="clear" then
-            generationFloor=value.generation; clearObjects(); reconcileCrowd({}); snapshot=nil
+            generationFloor=value.generation; clearAll(); reconcileCrowd({}); snapshot=nil
         elseif value.type=="snapshot" and validSnapshot(value) then
-            if not snapshot or snapshot.generation~=value.generation or snapshot.mode~=value.mode or snapshot.campaign.campaignId~=value.campaign.campaignId then clearObjects() end
+            if jsonNull(value.theme) then value.theme=nil elseif jsonNull(value.theme.themeId) then value.theme.themeId=nil end
+            if not snapshot or snapshot.generation~=value.generation or snapshot.mode~=value.mode or snapshot.campaign.campaignId~=value.campaign.campaignId then clearAll()
+            elseif (snapshot.theme and snapshot.theme.gameIdentity)~=(value.theme and value.theme.gameIdentity) or
+                (snapshot.theme and snapshot.theme.themeId)~=(value.theme and value.theme.themeId) or
+                (snapshot.theme and snapshot.theme.packRevision)~=(value.theme and value.theme.packRevision) then clearEntrance() end
             generationFloor=value.generation; snapshot=value; serverOffset=value.serverNowMs-elapsed*1000; retryDelay=1
             if value.mode=="integration" and not previewHostSet then app.platformServiceSettings.SetStreamer(900000,"sa_integration_host"); previewHostSet=true end
             if value.mode=="production" then previewHostSet=false end
-            reconcileCrowd(value.mode=="integration" and value.integration.crowdIds or {})
+            reconcileCrowd(value.mode=="integration" and value.integration.crowdIds or {}); reconcileTheme()
             local resolution=app.getResolution()
-            send({version=3,type="ready",capabilities={"hearts","crowd","campaign","celebrations","donation-recognition"},resolution={width=resolution.x,height=resolution.y}})
+            send({version=3,type="ready",capabilities={"hearts","crowd","campaign","celebrations","donation-recognition","themes"},resolution={width=resolution.x,height=resolution.y}})
         elseif value.type=="crowd" and snapshot and snapshot.mode=="integration" and value.mode==snapshot.mode and value.generation==snapshot.generation and validCrowd(value.crowdIds) then
             reconcileCrowd(value.crowdIds)
         elseif value.type=="celebration" and snapshot and value.mode==snapshot.mode and value.generation==snapshot.generation and value.campaignId==snapshot.campaign.campaignId then
             acceptCelebration(value)
+        elseif value.type=="game-entrance" and snapshot and snapshot.theme and value.mode==snapshot.mode and value.generation==snapshot.generation and value.campaignId==snapshot.campaign.campaignId and
+            value.gameIdentity==snapshot.theme.gameIdentity and value.themeId==snapshot.theme.themeId and type(value.id)=="string" and #value.id>0 and #value.id<=128 and not seen[value.id] and
+            number(value.issuedAtMs) and value.issuedAtMs>=0 and number(value.expiresAtMs) and value.expiresAtMs-value.issuedAtMs==10000 and value.expiresAtMs>elapsed*1000+serverOffset and value.durationMs==6000 then
+            seen[value.id]=true; seenOrder[#seenOrder+1]=value.id
+            if #seenOrder>256 then seen[table.remove(seenOrder,1)]=nil end
+            startEntrance()
         elseif value.type=="hearts" and snapshot and value.mode==snapshot.mode and value.generation==snapshot.generation and value.campaignId==snapshot.campaign.campaignId and
             type(value.id)=="string" and #value.id>0 and #value.id<=128 and number(value.expiresAtMs) and number(value.issuedAtMs) and value.expiresAtMs>value.issuedAtMs and
             value.expiresAtMs-value.issuedAtMs<=10000 and value.expiresAtMs>elapsed*1000+serverOffset and value.durationMs==5000 and not seen[value.id] then
@@ -475,6 +556,62 @@ return function()
             if entry.loaded then entry.object.setScale(1,1) end
         end
     end
+    local function renderWorld()
+        local bottom=app.convertPercentToPosition(0,0); local top=app.convertPercentToPosition(1,1)
+        local width,height=top.x-bottom.x,top.y-bottom.y
+        local scale=width/REFERENCE_WIDTH
+        local fits=number(scale) and number(height) and scale>0 and height>=(BAND_HEIGHT+BASELINE_OFFSET)*scale
+        if not themeLayout then return end
+        local components={}
+        -- Native background/0 must not occlude the continuous overlay. Both
+        -- component orders remain below the installed Characters sorting layer.
+        for _,asset in ipairs(themeLayout.tiles) do components[#components+1]={asset=asset,layer="background",order=1} end
+        for _,asset in ipairs(themeLayout.props) do components[#components+1]={asset=asset,layer="background",order=2} end
+        for index,component in ipairs(components) do
+            local entry=themeObjects[index]
+            if not entry and fits then
+                local pending=get("sa_pending_images") or 0
+                if pending<100 then
+                    loadSequence=loadSequence+1; set("sa_load_sequence",loadSequence)
+                    local key="sa_image_"..loadSequence
+                    entry={key=key,deadline=elapsed+2,token=themeLoadToken}; themeObjects[index]=entry
+                    local created=pcall(function()
+                        entry.object=app.createGameObject(); entry.object.setScale(0,0)
+                    end)
+                    if not created then
+                        if entry.object then pcall(entry.object.destroy) end
+                        entry.skipped=true; themeRenderDiagnostic()
+                    else
+                        -- Count only workers that can start after hidden-object setup.
+                        set("sa_pending_images",pending+1)
+                        entry.loader=async("sa_load_theme",entry.object,key,component.asset.image)
+                    end
+                end
+            end
+            if entry and not entry.skipped and entry.token==themeLoadToken then
+                if not entry.loaded then
+                    if get(entry.key)=="loaded" then entry.loaded=true; set(entry.key,nil)
+                    elseif get(entry.key)=="failed" or elapsed>=entry.deadline then release(entry); entry.skipped=true; themeDiagnostic() end
+                end
+                if not entry.skipped then
+                    local rendered=pcall(function()
+                        if fits and entry.loaded then
+                            local asset=component.asset
+                            -- Package sprites have center pivot. Image-space anchor Y points down.
+                            entry.object.setPosition(bottom.x+(asset.x+asset.width/2)*scale,bottom.y+(BASELINE_OFFSET+asset.anchorY-asset.height/2)*scale)
+                            entry.object.image.sorting(component.order,component.layer)
+                            entry.object.setScale(scale,scale)
+                        else entry.object.setScale(0,0) end
+                    end)
+                    if not rendered then
+                        -- Discard only this component; hearts and the rest of
+                        -- the world keep their independent lifetimes and ownership.
+                        pcall(release,entry); entry.skipped=true; themeRenderDiagnostic()
+                    end
+                end
+            end
+        end
+    end
     -- Reload cleanup uses only IDs this companion previously created, never real viewers.
     for _,id in ipairs(get("sa_owned_ids") or {}) do if id>=900001 and id<=900100 then app.platformServiceSettings.SetUserLeave(id) end end
     local previousDances={}; for _,id in ipairs(get("sa_owned_dances") or {}) do previousDances[tostring(id)]=true end
@@ -506,15 +643,20 @@ return function()
         local queue=get("sa_mailbox") or {}; set("sa_mailbox",{})
         for _,raw in ipairs(queue) do
             local ok,value=pcall(json.parse,raw)
-            if ok then local handled=pcall(handleMessage,value); if not handled then clearObjects(); diagnostic("render-error") end
+            if ok then local handled=pcall(handleMessage,value); if not handled then clearAll(); diagnostic("render-error") end
             else diagnostic("unsupported-message") end
         end
-        if updateElapsed>=0.05 then local ok=pcall(renderTick); if not ok then clearObjects(); diagnostic("render-error") end; updateElapsed=0 end
+        if updateElapsed>=0.05 then
+            renderEntranceActions()
+            local worldOk=pcall(renderWorld); if not worldOk then clearTheme(); themeRenderDiagnostic() end
+            local ok=pcall(renderTick); if not ok then clearObjects(); diagnostic("render-error") end
+            updateElapsed=0
+        end
         local delta=yield()
         if number(delta) and delta>0 then
             elapsed=elapsed+delta; updateElapsed=updateElapsed+delta
             local now=os.time()
-            if now>=pruneActionsAt then
+            if number(now) and now>=pruneActionsAt then
                 local changed=false
                 for id,request in pairs(actionRequests) do
                     for action,untilTime in pairs(request) do if now>=untilTime then request[action]=nil; changed=true end end
