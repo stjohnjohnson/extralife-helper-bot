@@ -1,7 +1,7 @@
 const fs = require('node:fs/promises');
 const { join } = require('node:path');
 const { tmpdir } = require('node:os');
-const { once } = require('node:events');
+const { once, on } = require('node:events');
 const WebSocket = require('ws');
 const { startStreamAvatars } = require('../src/streamAvatars');
 let directory, service, socket, now;
@@ -19,15 +19,28 @@ async function connect() {
     for (let i = 0; i < 30 && !service.getStatus().companionReady; i++) await new Promise(resolve => setTimeout(resolve, 2));
     expect(service.getStatus().companionReady).toBe(true); return JSON.parse(raw);
 }
-test('campaign accounting baselines without Twitch, then recognizes an authoritative milestone', async () => {
+test.each([0, 50])('campaign accounting recognizes an authoritative milestone with %i ms delivery delay', async deliveryDelayMs => {
     expect((await accept([gift('seed', 49000)], campaign())).intent).toBeNull();
     await connect(); now++;
-    const packets = []; socket.on('message', raw => packets.push(JSON.parse(raw)));
-    const result = await accept([gift('seed', 49000), gift('live', 1000)], campaign(50000));
-    expect(result).toMatchObject({ accepted: true, delivered: true, intent: { milestoneCents: 50000 } });
-    await new Promise(resolve => setTimeout(resolve, 10));
-    expect(packets.find(message => message.type === 'celebration')).toMatchObject({ phase: 'recognition', donationTotalCents: 1000 });
-    expect(service.getStatus()).toMatchObject({ campaignTotalCents: 50000, nextMilestoneCents: 100000 });
+    const messages = on(socket, 'message', { signal: AbortSignal.timeout(2000) });
+    let resumeTimer;
+    try {
+        socket.pause();
+        const result = await accept([gift('seed', 49000), gift('live', 1000)], campaign(50000));
+        expect(result).toMatchObject({ accepted: true, delivered: true, intent: { milestoneCents: 50000 } });
+        resumeTimer = setTimeout(() => socket.resume(), deliveryDelayMs);
+        for await (const [raw] of messages) {
+            const message = JSON.parse(raw);
+            if (message.type !== 'celebration') continue;
+            expect(message).toMatchObject({ phase: 'recognition', donationTotalCents: 1000 });
+            break;
+        }
+        expect(service.getStatus()).toMatchObject({ campaignTotalCents: 50000, nextMilestoneCents: 100000 });
+    } finally {
+        clearTimeout(resumeTimer);
+        socket.resume();
+        await messages.return();
+    }
 });
 test('restart silently baselines 140 donations, then accepts a later gift once and rejects the old epoch', async () => {
     const donations = Array.from({ length: 140 }, (_, i) => gift('d' + i, 100));
