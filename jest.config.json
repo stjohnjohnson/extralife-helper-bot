@@ -5,7 +5,8 @@
   "collectCoverageFrom": [
     "app.js",
     "logger.js",
-    "src/**/*.js"
+    "src/**/*.js",
+    "scripts/release-notes.js"
   ],
   "coverageDirectory": "coverage",
   "coverageReporters": ["text", "lcov", "html"],
