@@ -1,6 +1,6 @@
 # Stream Avatars scenery theme review and acceptance
 
-The user's October 12 design decision removes hats and keeps background events. Active scope is **30 unapproved scenery designs: 24 props and six backdrops**. Each game change retains the welcoming jump; game/theme title text is removed. Default packaging preserves all 22 campaign images; a scenery candidate package contains 52 script PNGs. Production still requires explicit art approval and checksum-bound native image import proofs. No push or pull request is authorized yet.
+The user's October 12 design decision removes hats and keeps background events. Active scope is **30 unapproved scenery designs: 24 props and six backdrops**. Each game change retains the welcoming jump; game/theme title text is removed. Default packaging preserves all 22 campaign images; a scenery candidate package contains 52 script PNGs. Production still requires explicit art approval and checksum-bound native image import proofs. The user authorized the implementation PR on October 12. Production artwork selection and promotion remain separate from the code review.
 
 ## Review artifacts and exact revision
 
@@ -38,7 +38,9 @@ After explicit user approval, record exact selections and genuine checksum-bound
 
 ## Acceptance evidence
 
-Final Node 24.21.0 / Lua 5.4.9 verification passed `npm run lint` and the complete `npm test -- --runInBand`: **61 suites / 1,315 tests**. The separate companion/protocol suite passed **279 tests** under Lua 5.2.4; all 232 companion tests also passed under Lua 5.4.9. Retired hat/title-only tests accompany removal of those features; replacement regressions cover zero native title calls/objects, shared-theme continuity, entrance deadlines/supersession and preserved donation bitmap captions. Scenery, donation and production-proof checks remain active.
+The PR preparation rebase onto main `e15c619` replayed all sixteen task commits without conflicts. Fresh verification on Node 24.21.0 / Lua 5.4.9 passed lint, the production audit (zero vulnerabilities) and all **61 suites / 1,329 tests**, including the updated game-store error-cause regressions required by main’s ESLint upgrade. Lua 5.2.4 companion/protocol checks passed **279 tests**. Both default and scenery archives rebuild byte-identically with unchanged hashes. Independent integration review found no actionable findings.
+
+Before the latest main rebase, Node 24.21.0 / Lua 5.4.9 verification passed `npm run lint` and the complete `npm test -- --runInBand`: **61 suites / 1,315 tests**. The separate companion/protocol suite passed **279 tests** under Lua 5.2.4; all 232 companion tests also passed under Lua 5.4.9. Retired hat/title-only tests accompany removal of those features; replacement regressions cover zero native title calls/objects, shared-theme continuity, entrance deadlines/supersession and preserved donation bitmap captions. Scenery, donation and production-proof checks remain active.
 
 Before title removal, a real local `themes` run with 20 viewers completed all ten steps with exit 0 and no diagnostic. The visible Minecraft scene showed continuous backdrop and props behind ordinary avatars, with no added hats. This is local visual evidence, not acceptance of every theme's joins, clipping, LAN/OBS geometry or dense performance.
 
