@@ -95,3 +95,20 @@ test('a delayed goal upgrade keeps new party-time gifts in one later thank-you',
     const next=c.advance()[0];expect(next).toMatchObject({phase:'recognition',donationCount:2,donationTotalCents:2500,heartsUntilMs:34000});expect(next.sequenceId).not.toBe(original.sequenceId);
     now=34000;expect(c.advance()).toEqual([]);expect(draws).toBe(2);
 });
+function completedMilestone(){c.accept(gift('a'));now=6000;c.advance();now=16000;const first=c.accept(reward('a'))[0];now=34000;c.advance();return first;}
+test('goal confirmation after party expiry retains its original start and maximum span',()=>{
+    const first=completedMilestone();now=46000;
+    expect(c.accept(reward('a',{goalReached:true}))[0]).toMatchObject({sequenceId:first.sequenceId,kind:'goal',partyStartedAtMs:16000,partyUntilMs:54000});
+    now=54000;expect(c.advance()).toEqual([]);expect(c.accept(reward('a',{goalReached:true}))).toEqual([]);
+});
+test('completed-party goal confirmation beyond the original 38-second bound is discarded',()=>{
+    completedMilestone();now=55000;expect(c.accept(reward('a',{goalReached:true}))).toEqual([]);expect(c.nextTransitionAt()).toBeNull();
+});
+test.each(['recognition','party'])('an expired party cannot transfer its goal upgrade into newer %s',phase=>{
+    completedMilestone();now=35000;c.accept(gift('b',phase==='party'?{milestoneCents:300000,campaignTotalCents:305000}:{}));
+    if(phase==='party'){now=40000;c.advance();}
+    const deadline=c.nextTransitionAt();now=phase==='party'?46000:36000;
+    expect(c.accept(reward('a',{goalReached:true}))).toEqual([]);expect(c.nextTransitionAt()).toBe(deadline);
+    now=deadline;expect(c.advance()).toEqual([]);expect(c.nextTransitionAt()).toBeNull();
+    expect(c.accept(reward('a',{goalReached:true}))).toEqual([]);
+});

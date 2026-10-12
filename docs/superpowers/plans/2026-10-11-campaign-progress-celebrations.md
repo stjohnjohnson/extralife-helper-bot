@@ -142,4 +142,4 @@ Celebration exact keys: `version,type,mode,generation,campaignId,id,sequenceId,i
 
 ## Execution and review boundary
 
-Implementation and local verification are complete on `codex/live-donation-celebrations`. The v3 package is ready for deployment acceptance; fresh whole-branch review and exact-head PR CI are completion gates before delivery. Native graphical acceptance remains with the operator. The staged v2/v3 coexistence described above was temporary and is removed in the final cutover.
+Implementation and local verification are complete on `codex/live-donation-celebrations`. The v3 package is ready for deployment acceptance; Fresh whole-branch review found two delayed-goal timing defects, corrected with failing-then-passing regressions. Required exact-head PR CI is checked after each final push. Native graphical acceptance remains with the operator. The staged v2/v3 coexistence described above was temporary and is removed in the final cutover.

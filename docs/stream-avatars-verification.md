@@ -21,7 +21,7 @@ LUA_BIN=/path/to/lua5.2 npm test -- --runInBand --coverage=false --runTestsByPat
 npm run sa:package
 ```
 
-The complete coverage-enforced suite passes 990 tests across 54 suites; lint is clean. All 169 companion contracts and behavioral mutations pass with Lua 5.2.4 and local Lua. Production dependency audit reports zero vulnerabilities. No tests are disabled to obtain these results. Retired stream-session tests were replaced with campaign, shared Twitch-validation and integration coverage.
+The complete coverage-enforced suite passes 996 tests across 54 suites; lint is clean. All 171 companion contracts and behavioral mutations pass with Lua 5.2.4 and local Lua. Production dependency audit reports zero vulnerabilities. No tests are disabled to obtain these results. Retired stream-session tests were replaced with campaign, shared Twitch-validation and integration coverage.
 
 | Behavior | Evidence |
 | --- | --- |
@@ -59,3 +59,7 @@ WEB_PORT=3010 npm run sa:integration -- --scenario ordinary --crowd 100 --recogn
 ```
 
 Observe thanks before `$2,500 RAISED!`, `$3,550 RAISED!` and the distinct goal party; matching-equivalent gifts use the same path. Check one initiating hug per eligible pair, odd-avatar jumps, native partner release, busy/departing targets, gear preservation and no repeated companion UserCD warnings. Windows/LAN/OBS capture, native action access, dense performance, persistent-volume deployment and optional physical Hue remain operator checks. Dispatch logs alone are not a visual pass.
+
+## Final independent review
+
+The fresh whole-branch review found two delayed-goal timing bugs. Both were reproduced before correction: local visual expiry could reset dance attempts, and completed campaign parties could restart with a new start time or transfer their goal into newer work. Party identity/action history now survives local expiry; the composer retains the original party start and 38-second maximum. A late goal may resume that same sequence only while its original bound remains open and no newer phase owns the display. Otherwise the old upgrade is discarded rather than interrupting a newer celebration. Five added regressions plus a behavioral mutation cover these boundaries. The full 996-test suite, lint and all 171 Lua 5.2 contracts pass after fixes; the rebuilt package passes deterministic/native-format and full installed-MoonSharp compilation checks. No minor findings remain deferred.

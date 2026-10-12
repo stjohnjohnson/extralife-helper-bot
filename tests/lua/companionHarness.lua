@@ -214,6 +214,13 @@ elseif scenario=="phase-party-update" then
     local p=phasePacket("party",nil,"update");p.issuedAtMs=1001;p.kind="goal";p.partyUntilMs=21000;send(p);tick()
     assert(dances==1 and assetCount("sa_goal")==1,"party upgrades must retain attempted sequence IDs")
     tick(11);tick();assert(dances==1,"party updates must not readmit users when their native cooldown expires")
+elseif scenario=="phase-delayed-party-update" then
+    addUser(1);send(phaseSnapshot());send(phasePacket("party"));tick();assert(dances==1)
+    tick(18);assert(assetCount("sa_confetti")==0,"original party must expire locally")
+    local p=phasePacket("party",nil,"delayed-goal");p.issuedAtMs=18900;p.expiresAtMs=28900;p.kind="goal";p.partyUntilMs=38900
+    send(p);tick();assert(dances==1 and assetCount("sa_goal")==1,"delayed goal upgrade must retain party action history after visual expiry")
+    addUser(2);tick();assert(dances==2,"a late eligible avatar must join the retained party once")
+    tick();assert(dances==2,"goal updates must not retry already attempted avatars")
 elseif scenario=="recognition-delayed-extension" or scenario=="recognition-delayed-hug" then
     local hug=scenario=="recognition-delayed-hug"
     addUser(1);if hug then addUser(2) end;send(snapshot());local original=celebration();original.recognitionAction=hug and "hug" or "jump";send(original);tick()

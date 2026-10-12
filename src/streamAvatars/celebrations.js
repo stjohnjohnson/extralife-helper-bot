@@ -92,7 +92,16 @@ function createCampaignCelebrationComposer({ clock, random = Math.random, newSeq
                     if (g === active && g.phase === 'party' && changed) {
                         if (g.reward === 'goal' && !g.goalShown) { g.goalShown = true; g.partyUntil = Math.min(now + 20000, g.partyStartedAt + 38000); }
                         messages.push(message(g));
-                    } else if (g !== active && g !== pending && hasReward(g)) {
+                    } else if (g.rewardShown && g.reward === 'goal' && !g.goalShown) {
+                        // A delayed goal may resume this sequence only inside its
+                        // original bound. Never transfer a shown party into newer work.
+                        g.goalShown = true;
+                        const until = Math.min(now + 20000, g.partyStartedAt + 38000);
+                        if (!active && until > now) {
+                            active = g; g.phase = 'party'; g.partyUntil = until;
+                            messages.push(message(g));
+                        }
+                    } else if (!g.rewardShown && g !== active && g !== pending && hasReward(g)) {
                         if (active?.phase === 'recognition') foldReward(active, g);
                         else if (active?.phase === 'party') { pending ??= group(); foldReward(pending, g); }
                         else { active = g; messages.push(party(g, now)); }

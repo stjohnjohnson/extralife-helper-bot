@@ -161,6 +161,7 @@ return function()
     -- Separate registries contain only objects created by this companion.
     local recognition, celebration = nil, nil
     local recognitionWindowStartedAt, recognitionSequenceId = nil, nil
+    local partyWindowStartedAt, partySequenceId = nil, nil
     local partySequences, partySequenceOrder = {}, {}
     local heartLayer, particleLayer, captionLayer, dancing, handled, actionAttempts = {}, {}, {}, {}, {}, {}
     local pendingDances = {}
@@ -206,7 +207,7 @@ return function()
     end
     clearCelebration=function()
         clearLayer(heartLayer); clearLayer(particleLayer); clearLayer(captionLayer); stopDances()
-        heartLayer={}; particleLayer={}; captionLayer={}; handled={}; actionAttempts={}; recognition=nil; celebration=nil; recognitionWindowStartedAt=nil; recognitionSequenceId=nil; partySequences={}; partySequenceOrder={}; reported={}; lastCelebrationIssuedAt=-1
+        heartLayer={}; particleLayer={}; captionLayer={}; handled={}; actionAttempts={}; recognition=nil; celebration=nil; recognitionWindowStartedAt=nil; recognitionSequenceId=nil; partyWindowStartedAt=nil; partySequenceId=nil; partySequences={}; partySequenceOrder={}; reported={}; lastCelebrationIssuedAt=-1
     end
     local function imageEntry(layer,id,asset)
         local entry=layer[id]
@@ -300,7 +301,8 @@ return function()
                 partySequences[value.sequenceId]=true; partySequenceOrder[#partySequenceOrder+1]=value.sequenceId
                 if #partySequenceOrder>256 then partySequences[table.remove(partySequenceOrder,1)]=nil end
             end
-            local sameParty=celebration and celebration.sequenceId==value.sequenceId and celebration.startedAtMs==value.partyStartedAtMs
+            local sameParty=partySequenceId==value.sequenceId and partyWindowStartedAt==value.partyStartedAtMs
+            partySequenceId=value.sequenceId; partyWindowStartedAt=value.partyStartedAtMs
             if not sameParty then clearLayer(particleLayer); particleLayer={}; stopDances(); actionAttempts={} end
             if not celebration or celebration.kind~=value.kind or celebration.campaignTotalCents~=value.campaignTotalCents then clearLayer(captionLayer); captionLayer={} end
             celebration=value.partyUntilMs>serverNow and {ends=elapsed+(value.partyUntilMs-serverNow)/1000,untilMs=value.partyUntilMs,kind=value.kind,
