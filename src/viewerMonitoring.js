@@ -5,7 +5,7 @@
 
 const { makeTwitchApiRequest, getValidAccessToken } = require('./gameUpdates.js');
 const { eventMetadata } = require('./analysis/eventMetadata.js');
-const { validObservation } = require('./broadcastSession/state');
+const { validObservation } = require('./streamObservation');
 
 /**
  * Gets current stream information including viewer count

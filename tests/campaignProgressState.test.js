@@ -76,3 +76,8 @@ test('an already-met startup goal and unexplained historical crossing stay silen
     expect(state.goalHandled).toBe(true);
     expect(accept({campaign:campaign(200000,100000,1200)}).intent).toBeNull();
 });
+test('a delayed first response baselines the request cutoff without losing gifts made in flight',()=>{
+    state=createCampaignState(identity);pending=[];
+    accept({baseline:true,complete:true,throughMs:1000,observedAtMs:3000,donations:[]});
+    expect(accept({observedAtMs:3100,donations:[gift('during-request',5000,2000)]}).intent).toMatchObject({donationCount:1});
+});

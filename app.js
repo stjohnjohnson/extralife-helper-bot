@@ -1,3 +1,4 @@
+const { randomUUID } = require('node:crypto');
 const { createDonationSource } = require('./src/donations/source');
 const { getUserInfo } = require('extra-life-api');
 const { Client: DiscordClient, GatewayIntentBits } = require('discord.js');
@@ -85,21 +86,27 @@ async function getLatestDonation(state, silent = false) {
     if (!state.active || state.donationPollBusy) return;
     state.donationPollBusy = true;
     silent = silent || !state.donationsInitialized;
-    const window = state.streamAvatars?.getSessionWindow?.() ?? null;
-    const avatarInput = result => ({ expectedSessionId: window.sessionId, scan: result.scan, campaign: result.campaign, observedAtMs: Date.now() });
     const accept = async input => {
-        try { if (state.active) await state.streamAvatars?.acceptDonations(input); }
+        try { if (state.active) await state.streamAvatars?.acceptObservation(input); }
         catch { log.warn('Stream Avatars donation accounting unavailable'); }
     };
     try {
-        const result = await state.donationSource.poll({ participantId: state.config.participantId, window, signal: state.donationAbort.signal,
-            onLatest: donations => announceDonations(state, donations, silent) });
-        if (!state.active || !window || !result.scan) return;
+        // Initialize optional local resources before the first silent checkpoint.
+        // This does not wait for Stream Avatars itself to connect.
+        await state.streamAvatarsStartup;
+        if (!state.active) return;
+        const checkpoint = state.streamAvatars?.getPollCheckpoint?.() ?? null;
+        const onLatest = donations => announceDonations(state, donations, silent);
+        if (!checkpoint) { await state.donationSource.poll({ participantId: state.config.participantId, signal: state.donationAbort.signal, onLatest }); return; }
+        const batchId = randomUUID();
+        const avatarInput = fields => ({ expectedEpochId: checkpoint.epochId, batchId, ...fields, observedAtMs: Date.now(), baseline: checkpoint.baselineNeeded });
+        const result = await state.donationSource.pollCampaignDonations({ participantId: state.config.participantId, checkpoint, signal: state.donationAbort.signal,
+            onLatest, onDonations: page => accept(avatarInput(page)) });
+        if (!state.active) return;
         await accept(avatarInput(result));
         if (!state.active) return;
-        // Campaign refresh shares request pacing but never delays first-page notifications.
         const campaign = await state.donationSource.readCampaign({ participantId: state.config.participantId, signal: state.donationAbort.signal });
-        await accept({ ...avatarInput(result), campaign });
+        if (state.active) await accept({ expectedEpochId: checkpoint.epochId, batchId, campaign, observedAtMs: Date.now() });
     } catch (err) {
         if (state.active) extralifeLog.error('Error getting Donations', eventMetadata('service_error', { error: err.message }));
     } finally { state.donationPollBusy = false; }
@@ -309,10 +316,7 @@ function start({ config = parseConfiguration(), donationSource } = {}) {
     twitchLog.info('Twitch Bot connecting...');
     state.donationInterval = setInterval(() => { if (!state.donationPollBusy) state.donationTask = getLatestDonation(state); }, 30000);
     state.donationTask = getLatestDonation(state, true);
-    state.viewerCountInterval = startViewerCountMonitoring(config, twitchLog, { onObservation: async observation => {
-        await state.streamAvatarsStartup;
-        if (state.active) await state.streamAvatars?.observeProduction(observation);
-    } });
+    state.viewerCountInterval = startViewerCountMonitoring(config, twitchLog);
 
     return Promise.all([discordLogin, readyPromise])
         .then(() => undefined)

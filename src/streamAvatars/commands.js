@@ -18,7 +18,13 @@ async function handleStreamAvatarsCommand(input, context, { config, service, log
     try { action = parseAction(input); } catch (error) { return error.message; }
     if (action.name === 'status') {
         const status = service.getStatus();
-        return `Stream Avatars ${status.mode}: ${status.crowdCount} avatars, ${Math.floor(status.elapsedMs / 3600000)}h elapsed, $${((status.knownLiveTotalCents ?? 0) / 100).toFixed(2)} raised this stream, companion ${status.companionConnected ? 'connected' : 'disconnected'}${status.recoveryRequired ? ', recovery required' : ''}${status.reconciliationRequired ? ', reconciling donations' : ''}${status.unknownAmountCount ? ', hidden amounts: ' + status.unknownAmountCount : ''}.`;
+        const money = cents => {
+            if (!Number.isSafeInteger(cents) || cents < 0) return 'pending';
+            const value = BigInt(cents), fraction = value % 100n;
+            return '$' + (value / 100n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',') + (fraction ? '.' + fraction.toString().padStart(2, '0') : '');
+        };
+        return `Stream Avatars ${status.mode}: ${status.crowdCount} avatars, campaign ${money(status.campaignTotalCents)} / ${money(status.campaignGoalCents)}, next milestone ${money(status.nextMilestoneCents)}, companion ${status.companionConnected ? 'connected' : 'disconnected'}${status.recoveryRequired ? ', recovery required' : ''}${status.reconciliationRequired ? ', establishing baseline' : ''}.`;
+
     }
     try {
         const result = await service.dispatch(action, { platform: 'twitch', login, messageId: id });

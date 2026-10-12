@@ -8,6 +8,7 @@ const { tmpdir } = require('node:os');
 const { once } = require('node:events');
 const { spawn } = require('node:child_process');
 const WebSocket = require('ws');
+const { createManualClock } = require('./helpers/manualClock');
 const { runIntegration } = require('../src/streamAvatars/integration');
 const { parseAction } = require('../src/streamAvatars/actions');
 const { startWebServer } = require('../src/webServer');
@@ -15,28 +16,31 @@ const token = 'integration-test-token';
 function companion(address, packets) {
     const socket = new WebSocket(`ws://127.0.0.1:${address.port}/sa/socket`);
     socket.on('error', () => {});
-    socket.on('open', () => socket.send(JSON.stringify({ version: 2, type: 'auth', token })));
+    socket.on('open', () => socket.send(JSON.stringify({ version: 3, type: 'auth', token })));
     socket.on('message', raw => {
         const value = JSON.parse(raw); packets.push(value);
-        if (value.type === 'snapshot') socket.send(JSON.stringify({ version: 2, type: 'ready', capabilities: ['celebrations', 'donation-recognition'], resolution: { width: 1920, height: 1080 } }));
-        if (value.type === 'heartbeat') socket.send(JSON.stringify({ version: 2, type: 'heartbeat' }));
+        if (value.type === 'snapshot') socket.send(JSON.stringify({ version: 3, type: 'ready', capabilities: ['campaign', 'celebrations', 'donation-recognition'], resolution: { width: 1920, height: 1080 } }));
+        if (value.type === 'heartbeat') socket.send(JSON.stringify({ version: 3, type: 'heartbeat' }));
     }); return socket;
 }
 test.each(['random','jump','hug'])('temporary subsystem runs every fixture with %s without real clients or production state', async recognition => {
-    const packets = [], dirs = [], messages = []; let socket, now = Date.now();
+    const packets = [], dirs = [], messages = []; let socket; const time = createManualClock(Date.now());
     const hue = { initialize: jest.fn().mockResolvedValue(true), celebrateDonation: jest.fn().mockResolvedValue(), stop: jest.fn().mockResolvedValue() };
     const logger = { warn: jest.fn(), info(message, metadata) { messages.push(message); if (metadata?.address) { dirs.push(metadata.stateDir); socket = companion(metadata.address, packets); } } };
     try {
-        const result = await runIntegration({ listenerConfig: { host: '127.0.0.1', port: 0 }, token, logger, recognition, clock: { nowMs: () => now }, hueOutput: hue,
-            wait: async ms => { now+=ms; await new Promise(resolve => setTimeout(resolve, 2)); } });
-        expect(result).toMatchObject({ completedScenarios: ['ordinary','anonymous','batch','milestone','large','goal'], finalTotalCents: 10000 });
-        expect(packets.filter(value => value.type === 'celebration').map(value => [value.kind,value.liveTotalCents])).toEqual([
-            ['donation',2500],['donation',2500],['donation',2500],['milestone',50000],['milestone',155000],['goal',10000]
-        ]);
-        expect(messages).toContain('batch: expect $25 FROM 2 DONATIONS - THANK YOU! for 5s; dispatched. Verify visually.');
+        const result = await runIntegration({ listenerConfig: { host: '127.0.0.1', port: 0 }, token, logger, recognition, clock: time.clock, timers: time.timers, hueOutput: hue,
+            wait: async ms => { await time.advance(ms); await new Promise(resolve => setTimeout(resolve, 2)); } });
+        expect(result).toMatchObject({ completedScenarios: ['ordinary','anonymous','batch','milestone','large','goal'], finalTotalCents: 100000 });
         const effects = packets.filter(value => value.type === 'celebration');
-        expect(effects.map(value => [value.donationCount, value.donationTotalCents])).toEqual([[1,2500],[1,2500],[2,2500],[1,1000],[1,106000],[1,10000]]);
-        for (const effect of effects) expect(recognition === 'random' ? ['jump','hug'] : [recognition]).toContain(effect.recognitionAction);
+        expect(effects.map(value => [value.phase,value.kind])).toEqual([
+            ['recognition','donation'],['recognition','donation'],['recognition','donation'],
+            ['recognition','donation'],['party','milestone'],['recognition','donation'],['party','milestone'],['recognition','donation'],['party','goal']
+        ]);
+        expect(effects.filter(value=>value.phase==='party').map(value=>value.campaignTotalCents)).toEqual([250000,355000,100000]);
+        expect(messages).toContain('batch: expect $25 FROM 2 DONATIONS - THANK YOU! for 5s; dispatched. Verify visually.');
+        const recognitionEffects=effects.filter(value=>value.phase==='recognition');
+        expect(recognitionEffects.map(value=>[value.donationCount,value.donationTotalCents])).toEqual([[1,2500],[1,2500],[2,2500],[1,1000],[1,106000],[1,1000]]);
+        for(const effect of recognitionEffects)expect(recognition==='random'?['jump','hug']:[recognition]).toContain(effect.recognitionAction);
         expect(packets.filter(value => value.type === 'snapshot').every(value => value.mode === 'integration')).toBe(true);
         expect(hue.celebrateDonation).toHaveBeenCalledTimes(6); expect(hue.stop).toHaveBeenCalledTimes(1);
         for (const dir of dirs) await expect(fs.stat(dir)).rejects.toMatchObject({ code: 'ENOENT' });
@@ -81,7 +85,7 @@ test.each(['SIGINT','SIGTERM'])('CLI uses only listener/token and %s delivers cl
         await ready; child.kill(signal); const [code] = await done;
         expect(code).toBe(signal==='SIGINT' ? 130 : 143); expect(stderr).toBe('');
         expect(packets.find(value => value.type==='celebration')).toMatchObject({ recognitionAction: signal==='SIGINT' ? 'jump' : 'hug', donationTotalCents: 2500 });
-        expect(stdout).toContain('$25 - THANK YOU!'); expect(stdout).toContain('ordinary'); expect(packets.some(value => value.type==='clear')).toBe(true);
+        expect(stdout).toContain('$25 - THANK YOU!'); expect(stdout).toContain('ordinary'); expect(packets.slice(packets.findLastIndex(value=>value.type==='celebration')+1).some(value=>value.type==='clear')).toBe(true);
         expect(await fs.readFile(sentinel,'utf8')).toBe('unchanged'); expect(await fs.readdir(directory)).toEqual(['sentinel']);
     } finally { child.kill('SIGTERM'); socket?.terminate(); await fs.rm(directory,{recursive:true,force:true}); }
 },10000);

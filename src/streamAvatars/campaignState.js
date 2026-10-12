@@ -19,8 +19,8 @@ function validateCampaignState(value, { mode, participantId }) {
         !safe(value.donationCheckpointCount) || typeof value.goalHandled !== 'boolean') throw new Error('Invalid campaign state');
     return structuredClone(value);
 }
-function reduceCampaignProgress(state, { batchId, donations = [], rawSeenIds, recordCount, complete = false, campaign, observedAtMs, baseline = false, campaignBaseline = false, intervalCents = 50000 }, { pendingConfirmations = [] } = {}) {
-    if (!id(batchId) || !safe(observedAtMs) || !Array.isArray(donations) || !safe(intervalCents) || intervalCents < 1 || intervalCents > 100000000 ||
+function reduceCampaignProgress(state, { batchId, donations = [], rawSeenIds, recordCount, complete = false, campaign, observedAtMs, throughMs = observedAtMs, baseline = false, campaignBaseline = false, intervalCents = 50000 }, { pendingConfirmations = [] } = {}) {
+    if (!id(batchId) || !safe(throughMs) || throughMs > observedAtMs || !safe(observedAtMs) || !Array.isArray(donations) || !safe(intervalCents) || intervalCents < 1 || intervalCents > 100000000 ||
         (rawSeenIds !== undefined && !ids(rawSeenIds)) || (recordCount !== undefined && recordCount !== null && !safe(recordCount))) throw new Error('Invalid campaign input');
     const next = structuredClone(state), diagnostics = new Set(), fresh = [];
     const seen = new Set(next.processedDonationIds);
@@ -28,7 +28,7 @@ function reduceCampaignProgress(state, { batchId, donations = [], rawSeenIds, re
     let amount = 0, positive = false;
     // Public API records may have only whole-second precision. Baseline IDs
     // suppress history while the timestamp fence admits newly visible same-second gifts.
-    if (baseline && complete) next.baselineAtMs = Math.floor(observedAtMs / 1000) * 1000;
+    if (baseline && complete) next.baselineAtMs = Math.floor(throughMs / 1000) * 1000;
     for (const donation of donations) {
         if (!donation || !id(donation.id) || String(donation.participantId) !== next.participantId || !safe(donation.createdAtMs) || donation.createdAtMs > observedAtMs ||
             !(donation.amountCents === null || safe(donation.amountCents))) { diagnostics.add('invalid-donation'); continue; }

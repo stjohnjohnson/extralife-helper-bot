@@ -64,7 +64,7 @@ test('repeated fresh IDs do not extend recognition or add money',()=>{
 });
 test('unsafe aggregate leaves the existing recognition unchanged',()=>{
     c.accept(gift('a',{donationTotalCents:Number.MAX_SAFE_INTEGER}));now=2000;expect(()=>c.accept(gift('b',{donationTotalCents:1}))).toThrow();
-    expect(c.nextTransitionAt()).toBe(6000);expect(c.accept(reward())[0]).toMatchObject({donationCount:1,donationTotalCents:Number.MAX_SAFE_INTEGER});
+    expect(c.nextTransitionAt()).toBe(6000);expect(c.accept(gift('b',{donationTotalCents:0}))[0]).toMatchObject({donationCount:2,donationTotalCents:Number.MAX_SAFE_INTEGER});
 });
 test('clear discards active and pending effects and leaves no timer deadline',()=>{
     c.accept(gift('a',{milestoneCents:250000}));now=6000;c.advance();c.accept(gift('b'));c.clear();now=100000;expect(c.advance()).toEqual([]);expect(c.nextTransitionAt()).toBeNull();

@@ -22,7 +22,7 @@ function normalizeDonation(raw, participantId, throughMs) {
 }
 function createDonationSource({ fetch: fetcher = globalThis.fetch, clock = { nowMs: Date.now }, requestGapMs = 15000, logger = { warn() {} }, wait = delay } = {}) {
     const controller = new AbortController();
-    let nextRequestAt = 0, tail = Promise.resolve(), campaign = null;
+    let nextRequestAt = 0, tail = Promise.resolve();
     function request(url, signal) {
         const combined = signal ? AbortSignal.any([signal, controller.signal]) : controller.signal;
         const operation = tail.then(async () => {
@@ -48,42 +48,58 @@ function createDonationSource({ fetch: fetcher = globalThis.fetch, clock = { now
     }
     const endpoint = participantId => API + encodeURIComponent(String(participantId));
     return {
-        async poll({ participantId, window = null, signal, onLatest = () => {} }) {
-            const throughMs = window?.throughMs ?? clock.nowMs();
-            const donations = [], ids = new Set();
-            let expectedCount = null, previousTime = Infinity;
+        async poll({ participantId, signal, onLatest = () => {} }) {
+            await this.pollCampaignDonations({ participantId, signal, onLatest,
+                checkpoint: { participantId: String(participantId), rawSeenDonationIds: [], baselineAtMs: null, baselineNeeded: true, recordCount: null } });
+            return { scan: null };
+        },
+        async pollCampaignDonations({ participantId, checkpoint, signal, onLatest = () => {}, onDonations = () => {} }) {
+            if (!checkpoint || String(checkpoint.participantId) !== String(participantId) || !Array.isArray(checkpoint.rawSeenDonationIds) ||
+                !(checkpoint.baselineAtMs === null || (Number.isSafeInteger(checkpoint.baselineAtMs) && checkpoint.baselineAtMs >= 0))) throw new Error('Invalid donation checkpoint');
+            const throughMs = clock.nowMs(), seen = new Set(checkpoint.rawSeenDonationIds), census = new Set(), facts = new Map(), donations = [];
+            let expectedCount = null, previousTime = Infinity, discovered = 0;
             for (let offset = 0; offset < 25600; offset += 100) {
                 const url = new URL(endpoint(participantId) + '/donations');
                 url.searchParams.set('version', VERSION); url.searchParams.set('limit', '100'); url.searchParams.set('offset', String(offset));
                 url.searchParams.set('orderBy', 'createdDateUTC DESC, donationID DESC');
                 url.searchParams.set('where', `createdDateUTC <= '${new Date(throughMs).toISOString()}'`);
                 const res = await request(url.toString(), signal);
-                const countHeader = res.headers.get('num-records');
-                const count = countHeader === null ? null : Number(countHeader);
-                if (count !== null && (!/^\d+$/.test(countHeader) || !Number.isSafeInteger(count) || (expectedCount !== null && count !== expectedCount))) throw new Error('Unstable donation pagination');
+                const header = res.headers.get('num-records'), count = header === null ? null : Number(header);
+                if (count !== null && (!/^\d+$/.test(header) || !Number.isSafeInteger(count) || (expectedCount !== null && count !== expectedCount))) throw new Error('Unstable donation pagination');
                 if (count !== null) expectedCount = count;
                 const records = res.status === 204 ? [] : await res.json();
                 if (!Array.isArray(records) || records.length > 100 || (count !== null && offset + records.length > count)) throw new Error('Invalid donation page');
                 if (offset === 0) await onLatest(records);
-                let passedStart = false, newIds = 0;
+                let passedBaseline = false, uniqueRows = 0;
+                const page = [];
                 for (const raw of records) {
+                    const rawId = raw?.donationID;
+                    const validId = typeof rawId === 'string' && rawId.trim() && rawId.length <= 128;
+                    const unseen = validId && !census.has(rawId);
+                    if (unseen) { census.add(rawId); uniqueRows++; }
                     let timestamp;
                     try { timestamp = parseDonationTime(raw?.createdDateUTC); }
                     catch { logger.warn('Donation record excluded', { code: 'invalid-timestamp' }); continue; }
                     if (timestamp > previousTime || timestamp > throughMs) throw new Error('Unstable donation ordering');
                     previousTime = timestamp;
-                    if (window && timestamp < window.fromMs) passedStart = true;
+                    const inBaseline = checkpoint.baselineAtMs === null || timestamp >= checkpoint.baselineAtMs;
+                    if (!inBaseline) passedBaseline = true;
+                    if (unseen && !seen.has(rawId) && inBaseline) discovered++;
                     let item;
                     try { item = normalizeDonation(raw, participantId, throughMs); }
                     catch { logger.warn('Donation record excluded', { code: 'invalid-donation' }); continue; }
-                    if (ids.has(item.id)) continue;
-                    ids.add(item.id); newIds++;
-                    if (window && timestamp >= window.fromMs) donations.push(item);
+                    const previous = facts.get(item.id);
+                    if (previous && (previous.amountCents !== item.amountCents || previous.createdAtMs !== item.createdAtMs)) logger.warn('Donation record excluded', { code: 'conflicting-donation' });
+                    else if (!previous) facts.set(item.id, item);
+                    if (unseen && (checkpoint.baselineNeeded || inBaseline)) page.push(item);
                 }
-                if (offset > 0 && records.length === 100 && newIds === 0) throw new Error('Repeated donation page');
-                if (!window || passedStart || records.length < 100 || (count !== null && offset + records.length === count)) {
-                    if (!passedStart && records.length < 100 && count !== null && offset + records.length < count) throw new Error('Incomplete donation page');
-                    return { scan: window ? { participantId: String(participantId), fromMs: window.fromMs, throughMs, donations, complete: true } : null, campaign };
+                if (offset > 0 && records.length === 100 && uniqueRows === 0) throw new Error('Repeated donation page');
+                donations.push(...page);
+                await onDonations({ donations: page, throughMs, complete: false });
+                const explained = count !== null && checkpoint.recordCount !== null && discovered >= Math.max(0, count - checkpoint.recordCount);
+                if (checkpoint.baselineNeeded || passedBaseline || records.length < 100 || (count !== null && offset + records.length === count) || explained) {
+                    if (records.length < 100 && count !== null && offset + records.length < count && !passedBaseline && !checkpoint.baselineNeeded && !explained) throw new Error('Incomplete donation page');
+                    return { complete: true, throughMs, recordCount: count, rawSeenIds: [...census], donations };
                 }
             }
             throw new Error('Donation catch-up exceeds bounded page limit');
@@ -94,8 +110,7 @@ function createDonationSource({ fetch: fetcher = globalThis.fetch, clock = { now
             const data = await res.json();
             const totalCents = parseCents(data.sumDonations), goalCents = parseCents(data.fundraisingGoal);
             if (totalCents === null || goalCents === null || goalCents <= 0) throw new Error('Invalid campaign observation');
-            campaign = { observedAtMs: clock.nowMs(), totalCents, goalCents };
-            return campaign;
+            return { observedAtMs: clock.nowMs(), totalCents, goalCents };
         },
         stop() { controller.abort(); }
     };
