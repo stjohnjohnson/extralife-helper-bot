@@ -44,7 +44,7 @@ function sa_load_theme(object, key, image)
 end
 
 function sa_on_socket(title, event, message, code)
-    if title ~= "sa_helper_bridge" then return end
+    if title ~= "sa_helper_bridge" or not get("sa_connection_enabled") then return end
     local app = getApp()
     if event == "OnOpen" then
         local settings = get("sa_settings")
@@ -64,9 +64,10 @@ end
 return function()
     load()
     local settings = get("data")
-    if type(settings) ~= "table" or type(settings.address or settings.url) ~= "string" or type(settings.token) ~= "string" or #settings.token < 16 then
+    if type(settings)~="table" then settings={} end
+    local connectionEnabled=type(settings.address or settings.url)=="string" and type(settings.token)=="string" and #settings.token>=16
+    if not connectionEnabled then
         log("SA bridge: configure private address/token in the script JSON settings")
-        return
     end
     local function number(value) return type(value)=="number" and value==value and value~=math.huge and value~=-math.huge end
     local function integer(value) return number(value) and value%1==0 end
@@ -74,7 +75,9 @@ return function()
     if actionCooldowns.dance==nil then actionCooldowns.dance=10 end
     if actionCooldowns.hug==nil then actionCooldowns.hug=10 end
     for _,seconds in pairs(actionCooldowns) do
-        if not number(seconds) or seconds<0 or seconds>86400 then log("SA bridge: action cooldown seconds must be numbers from 0 to 86400"); return end
+        if not number(seconds) or seconds<0 or seconds>86400 then
+            log("SA bridge: action cooldown seconds must be numbers from 0 to 86400"); connectionEnabled=false
+        end
     end
     -- Native timers use real time, while yield() returns scaled game time.
     -- os.time() is also used by the host's Lua cooldown helper. Persist only
@@ -105,8 +108,12 @@ return function()
     local retryAt, retryDelay, rotation, wasConnected = 0, 1, 0, false
     local statusImages, lastBridgeAt, statusWarning, statusDisabled = {}, nil, false, false
     local address = settings.address or settings.url
-    if #address==0 or address:find("%s") then log("SA bridge: invalid connection address"); return end
-    settings.url = address:match("^wss?://") and address or ("ws://"..address..(address:match(":%d+$") and "" or ":3000").."/sa/socket")
+    if type(address)=="string" and (#address==0 or address:find("%s")) then
+        log("SA bridge: invalid connection address"); connectionEnabled=false
+    end
+    if connectionEnabled then
+        settings.url = address:match("^wss?://") and address or ("ws://"..address..(address:match(":%d+$") and "" or ":3000").."/sa/socket")
+    else settings.url=nil end
     local previewHostSet = false
     local function gameBounds()
         local bottom=app.convertPercentToPosition(0,0); local top=app.convertPercentToPosition(1,1)
@@ -680,7 +687,7 @@ return function()
     end
     set("sa_owned_dances",{}); reconcileDances()
     set("sa_pending_images",0)
-    set("sa_settings",settings); set("sa_mailbox",{}); set("sa_connected",false); set("sa_disconnect_pending",false)
+    set("sa_settings",settings); set("sa_connection_enabled",connectionEnabled); set("sa_mailbox",{}); set("sa_connected",false); set("sa_disconnect_pending",false)
     app.removeWebSocket(socket); addEvent("websocket","sa_on_socket")
     local bottom=app.convertPercentToPosition(0,0); local top=app.convertPercentToPosition(1,1)
     log("SA game bounds: "..bottom.x..","..bottom.y.." to "..top.x..","..top.y)
@@ -691,7 +698,7 @@ return function()
             if not connected then retryAt=elapsed+retryDelay; retryDelay=math.min(30,retryDelay*2) end
         end
         wasConnected=connected
-        if not connected and elapsed>=retryAt then
+        if connectionEnabled and not connected and elapsed>=retryAt then
             retryAt=elapsed+retryDelay; retryDelay=math.min(30,retryDelay*2)
             app.removeWebSocket(socket); app.createWebsocket(socket,settings.url)
             wasConnected=get("sa_connected")

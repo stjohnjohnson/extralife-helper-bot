@@ -88,7 +88,7 @@ The bot's legacy voice-overlay listener settings remain fallbacks when correspon
 
 ## Host connection indicator
 
-An animated Extra Life logo above the host avatar confirms an authenticated bot connection with fresh snapshots or heartbeats. The original eight-frame animation loops at five frames per second. A gold question mark replaces it while connecting, disconnected, or after 30 seconds without a validated snapshot or heartbeat. Heartbeats before an authenticated snapshot cannot activate the logo. Connection freshness uses wall time, even when game time is paused.
+An animated Extra Life logo above the host avatar confirms an authenticated bot connection with fresh snapshots or heartbeats. The original eight-frame animation loops at five frames per second. A gold question mark replaces it while connecting, disconnected, or after 30 seconds without a validated snapshot or heartbeat. Missing or invalid private settings also show the question mark; the companion attempts no connection. Correct the settings and reload the companion. Heartbeats before an authenticated snapshot cannot activate the logo. Connection freshness uses wall time, even when game time is paused.
 
 Both indicators follow Stream Avatars' own streamer avatar. They hide when that avatar is absent or inactive, or the canvas cannot fit the 64 × 64 frame. They do not attach to another viewer. Donation hearts appear below the indicator. If an indicator image cannot load, the companion logs an unavailable-indicator message and continues other effects. Reimport the latest ZIP and reload the companion to restore missing images.
 

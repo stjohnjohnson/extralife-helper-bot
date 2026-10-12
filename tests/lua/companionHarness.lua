@@ -89,7 +89,10 @@ local env; env = {
         if scenario=="celebration-pending-cap" or scenario=="image-load-timeout" then while true do coroutine.yield() end end
         ob.imageLoaded=true
     end,
-    log = function(message) logs[#logs+1]=message; assert(not message:find(config.token,1,true)) end,
+    log = function(message)
+        logs[#logs+1]=message
+        if type(config)=="table" and type(config.token)=="string" then assert(not message:find(config.token,1,true)) end
+    end,
     yield = function() return coroutine.yield() end,
     json = { null=codec.null, serialize = scenario=="host-json-escapes" and hostSerialize or codec.encode, parse = scenario=="host-json-escapes" and hostParse or codec.decode }
 }
@@ -207,11 +210,18 @@ if scenario=="host-json-escapes" then
     local ok=pcall(hostParse,hostSerialize(config)); assert(not ok, "must reproduce embedded codec failure")
 end
 if statusScenario then statusHost=addUser("host",50,20); addUser("viewer",700,20) end
+if scenario=="status-settings-missing" then config=nil end
+if scenario=="status-settings-invalid" then config="invalid settings" end
+if scenario=="status-token-missing" then config.token=nil end
+if scenario=="status-token-short" then config.token="short" end
+if scenario=="status-address-missing" then config.url=nil end
+if scenario=="status-address-empty" then config.url="" end
+if scenario=="status-address-whitespace" then config.url=" " end
 if scenario=="invalid-settings" then config.url=42 end
 if scenario=="invalid-token" then config.token=math.huge end
 if scenario=="reload" then shared.sa_owned_ids={900001,900002}; users["900001"]={id=900001}; users["900002"]={id=900002} end
 if scenario=="invalid-settings" or scenario=="invalid-token" or scenario=="invalid-address" or scenario=="cooldown-invalid" then
-    local ok,err=coroutine.resume(runner); assert(ok,err); assert(coroutine.status(runner)=="dead" and connectedCount==0); if nativeNull then nativeNull:close() end;print("OK "..scenario); return
+    local ok,err=coroutine.resume(runner); assert(ok,err); assert(coroutine.status(runner)=="suspended" and connectedCount==0, "invalid settings must retain rendering without opening a connection"); if nativeNull then nativeNull:close() end;print("OK "..scenario); return
 end
 tick()
 if statusScenario then
@@ -223,7 +233,17 @@ if statusScenario then
         assert(#visible("sa_bridge_healthy")== (healthy and 1 or 0), "healthy logo must match authenticated fresh bridge state")
         assert(#visible("sa_bridge_unknown")== (healthy and 0 or 1), "question mark must cover unconfirmed bridge state")
     end
-    if scenario=="status-create-error" then
+    if scenario:match("^status%-settings%-") or scenario:match("^status%-token%-") or scenario:match("^status%-address%-") then
+        status(false)
+        for i=1,100 do tick(0,1) end
+        status(false)
+        assert(connectedCount==0 and #packets==0, "invalid settings must never attempt a connection or send authentication")
+        assert(#objects==2 and shared.sa_pending_images==0, "unconfigured status must use a bounded pair of images")
+        callbacks.websocket("sa_helper_bridge","OnOpen","",""); tick(); status(false)
+        assert(#packets==0, "a late open callback must not authenticate with invalid settings")
+        statusHost.isActive=false; tick(); assert(#visible("sa_bridge_unknown")==0, "unconfigured indicator must hide for an inactive host")
+        statusHost=nil; tick(); assert(#visible("sa_bridge_unknown")==0, "unconfigured indicator must hide for an absent host")
+    elseif scenario=="status-create-error" then
         for i=1,100 do tick() end
         assert(statusCreateCalls==1 and (shared.sa_pending_images or 0)==0, "status allocation failure must not retry or consume other image budgets")
         statusCreateFailure=false; send(snapshot()); send(celebration()); assert(#visible("sa_heart")==2, "status allocation failure must preserve donation rendering")

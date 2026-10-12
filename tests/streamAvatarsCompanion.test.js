@@ -18,6 +18,10 @@ test.each(['status-startup', 'status-auth', 'status-timeout', 'status-reconnect'
     const result = run(resolve('integrations/stream-avatars/companion.lua'), scenario);
     expect({ status: result.status, stderr: result.stderr, stdout: result.stdout.trim() }).toEqual({ status: 0, stderr: '', stdout: 'OK ' + scenario });
 });
+test.each(['status-settings-missing', 'status-settings-invalid', 'status-token-missing', 'status-token-short', 'status-address-missing', 'status-address-empty', 'status-address-whitespace'])('unconfigured companion retains its unknown indicator: %s', scenario => {
+    const result = run(resolve('integrations/stream-avatars/companion.lua'), scenario);
+    expect({ status: result.status, stderr: result.stderr, stdout: result.stdout.trim() }).toEqual({ status: 0, stderr: '', stdout: 'OK ' + scenario });
+});
 test('Lua consumes the actual Node protocol JSON, including nulls and UTF-8 fields', () => {
     const directory = mkdtempSync(join(tmpdir(), 'sa-wire-'));
     try {
