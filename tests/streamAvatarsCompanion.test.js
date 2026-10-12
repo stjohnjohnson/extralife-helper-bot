@@ -97,8 +97,8 @@ test.each(['donation','milestone','goal','hidden','goal-only'])('Lua renders act
 
 const { buildThemeCatalog, buildThemeLayout } = require('../src/streamAvatars/themeLayout');
 const { candidate } = require('./fixtures/themeCandidates');
-const themeScenarios = ['theme-native-null-auth', 'theme-native-null-recognition', 'theme-native-null-party', 'theme-native-null-repeated-neutral', 'theme-donation-jump', 'theme-donation-hug', 'theme-donation-party', 'theme-wire-neutral', 'theme-stale-load', 'theme-shared-game', 'theme-neutral', 'theme-missing-backdrop', 'theme-missing-prop', 'theme-backdrop-timeout', 'theme-resize', 'theme-small-bounds', 'theme-heart-coexistence', 'theme-reconnect-no-entrance', 'theme-production-gate', 'theme-revision', 'theme-load-timeout', 'theme-pending-cap', 'theme-scope-cancellation', 'entrance-timing', 'entrance-obsolete', 'entrance-caption', 'entrance-neutral', 'entrance-supersession', 'theme-density-0', 'theme-density-20', 'theme-density-100', 'theme-kitchen', 'entrance-caption-error', 'entrance-position-error', 'entrance-unicode'];
-function themeSource() {
+const themeScenarios = ['entrance-bounds-failure-expiry', 'theme-prop-initial-scale-error', 'theme-native-background', 'theme-prop-position-error', 'theme-prop-sorting-error', 'theme-prop-scale-error', 'theme-native-null-auth', 'theme-native-null-recognition', 'theme-native-null-party', 'theme-native-null-repeated-neutral', 'theme-donation-jump', 'theme-donation-hug', 'theme-donation-party', 'theme-wire-neutral', 'theme-stale-load', 'theme-shared-game', 'theme-neutral', 'theme-missing-backdrop', 'theme-missing-prop', 'theme-backdrop-timeout', 'theme-resize', 'theme-small-bounds', 'theme-heart-coexistence', 'theme-reconnect-no-entrance', 'theme-production-gate', 'theme-revision', 'theme-load-timeout', 'theme-pending-cap', 'theme-scope-cancellation', 'entrance-timing', 'entrance-obsolete', 'entrance-caption', 'entrance-neutral', 'entrance-supersession', 'theme-density-0', 'theme-density-20', 'theme-density-100', 'theme-kitchen', 'entrance-caption-error', 'entrance-position-error', 'entrance-unicode'];
+function themeSource(extraCatalog = {}) {
     const manifest = candidate();
     for (const asset of Object.values(manifest.assets)) {
         const copy = { ...asset, assetId: asset.assetId.replace('block-world', 'kitchen'), theme: 'kitchen' };
@@ -106,12 +106,12 @@ function themeSource() {
     }
     const catalog = buildThemeCatalog({ manifest, previewOnly: true });
     const themes = Object.fromEntries(Object.entries(catalog.themes).map(([id, theme]) => [id, buildThemeLayout({ theme, packRevision: catalog.packRevision })]));
-    return readFileSync(resolve('integrations/stream-avatars/companion.lua'), 'utf8').replace('local THEME_CATALOG_JSON = nil', `local THEME_CATALOG_JSON = [[${JSON.stringify({ profile: catalog.profile, previewOnly: true, packRevision: 'a'.repeat(64), themes })}]]`);
+    return readFileSync(resolve('integrations/stream-avatars/companion.lua'), 'utf8').replace('local THEME_CATALOG_JSON = nil', `local THEME_CATALOG_JSON = [[${JSON.stringify({ profile: catalog.profile, previewOnly: true, packRevision: 'a'.repeat(64), themes, ...extraCatalog })}]]`);
 }
-function runTheme(scenario, mutate = source => source) {
+function runTheme(scenario, mutate = source => source, extraCatalog = {}) {
     const directory = mkdtempSync(join(tmpdir(), 'sa-theme-'));
     try {
-        const script = join(directory, 'companion.lua'); writeFileSync(script, mutate(themeSource()));
+        const script = join(directory, 'companion.lua'); writeFileSync(script, mutate(themeSource(extraCatalog)));
         return run(script, scenario);
     } finally { rmSync(directory, { recursive: true, force: true }); }
 }
@@ -122,12 +122,15 @@ test.each(themeScenarios)('lasting worlds and bounded entrances: %s', scenario =
 
 test.each([
     ['theme-stale-load', 'get(key)=="cancelled"', 'false'],
-    ['theme-stale-load', 'entry.object.setScale(0,0); entry.loader=async("sa_load_theme"', 'entry.object.setScale(1,1); entry.loader=async("sa_load_theme"'],
+    ['theme-stale-load', 'entry.object=app.createGameObject(); entry.object.setScale(0,0)', 'entry.object=app.createGameObject(); entry.object.setScale(1,1)'],
     ['theme-shared-game', 'if key==themeKey then return end', 'if false then return end'],
     ['theme-production-gate', 'not catalog.previewOnly or', 'true or'],
     ['theme-production-gate', 'and snapshot.integration.active', ''],
     ['theme-revision', 'theme.packRevision==catalog.packRevision', 'true'],
-    ['theme-shared-game', 'layer="behindBackground",order=0', 'layer="background",order=0'],
+    ['theme-native-background', 'layer="background",order=1', 'layer="behindBackground",order=0'],
+    ['theme-native-background', 'layer="background",order=1', 'layer="background",order=0'],
+    ['theme-shared-game', 'layer="background",order=2', 'layer="background",order=1'],
+    ['theme-prop-position-error', 'pcall(release,entry); entry.skipped=true; themeRenderDiagnostic()', 'clearTheme(); clearEntrance(); themeRenderDiagnostic()'],
     ['theme-resize', 'local scale=width/REFERENCE_WIDTH', 'local scale=1000/REFERENCE_WIDTH'],
     ['theme-pending-cap', 'if pending<100 then', 'if true then'],
     ['theme-missing-backdrop', 'release(entry); entry.skipped=true; themeDiagnostic()', 'clearTheme(); return'],
@@ -150,37 +153,10 @@ test.each([
     expect(result.error).toBeUndefined(); expect(result.status).toBe(1); expect(result.stderr).toMatch(/assertion failed|must|requires active rehearsal/);
 });
 
-function runGear(scenario, mutate = source => source) {
+test('legacy gear metadata cannot trigger native cosmetic calls during scenery lifecycle', () => {
     const setName = 'sa_helper_theme_hats';
-    const gear = { small: { 'block-world': { slot: 'head', primary: { setName, pieceName: 'block_world_gear_mining_helmet' }, alternate: { setName, pieceName: 'block_world_gear_explorer_cap' }, fitRevision: 'b'.repeat(64) }, kitchen: { slot: 'head', primary: { setName, pieceName: 'kitchen_gear_chef_hat' }, fitRevision: 'b'.repeat(64) } } };
-    const directory = mkdtempSync(join(tmpdir(), 'sa-gear-'));
-    try {
-        const source = readFileSync(resolve('integrations/stream-avatars/companion.lua'), 'utf8').replace('local THEME_CATALOG_JSON = nil', `local THEME_CATALOG_JSON = [[${JSON.stringify({ previewOnly: true, packRevision: 'a'.repeat(64), themes: {}, gear: { setName, avatars: gear } })}]]`);
-        const script = join(directory, 'companion.lua'); writeFileSync(script, mutate(source)); return run(script, scenario);
-    } finally { rmSync(directory, { recursive: true, force: true }); }
-}
-test.each(['gear-native-null-recognition', 'gear-native-null-party', 'gear-lifecycle', 'gear-alternate', 'gear-foreign', 'gear-avatar', 'gear-generation', 'gear-renew', 'gear-failure-expiry', 'gear-expired-owner', 'gear-disconnect', 'gear-gates', 'gear-large-list', 'gear-native-wrappers', 'gear-initial-occupied', 'gear-wall-pause', 'gear-clock-backwards', 'gear-clock-invalid', 'gear-permission', 'gear-host-error', 'gear-unsupported-read', 'gear-reload'])('owned finite head hats: %s', scenario => {
-    const result = runGear(scenario); expect({ status: result.status, stderr: result.stderr, stdout: result.stdout.trim() }).toEqual({ status: 0, stderr: '', stdout: 'OK ' + scenario });
-});
-test.each([
-    ['gear-foreign', 'effective[entry.setName]==entry.pieceName', 'true'],
-    ['gear-wall-pause', 'gearNow<entry.expiresAt', 'true'],
-    ['gear-renew', 'candidate.pieceName,30)', 'candidate.pieceName,0)'],
-    ['gear-renew', 'renewAt=gearNow+10', 'renewAt=gearNow+25'],
-    ['gear-gates', 'snapshot.theme.packRevision~=catalog.packRevision', 'false'],
-    ['gear-generation', 'value.generation<generationFloor', 'false'],
-    ['gear-large-list', 'for _,user in ipairs(getUsers()) do current', 'for i,user in ipairs(getUsers()) do if i>100 then break end; current'],
-    ['gear-alternate', 'entry and wearable[entry.pieceName]', 'false and wearable[entry.pieceName]'],
-    ['gear-native-wrappers', 'tostring(user.id)==id', 'user==entry.user'],
-    ['gear-permission', 'if allowed then', 'if true then'],
-    ['gear-renew', 'gearNow<entry.renewAt', 'false'],
-    ['gear-initial-occupied', 'if not owns and occupied and', 'if false and occupied and'],
-    ['gear-clock-backwards', 'now<gearNow', 'false']
-])('temporary hat regression detects mutation %s / %s', (scenario, original, broken) => {
-    const result = runGear(scenario, source => {
-        if (!source.includes(original)) throw new Error('Mutation target moved: ' + original);
-        const mutated = source.replaceAll(original, broken);
-        return scenario === 'gear-wall-pause' ? mutated.replaceAll('gearNow>=entry.expiresAt', 'false') : mutated;
-    });
-    expect(result.error).toBeUndefined(); expect(result.status).toBe(1); expect(result.stderr).toMatch(/assertion failed|must|require|finite|stable/);
+    const fit = { slot: 'head', primary: { setName, pieceName: 'block_world_gear_mining_helmet' }, fitRevision: 'b'.repeat(64) };
+    const legacy = { gear: { setName, avatars: { small: { 'block-world': fit, kitchen: fit } } } };
+    const result = runTheme('theme-no-native-gear', source => source, legacy);
+    expect({ status: result.status, stderr: result.stderr, stdout: result.stdout.trim() }).toEqual({ status: 0, stderr: '', stdout: 'OK theme-no-native-gear' });
 });

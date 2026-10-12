@@ -85,15 +85,15 @@ function animationSettings(manifest) {
     };
 }
 
-function buildPackage({ integrationDir = DEFAULT_INTEGRATION_DIR, themeManifest, themeAssetsDir, gearCompatibility, themePackDir, previewOnly = false } = {}) {
-    if (themePackDir && (themeManifest || gearCompatibility || themeAssetsDir)) throw new Error('Use one trusted local theme pack');
-    const catalog = themePackDir ? require('./themeRelease').loadThemePack({ directory: themePackDir, previewOnly }).catalog : buildThemeCatalog({ manifest: themeManifest, gearCompatibility, previewOnly });
+function buildPackage({ integrationDir = DEFAULT_INTEGRATION_DIR, themeManifest, themeAssetsDir, themePackDir, previewOnly = false } = {}) {
+    if (themePackDir && (themeManifest || themeAssetsDir)) throw new Error('Use one trusted local theme pack');
+    const catalog = themePackDir ? require('./themeRelease').loadThemePack({ directory: themePackDir, previewOnly }).catalog : buildThemeCatalog({ manifest: themeManifest, previewOnly });
     if (themePackDir) themeAssetsDir = themePackDir;
     const assetsDir = path.join(integrationDir, 'assets');
     if (!fs.lstatSync(assetsDir).isDirectory()) throw new Error('assets must be a regular directory');
     const manifests = fs.readdirSync(assetsDir).filter(name => name.toLowerCase().endsWith('.json')).sort();
     if (!manifests.length) throw new Error('The image catalog needs at least one manifest');
-    const entries = Object.create(null), scriptImages = Object.create(null), gear = Object.create(null), names = new Set();
+    const entries = Object.create(null), scriptImages = Object.create(null), names = new Set();
     let totalBytes = 0;
     const add = (name, contents) => {
         totalBytes += contents.length;
@@ -126,12 +126,6 @@ function buildPackage({ integrationDir = DEFAULT_INTEGRATION_DIR, themeManifest,
         if (createHash('sha256').update(image).digest('hex') !== asset.sha256) throw new Error(`Theme asset checksum mismatch: ${asset.id}`);
         const dimensions = pngDimensions(image, asset.id);
         if (dimensions.width !== asset.width || dimensions.height !== asset.height) throw new Error(`Theme asset geometry mismatch: ${asset.id}`);
-        if (asset.kind === 'gear') {
-            if (!gear[asset.setName]) gear[asset.setName] = { gearPiece: {}, fontAwesomeIconClass: '', globalZIndex: 1, defaultsToRandom: false };
-            gear[asset.setName].gearPiece[asset.pieceName] = { setName: asset.setName, pieceName: asset.pieceName, width: asset.width, height: asset.height, PPU: 1, FPS: 1, isAnimated: false, isAnimatedAligned: false, flipsWithAvatarX: true, isUniqueZindex: false, zIndex: 1, restriction: { type: '' } };
-            add(`gear/${asset.setName}/${asset.pieceName}.png`, image);
-            continue;
-        }
         if (Object.hasOwn(scriptImages, asset.image)) throw new Error(`Duplicate theme image: ${asset.image}`);
         scriptImages[asset.image] = animationSettings({ name: asset.image, frameWidth: asset.width, frameHeight: asset.height, frames: 1, framesPerSecond: 1, loop: true });
         add(`${scriptPath}${asset.image}.png`, image);
@@ -140,7 +134,7 @@ function buildPackage({ integrationDir = DEFAULT_INTEGRATION_DIR, themeManifest,
         const marker = 'local THEME_CATALOG_JSON = nil';
         if (!source.includes(marker)) throw new Error('Companion theme-catalog marker is missing');
         const themes = Object.fromEntries(Object.entries(catalog.themes).map(([id, theme]) => [id, buildThemeLayout({ theme, packRevision: catalog.packRevision })]));
-        source = source.replace(marker, `local THEME_CATALOG_JSON = [[${JSON.stringify({ profile: catalog.profile, packRevision: catalog.packRevision, previewOnly: catalog.previewOnly, themes, gear: catalog.gear })}]]`);
+        source = source.replace(marker, `local THEME_CATALOG_JSON = [[${JSON.stringify({ profile: catalog.profile, packRevision: catalog.packRevision, previewOnly: catalog.previewOnly, themes })}]]`);
     }
     if (!Object.hasOwn(scriptImages, 'sa_heart')) throw new Error('The companion requires an image named sa_heart');
     const marker = 'local HEART_WIDTH, HEART_HEIGHT = 32, 32';
@@ -161,7 +155,7 @@ function buildPackage({ integrationDir = DEFAULT_INTEGRATION_DIR, themeManifest,
     };
     // data.txt and scripts/<command>/ match Stream Avatars' private-content export.
     add('data.txt', Buffer.from(JSON.stringify({
-        avatar: {}, gear, backgrounds: {}, backgroundObj: {}, boss: {}, playerClass: {}, nametags: {},
+        avatar: {}, gear: {}, backgrounds: {}, backgroundObj: {}, boss: {}, playerClass: {}, nametags: {},
         commands: { [SCRIPT_NAME]: command }, languages: {}
     }, null, 2) + '\n'));
     return { archive: zipSync(entries, { level: 6 }), imageCount: manifests.length + catalog.assets.length, packRevision: catalog.packRevision };

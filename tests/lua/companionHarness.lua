@@ -2,8 +2,6 @@ local script, scenario = arg[1], arg[2]
 local shared, packets, users, objects, callbacks = {}, {}, {}, {}, {}
 local codec = dofile("tests/lua/vendor/json.lua")
 local logs = {}
-local gearScenario = scenario:match("^gear%-") and scenario~="gear-preservation"
-local gearClock, gearCalls, gearAttempts, gearClockOffset, invalidGearClock = 0, {}, {}, 0, false
 local themeScenario = scenario:match("^theme%-") or scenario:match("^entrance%-")
 local themeRevision = themeScenario and arg[3] or string.rep("a",64)
 if not themeRevision then themeRevision=string.rep("a",64) end
@@ -43,9 +41,10 @@ app.platformServiceSettings = {
     SetUserLeave = function(id) assert(type(id)=="number" and id>=900001 and id<=900100); users[tostring(id)] = nil; leaves = leaves+1 end
 }
 app.createGameObject = function()
-    local ob; ob = { removed = false, scale = 1, image = { anchor = function(where,dimensions) assert(where=="center" and dimensions==true); ob.anchored=true end, sorting = function(value,layer) assert(value==0 or value==1); assert(layer=="behindBackground" or layer=="background"); ob.layer=layer end }, text = { setText = function(value) assert(type(value)=="string"); if scenario=="entrance-caption-error" then error("caption unavailable") end; ob.caption=value end, setSize = function(value) assert(type(value)=="number" and value>0); ob.fontSize=value end } }
-    ob.setScale = function(x,y) assert(x==y); ob.scale=x end
-    ob.setPosition = function(x,y) if scenario=="entrance-position-error" and ob.caption then error("caption position unavailable") end; assert(not ob.removed and type(x)=="number" and type(y)=="number" and x==x and y==y and math.abs(x)<math.huge and math.abs(y)<math.huge); ob.x=x; ob.y=y end
+    local ob; ob = { removed = false, scale = 1, image = { anchor = function(where,dimensions) assert(where=="center" and dimensions==true); ob.anchored=true end, sorting = function(value,layer) assert(value==0 or value==1 or value==2); assert(layer=="behindBackground" or layer=="background"); if scenario=="theme-prop-sorting-error" and ob.name:find("scenery_one") then error("private native sorting failure") end; ob.layer=layer; ob.order=value end }, text = { setText = function(value) assert(type(value)=="string"); if scenario=="entrance-caption-error" then error("caption unavailable") end; ob.caption=value end, setSize = function(value) assert(type(value)=="number" and value>0); ob.fontSize=value end } }
+    local initialScaleFailure=scenario=="theme-prop-initial-scale-error" and #objects==4
+    ob.setScale = function(x,y) assert(x==y); if initialScaleFailure and x==0 and not ob.name then error("private initial scale failure") end; if scenario=="theme-prop-scale-error" and x>0 and ob.name and ob.name:find("scenery_one") then error("private native scale failure") end; ob.scale=x end
+    ob.setPosition = function(x,y) if scenario=="theme-prop-position-error" and ob.name and ob.name:find("scenery_one") then error("private native position failure") end; if scenario=="entrance-position-error" and ob.caption then error("caption position unavailable") end; assert(not ob.removed and type(x)=="number" and type(y)=="number" and x==x and y==y and math.abs(x)<math.huge and math.abs(y)<math.huge); ob.x=x; ob.y=y end
     ob.destroy = function() ob.removed=true end
     objects[#objects+1]=ob; return ob
 end
@@ -58,10 +57,7 @@ local env; env = {
         return clone(shared[key])
     end, set = function(key,value) shared[key]=clone(value) end,
     load = function() shared.data = config end,
-    getUsers = function() local list={} for _,user in pairs(users) do if scenario=="gear-native-wrappers" then
-            -- Actual User.CreateUser allocates a fresh public wrapper on every enumeration.
-            list[#list+1]=setmetatable({}, {__index=user})
-        else list[#list+1]=user end end return list end,
+    getUsers = function() local list={} for _,user in pairs(users) do list[#list+1]=user end return list end,
     applyImage = function(ob,name) assert(type(name)=="string" and name:match("^sa_") and not ob.removed); ob.asset=name; ob.name=name; if themeScenario and name~="sa_heart" then assert(ob.scale==0, "pending theme must be invisible") end; if (scenario=="celebration-missing-confetti" and name=="sa_confetti") or (scenario=="celebration-missing-heart" and name=="sa_heart") then error("missing layer") end; if scenario=="missing-image" then error("missing image") end
         if scenario=="theme-missing-backdrop" and name:find("backdrop") then error("missing backdrop") end
         if scenario=="theme-missing-prop" and name:find("scenery_one") then error("missing prop") end
@@ -104,7 +100,7 @@ if scenario:find("native-null",1,true) or scenario=="native-null-donation" or sc
 end
 -- Only the host-documented wall clock is exposed; no filesystem, shell, package
 -- or dynamic-code access. Native cooldowns do not follow scaled game time.
-env.os={time=function() if gearScenario then if invalidGearClock then return nil end return 1000+math.floor(gearClock)+gearClockOffset end return math.floor(hostClock) end}
+env.os={time=function() return math.floor(hostClock) end}
 local hostMath={};for key,value in pairs(math) do hostMath[key]=value end
 hostMath.random=function(limit) return scenario=="hug-shuffle" and 1 or limit end
 for _,name in ipairs({"type","pairs","ipairs","tonumber","tostring","pcall","math","table","string"}) do env[name]=_G[name] end
@@ -132,7 +128,6 @@ end
 local start = assert(loadfile(script, "t", env))()
 local runner=coroutine.create(start)
 local function tick(delta,wallDelta)
-    gearClock=gearClock+(delta or 0.05)
     hostClock=hostClock+(wallDelta or delta or 0.05)
     for _,pair in ipairs(hugs) do
         pair.frames=pair.frames+1
@@ -225,115 +220,6 @@ local function phasePacket(phase,seq,id)
     local party=phase=="party"
     return {version=3,type="celebration",mode="integration",generation=1,campaignId="12",id=id or phase,sequenceId=seq or "sequence",issuedAtMs=1000,expiresAtMs=11000,phase=phase,kind=party and "milestone" or "donation",campaignTotalCents=252500,milestoneCents=party and 250000 or codec.null,donationCount=party and 0 or 1,donationTotalCents=party and 0 or 5000,recognitionStartedAtMs=party and codec.null or 1000,recognitionAction=party and codec.null or "jump",heartsUntilMs=party and 0 or 6000,partyStartedAtMs=party and 1000 or codec.null,partyUntilMs=party and 19000 or 0}
 end
-if gearScenario then
-    local setName="sa_helper_theme_hats"
-    local primary="block_world_gear_mining_helmet"; local alternate="block_world_gear_explorer_cap"; local chef="kitchen_gear_chef_hat"
-    local function gearUser(id, avatar)
-        local u=addUser(id); u.avatar=avatar or "small"; u.palette="blue"; u.saved={foreign="saved-coat"}; u.temporary={}; u.allowed={primary,alternate,chef}
-        u.reads=0; u.getGear=function()
-            u.reads=u.reads+1
-            local result=clone(u.saved)
-            for set,lease in pairs(u.temporary) do if gearClock>lease.ends then u.temporary[set]=nil else result[set]=lease.piece end end
-            return result
-        end
-        u.getWearableGearSetPieces=function(set) assert(set==setName); return clone(u.allowed) end
-        u.setTemporaryGear=function(set,piece,duration)
-            assert(set==setName and (piece==primary or piece==alternate or piece==chef), "only reserved hats may be changed")
-            assert(duration==30 or duration==1, "finite native lease required")
-            gearAttempts[#gearAttempts+1]={id=id,piece=piece,duration=duration,at=gearClock}
-            local permitted=false; local avatarData=env.getAvatar(u.avatar); if avatarData then for _,s in ipairs(avatarData.getGear()) do if s==set then permitted=true end end end
-            if not permitted then return end -- installed WearGear silently rejects unavailable avatar sets
-            u.temporary[set]={piece=piece,ends=gearClock+duration}; gearCalls[#gearCalls+1]={id=id,piece=piece,duration=duration,at=gearClock}
-        end
-        u.setGear=function() error("persistent setGear forbidden") end; u.saveUserData=function() error("saveUserData forbidden") end; u.clearAllTemporarySelections=function() error("global clear forbidden") end
-        return u
-    end
-    env.getAvatar=function(key) return {getGear=function() return key=="small" and {setName} or {} end} end
-    local function themed(theme, generation)
-        local value=snapshot("integration",generation); value.theme={gameIdentity=string.rep("b",64),gameName="Game",themeId=theme or "block-world",packRevision=string.rep("a",64)}; return value
-    end
-    local function advance(seconds) for i=1,math.ceil(seconds/0.05) do tick(0.05) end end
-    local u=gearUser(1)
-    if scenario=="gear-unsupported-read" then
-        u.avatar="unknown"; local getter=u.getGear; local reads=0; u.getGear=function() reads=reads+1; return getter() end
-        send(themed()); advance(1.2); assert(reads==0 and #gearCalls==0, "unsupported unowned avatars must skip native gear reads and retain normal")
-        print("OK "..scenario); return
-    end
-    if scenario=="gear-initial-occupied" then u.saved[setName]=primary end; send(themed()); advance(0.2)
-    if scenario=="gear-initial-occupied" then
-        assert(#gearCalls==0, "matching saved piece without ownership must be skipped"); send(snapshot()); advance(1.2); assert(#gearCalls==0); print("OK "..scenario); return
-    end
-    assert(u.getGear()[setName]==primary, "existing supported user must get finite primary hat")
-    if scenario=="gear-native-null-recognition" or scenario=="gear-native-null-party" then
-        local party=scenario=="gear-native-null-party"
-        send(celebration(party and "milestone" or "donation"));tick()
-        local effect=active();assert(effect and not effect.removed)
-        local actions=jumps+dances;local nullSnapshot=snapshot();nullSnapshot.theme=codec.null
-        send(nullSnapshot);advance(1.3)
-        assert(not effect.removed and jumps+dances==actions and exits==0, "native-null game reset must preserve donation ownership")
-        assert(u.getGear()[setName]==nil and gearCalls[#gearCalls].duration==1, "native-null game reset must release the owned hat")
-        local calls=#gearCalls;advance(11);assert(#gearCalls==calls, "cleared native-null game must never renew the old hat")
-        for _,packet in ipairs(packets) do assert(packet.type~="diagnostic", "native null must not throw or reset unrelated owners") end
-    elseif scenario=="gear-lifecycle" then
-        local first=#gearCalls; send(themed()); advance(1); assert(#gearCalls==first, "same theme must retain stable hat")
-        local late=gearUser(2); advance(1.2); assert(late.getGear()[setName]==primary, "late arrival must get current hat")
-        u.saved[setName]="latest-saved"; u.palette="red"; send(snapshot()); advance(1.3)
-        assert(u.getGear()[setName]=="latest-saved" and u.getGear().foreign=="saved-coat" and u.palette=="red", "release must reveal latest saved appearance")
-    elseif scenario=="gear-alternate" then
-        u.allowed={alternate}; advance(11); assert(u.getGear()[setName]==alternate, "unavailable primary must use compatible alternate")
-        u.allowed={primary,alternate}; advance(11); assert(u.getGear()[setName]==alternate, "compatible alternate must stay stable when primary returns"); u.allowed={}; advance(11); advance(1.2); assert(u.getGear()[setName]==nil, "neither compatible hat must retain normal outfit")
-    elseif scenario=="gear-foreign" then
-        u.temporary[setName]={piece="foreign-hat",ends=gearClock+90}; local before=#gearCalls; advance(11); send(snapshot()); advance(1.2)
-        assert(#gearCalls==before and u.getGear()[setName]=="foreign-hat", "foreign effective piece must not be renewed or released")
-        send(themed()); advance(1.2); assert(u.getGear()[setName]=="foreign-hat", "occupied reserved set must be skipped")
-    elseif scenario=="gear-avatar" then
-        u.avatar="unknown"; u.saved[setName]="new-avatar-saved"; local before=#gearCalls; advance(2.2); assert(#gearCalls==before, "unsupported avatar must stop all renewal despite native release no-op")
-        advance(30); assert(u.getGear()[setName]=="new-avatar-saved", "unsupported avatar must restore latest saved selection through finite fallback")
-        u.avatar="small"; u.saved[setName]=nil; advance(1.2); assert(u.getGear()[setName]==primary)
-        users["1"]=nil; advance(2); local replacement=gearUser(1,"unknown"); advance(1.2); assert(replacement.getGear()[setName]==nil, "rejoin must resolve current avatar")
-    elseif scenario=="gear-generation" then
-        send(themed("kitchen",2)); advance(0.5); assert(u.getGear()[setName]==chef, "new generation must replace hat")
-        send(themed("block-world",1)); advance(11); assert(u.getGear()[setName]==chef, "stale generation must not reapply old hat")
-        for _,call in ipairs(gearCalls) do if call.at>1 then assert(call.piece~=primary or call.duration==1, "old theme renewal must stop") end end
-    elseif scenario=="gear-renew" or scenario=="gear-native-wrappers" then
-        local beforeReads=u.reads; advance(65); assert(u.reads-beforeReads<=7, "native gear reads must occur only at writes"); assert(u.getGear()[setName]==primary, "active hats must renew before expiry")
-        local renewals=0; for _,call in ipairs(gearCalls) do if call.duration==30 then renewals=renewals+1 end end; assert(renewals>=7 and renewals<=8, "stable lease renewal is ten seconds")
-    elseif scenario=="gear-failure-expiry" then
-        u.saved[setName]="saved-after-failure"; gearClock=gearClock+31; assert(u.getGear()[setName]=="saved-after-failure", "script failure must restore via finite lease")
-    elseif scenario=="gear-reload" then
-        u.saved[setName]="latest-after-reload"; local oldRunner=runner
-        runner=coroutine.create(assert(loadfile(script,"t",env))()); tick(); advance(31)
-        assert(coroutine.status(oldRunner)=="suspended" and u.getGear()[setName]=="latest-after-reload", "F5 reload must abandon old renewal and restore through finite lease")
-    elseif scenario=="gear-expired-owner" then
-        u.saved[setName]=primary; local before=#gearCalls; tick(31); send(snapshot()); advance(0.5); assert(#gearCalls==before, "expired ownership must not shorten saved identical hat")
-    elseif scenario=="gear-wall-pause" then
-        u.saved[setName]=primary; local before=#gearCalls; gearClock=gearClock+31; send(snapshot()); advance(0.5)
-        assert(#gearCalls==before, "wall-clock expiry must not shorten saved identical piece after scaled game-time pause")
-    elseif scenario=="gear-clock-backwards" or scenario=="gear-clock-invalid" then
-        local before=#gearCalls; if scenario=="gear-clock-backwards" then gearClockOffset=-10 else invalidGearClock=true end
-        advance(40); send(snapshot()); advance(1.2); assert(#gearCalls==before and u.getGear()[setName]==nil, "unsafe clock must stop renewal/release and allow finite expiry")
-    elseif scenario=="gear-permission" then
-        env.getAvatar=function() return {getGear=function() return {} end} end; local before=#gearCalls; local attempts=#gearAttempts; advance(31); for i=attempts+1,#gearAttempts do assert(gearAttempts[i].duration~=30, "missing permission must skip native apply attempts") end; assert(#gearCalls==before and u.getGear()[setName]==nil, "missing native avatar permission must stop renewal and restore through finite lease")
-    elseif scenario=="gear-host-error" then
-        local getter=u.getGear; u.getGear=function() error("native gear failed") end; local before=#gearCalls; advance(40); u.getGear=getter
-        assert(#gearCalls==before and u.getGear()[setName]==nil, "native failure must allow finite restoration")
-        local n=0; for _,packet in ipairs(packets) do if packet.code=="render-error" then n=n+1 end end; assert(n<=2, "unsupported/native failure diagnostics must be bounded")
-    elseif scenario=="gear-disconnect" then
-        callbacks.websocket("sa_helper_bridge","OnClose","",""); advance(1.3); assert(u.getGear()[setName]==nil, "disconnect must release owned hat")
-        send(themed()); advance(1.2); assert(u.getGear()[setName]==primary and jumps==0, "reconnect applies hats without entrance")
-    elseif scenario=="gear-gates" then
-        local value=themed(); value.mode="production"; value.integration.active=false; send(value); advance(1.3); assert(u.getGear()[setName]==nil, "candidate hats must never apply in production")
-        value=themed(); value.integration.active=false; send(value); advance(1.2); assert(u.getGear()[setName]==nil, "candidate hats require active rehearsal")
-        value=themed(); value.theme.packRevision=string.rep("c",64); send(value); advance(1.2); assert(u.getGear()[setName]==nil, "hats require current pack revision")
-    elseif scenario=="gear-large-list" then
-        for i=2,1001 do gearUser(i) end; gearUser(900000); advance(4)
-        for _,user in pairs(users) do assert(user.getGear()[setName]==primary, "must include every user plus caster beyond first100") end
-        advance(40); for _,user in pairs(users) do assert(user.getGear()[setName]==primary, "all users must renew before expiry") end
-        local byTick={}; for _,call in ipairs(gearCalls) do if call.duration==30 then byTick[call.at]=(byTick[call.at] or 0)+1 end end
-        for _,n in pairs(byTick) do assert(n<=32, "native gear writes must be bounded per tick") end
-    end
-    print("OK "..scenario); return
-end
 if themeScenario then
     local function themed(game, revision, theme)
         local value=snapshot(); value.integration.active=true
@@ -369,8 +255,67 @@ if themeScenario then
         send(celebration());tick();assert(assetCount("sa_heart")==1 and #captions()==0 and jumps==1)
         print("OK "..scenario);return
     end
+    if scenario=="theme-no-native-gear" then
+        local nativeGearCalls=0
+        local function forbiddenGear()
+            nativeGearCalls=nativeGearCalls+1; error("native cosmetics must not be accessed")
+        end
+        env.getAvatar=forbiddenGear
+        local function guard(user)
+            user.avatar="small"
+            for _,method in ipairs({"getGear","getWearableGearSetPieces","setTemporaryGear","setGear","saveUserData","clearAllTemporarySelections"}) do user[method]=forbiddenGear end
+        end
+        guard(users["1"])
+        send(themed()); tick(); assert(themes()==8 and nativeGearCalls==0, "legacy gear metadata must never invoke native gear APIs")
+        send(entranceEvent()); assert(#captions()==1 and jumps==1)
+        send(celebration()); tick(); local heart
+        for _,ob in ipairs(objects) do if ob.asset=="sa_heart" and not ob.removed then heart=ob end end
+        assert(heart and assetCount("sa_heart")==1, "scenery must preserve donation recognition")
+        send(themed(nil,nil,"kitchen")); tick(); assert(themes()==8 and not heart.removed)
+        local late=addUser(2); guard(late); tick(12); tick()
+        send(snapshot()); tick(); send(themed()); tick()
+        -- F5 destroys native Lua objects before starting the replacement script.
+        for _,ob in ipairs(objects) do ob.destroy() end
+        local oldRunner=runner; runner=coroutine.create(assert(loadfile(script,"t",env))()); tick(); send(themed()); tick()
+        assert(coroutine.status(oldRunner)=="suspended" and themes()==8, "reload must restore scenery")
+        callbacks.websocket("sa_helper_bridge","OnClose","",""); tick()
+        assert(themes()==0 and nativeGearCalls==0 and users["1"].gear=="sentinel" and late.gear=="sentinel", "theme changes, late joins, reload and disconnect must preserve native cosmetics")
+        for _,packet in ipairs(packets) do assert(packet.type~="diagnostic", "ignored legacy gear must not emit gear diagnostics") end
+        print("OK "..scenario);return
+    end
     send(themed()); tick()
-    if scenario=="theme-stale-load" then
+    if scenario=="theme-native-background" then
+        -- Installed TagManager order: behindBackground=1, background=2, Characters=8.
+        -- A native background sprite at background/0 must not cover our continuous band.
+        local layers={behindBackground=1,background=2,Characters=8}
+        local visibleTiles=0
+        for _,ob in ipairs(objects) do if ob.name and ob.name:find("backdrop") and not ob.removed and ob.scale>0 then
+            local aboveNative=layers[ob.layer]>2 or (layers[ob.layer]==2 and ob.order>0)
+            local belowCharacters=layers[ob.layer]<8
+            if aboveNative and belowCharacters then visibleTiles=visibleTiles+1 end
+        end end
+        assert(visibleTiles==4, "all backdrop tiles must remain visible above native background and below characters")
+    elseif scenario:match("^theme%-prop%-.+%-error$") then
+        tick(); assert(themes()==7, "one failing prop must preserve four backdrops and three props")
+        send(entranceEvent()); send(hearts()); tick()
+        assert(#captions()==1 and assetCount("sa_heart")==1 and themes()==7, "component failure must preserve caption and hearts")
+        local function errors(expected)
+            local n=0; for _,packet in ipairs(packets) do if packet.type=="diagnostic" then
+                assert(packet.code=="theme-render-error", "placement failure must have its own diagnostic")
+                local fields=0; for _ in pairs(packet) do fields=fields+1 end
+                assert(fields==3, "component diagnostics must not expose native exception details")
+                n=n+1
+            end end
+            assert(n==expected, "component errors must be bounded across theme reloads")
+        end
+        errors(1)
+        if scenario=="theme-prop-initial-scale-error" then
+            assert(objects[5].removed and shared.sa_pending_images==0, "initial scale failure must destroy its object without a pending load leak")
+        else
+            send(themed(nil,nil,"kitchen")); tick(); send(themed()); tick(); errors(1)
+            tick(31); send(themed(nil,nil,"kitchen")); tick(); errors(2)
+        end
+    elseif scenario=="theme-stale-load" then
         allowImageCompletion=false; send(themed(string.rep("c",64),string.rep("d",64))); assert(themes()==0)
         send(themed()); assert(themes()==0); allowImageCompletion=true; tick(); tick(); assert(themes()==8)
         for i=1,8 do assert(objects[i].removed and objects[i].scale==0, "stale theme must stay invisible and be discarded") end
@@ -413,7 +358,7 @@ if themeScenario then
     else
         assert(themes()==8, "theme must create four literal tiles and four props")
         for _,ob in ipairs(objects) do
-            assert(ob.layer==(ob.name:find("backdrop") and "behindBackground" or "background"), "theme must use declared layer")
+            assert(ob.layer=="background" and ob.order>0 and (not ob.name:find("scenery") or ob.order>1), "theme must appear above native background with props above the backdrop")
             if ob.name:find("backdrop") then assert(math.abs(ob.y-18.75)<0.0001, "center pivot must preserve baseline anchor") end
         end
         if scenario:match("^theme%-density%-") then
@@ -477,6 +422,17 @@ if themeScenario then
             send(entranceEvent()); assert(#captions()==1 and jumps==1); send(entranceEvent()); assert(jumps==1)
             tick(5.8); tick(); assert(#captions()==1); tick(0.3); tick(); assert(#captions()==0 and themes()==8)
             local expired=entranceEvent("expired"); expired.issuedAtMs=0; expired.expiresAtMs=10000; send({version=3,type="heartbeat",serverNowMs=10000}); send(expired); assert(jumps==1)
+        elseif scenario=="entrance-bounds-failure-expiry" then
+            send(entranceEvent()); local captionObject=captions()[1]
+            assert(captionObject and jumps==1, "entrance must be active before bounds fail")
+            local convert=app.convertPercentToPosition
+            app.convertPercentToPosition=function() error("native bounds unavailable") end
+            for _=1,70 do tick(0.1) end
+            assert(captionObject.removed and #captions()==0, "repeated native bounds failure must not prevent six-second caption expiry")
+            send({version=3,type="heartbeat",serverNowMs=9000})
+            assert(packets[#packets].type=="heartbeat", "bounds failure must preserve heartbeat transport")
+            app.convertPercentToPosition=convert; send(themed()); tick()
+            assert(themes()==8 and #captions()==0 and jumps==1, "bounds recovery must restore world without replaying expired entrance")
         elseif scenario=="entrance-obsolete" then
             local value=entranceEvent(); value.gameIdentity=string.rep("c",64); send(value); assert(jumps==0)
             value=entranceEvent(); value.themeId="kitchen"; send(value); assert(jumps==0)

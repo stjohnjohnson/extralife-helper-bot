@@ -1,5 +1,6 @@
 const { parseWebServerConfiguration } = require('../src/webServerConfig');
 const { cleanGameName } = require('../src/streamAvatars/themes');
+const { resolveIntegrationPack } = require('../src/streamAvatars/integrationPack');
 const { runIntegration } = require('../src/streamAvatars/integration');
 async function run(args = process.argv.slice(2), env = process.env) {
     require('dotenv').config({ quiet: true });
@@ -18,6 +19,7 @@ async function run(args = process.argv.slice(2), env = process.env) {
     if (game !== undefined && cleanGameName(game) === null) throw new Error('Invalid integration game name');
     const listenerConfig = parseWebServerConfiguration(env);
     if (listenerConfig.errors.length) throw new Error(listenerConfig.errors.join('; '));
+    ({ candidatePackDir, themePackDir } = resolveIntegrationPack({ candidatePackDir, themePackDir, environmentPackDir: env.STREAM_AVATARS_THEME_PACK, required: scenario === 'all' || scenario === 'themes' || theme !== undefined || game !== undefined }));
     let hueOutput;
     if (hue) {
         if (!env.HUE_USERNAME?.trim() || !env.HUE_IPADDRESS?.trim() || !/^\d+$/.test(env.HUE_GROUPID || '') || !Number.isSafeInteger(Number(env.HUE_GROUPID))) throw new Error('--hue requires HUE_USERNAME, HUE_IPADDRESS and an integer HUE_GROUPID');

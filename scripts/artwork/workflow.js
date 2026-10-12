@@ -50,7 +50,7 @@ class ArtworkWorkflow {
         if (!Array.isArray(assets) || assets.length !== expected) throw new Error(`Inventory must contain ${expected} assets (duplicate or missing IDs)`);
         if (assets.some(a => !themes.includes(a.theme) || !(a.kind in requiredKinds) || a.required !== true) || themes.some(theme => Object.entries(requiredKinds).some(([kind, count]) => assets.filter(a => a.theme === theme && a.kind === kind).length !== count))) throw new Error('Inventory theme/kind contract mismatch');
         const retiredAssets = this.inventory.retiredAssets || [];
-        if (!Array.isArray(retiredAssets) || retiredAssets.some(a => !themes.includes(a.theme) || !(a.kind in requiredKinds))) throw new Error('Malformed retired inventory');
+        if (!Array.isArray(retiredAssets) || retiredAssets.some(a => !themes.includes(a.theme) || !['scenery', 'backdrop', 'gear'].includes(a.kind))) throw new Error('Malformed retired inventory');
         const seen = new Set();
         const briefs = [...assets, ...retiredAssets].map(asset => {
             identifier(asset.id);
@@ -128,7 +128,7 @@ class ArtworkWorkflow {
             const parent = this.attempt(fromAttempt);
             const validation = this.validate(fromAttempt);
             if (!validation.valid) throw new Error(`Cannot reexport invalid/stale parent: ${validation.errors.join('; ')}`);
-            const brief = this.brief(parent.assetId);
+            const brief = this.activeBrief(parent.assetId);
             const job = this.createJob(brief, { parentAttemptId: parent.attemptId, operation: 'reexport', exactPrompt: parent.plannedPrompt, sourceGenerationAttemptId: parent.sourceGenerationAttemptId || parent.attemptId });
             return this.record({ job: job.jobId, file: this.local(parent.sourceFile), fit: shouldFit, alphaThreshold, note: 'Export-only revision; no new image generation call', metadata: { ...parent.metadata, assetId: parent.assetId, styleRevision: parent.styleRevision, executedPrompt: parent.exactPrompt, actualReferences: (parent.actualReferences || []).map(ref => ({ file: this.local(ref.file), sha256: ref.sha256, role: ref.role })), exportOnly: true } });
         }
@@ -238,7 +238,7 @@ class ArtworkWorkflow {
         const validation = this.validate(parent.attemptId);
         if (validation.errors.some(e => e.includes('stale'))) throw new Error('stale parent; prepare new style job');
         if (validation.errors.some(e => /sourceFile|reference|provenance/i.test(e))) throw new Error(`Parent source/reference integrity failed: ${validation.errors.join('; ')}`);
-        const brief = this.brief(asset);
+        const brief = this.activeBrief(asset);
         return this.createJob(brief, { parentAttemptId: parent.attemptId, feedback: entry.feedback, exactPrompt: `${brief.exactPrompt}\nRevision feedback: ${entry.feedback}\nEdit the preserved parent source. Preserve transparency, subject, palette, canvas, pixel style and generous padding unless feedback explicitly revises these constraints.`, references: [...brief.references, { id: parent.attemptId, file: parent.sourceFile, sha256: parent.sourceSha256, scope: 'workspace', role: 'edit-target' }] });
     }
     releaseCheck() {
@@ -248,7 +248,6 @@ class ArtworkWorkflow {
         const knownIds = new Set(this.briefs({ includeRetired: true }).map(b => b.id));
         for (const id of Object.keys(selections)) if (!knownIds.has(id)) errors.push(id + ': unknown selection cannot enter release');
         for (const brief of briefs) {
-            if (brief.kind === 'gear' && (brief.gearSlot !== 'head' || /backpack|goggles/i.test(brief.id + ' ' + brief.subject))) errors.push(brief.id + ': active gear must be a head-mounted hat or helmet');
             const selection = selections[brief.id];
             if (!selection) { errors.push(`${brief.id}: missing selection (unapproved)`); continue; }
             const result = this.validate(selection.attemptId);
@@ -259,23 +258,20 @@ class ArtworkWorkflow {
         }
         return { valid: !errors.length, requiredAssets: briefs.length, selectedAssets: briefs.filter(b => selections[b.id]).length, errors };
     }
-    candidatePack({ destination, manifest, gearCompatibility } = {}) {
+    candidatePack({ destination, manifest } = {}) {
         const ids = this.briefs().map(b => b.id).sort();
-        if (!manifest?.assets || JSON.stringify(Object.keys(manifest.assets).sort()) !== JSON.stringify(ids)) throw new Error('Explicit complete 42-attempt candidate map required');
-        return this.publishPack({ destination, choices: manifest.assets, gearCompatibility, previewOnly: true });
+        if (!manifest?.assets || JSON.stringify(Object.keys(manifest.assets).sort()) !== JSON.stringify(ids)) throw new Error('Explicit complete 30-attempt scenery candidate map required');
+        return this.publishPack({ destination, choices: manifest.assets, previewOnly: true });
     }
-    promote({ destination, gearProofs } = {}) {
+    promote({ destination } = {}) {
         const release = this.releaseCheck();
         if (!release.valid) throw new Error('Release check failed: ' + release.errors.join('; '));
         const choices = this.selections();
-        const { validateProofs } = require('../../src/streamAvatars/themeRelease');
-        const proofs = validateProofs(gearProofs, choices);
-        return this.publishPack({ destination, choices, gearCompatibility: proofs.compatibility, gearProofs: proofs, previewOnly: false });
+        return this.publishPack({ destination, choices, previewOnly: false });
     }
-    publishPack({ destination, choices, gearCompatibility, gearProofs = null, previewOnly }) {
+    publishPack({ destination, choices, previewOnly }) {
         const { buildThemeCatalog } = require('../../src/streamAvatars/themeLayout');
         const { localPath, jsonHash, loadThemePack } = require('../../src/streamAvatars/themeRelease');
-        const { HATS } = require('../../src/streamAvatars/gearCompatibility');
         const target = localPath(destination);
         if (fs.existsSync(target)) throw new Error('Pack destination already exists (conflict)');
         const manifest = { schemaVersion: 1, assets: {} }; const evidence = {}; const bytes = {};
@@ -286,12 +282,12 @@ class ArtworkWorkflow {
             const validation = this.validate(record.attemptId);
             if (!validation.valid) throw new Error('Invalid pack candidate: ' + validation.errors.join('; '));
             const exportFile = `assets/${brief.id}.png`;
-            manifest.assets[brief.id] = { assetId: brief.id, theme: brief.theme, kind: brief.kind, ...(brief.kind === 'gear' ? { gearSlot: 'head' } : {}), attemptId: record.attemptId, sha256: record.sha256, exportFile,
+            manifest.assets[brief.id] = { assetId: brief.id, theme: brief.theme, kind: brief.kind, attemptId: record.attemptId, sha256: record.sha256, exportFile,
                 geometry: { frame: { width: record.frame.width, height: record.frame.height, frameCount: 1, fps: 0 }, anchor: { x: record.anchor.x, y: record.anchor.y } } };
             evidence[brief.id] = { assetId: brief.id, attemptId: record.attemptId, sha256: record.sha256, sourceSha256: record.sourceSha256, recipeHash: record.recipeHash,
                 promptSha256: hash(record.exactPrompt), referenceSha256: [...record.references, ...(record.actualReferences || [])].map(r => r.sha256), approved: !previewOnly };
             if (!previewOnly) {
-                const expectedName = brief.kind === 'gear' ? HATS[brief.theme].find(h => h.assetId === brief.id).pieceName : 'sa_' + brief.id.replaceAll('.', '_').replaceAll('-', '_');
+                const expectedName = 'sa_' + brief.id.replaceAll('.', '_').replaceAll('-', '_');
                 if (choice.sha256 !== record.sha256 || choice.recipeHash !== record.recipeHash || !validImportProof(choice.importProof, record) || choice.importProof.importName !== expectedName) throw new Error('Selection/native import name checksum mismatch');
                 evidence[brief.id].selectionId = choice.selectionId;
                 evidence[brief.id].importProof = { attemptId: record.attemptId, sha256: record.sha256, importedAndProven: true, importName: expectedName, evidenceSha256: hash(choice.importProof.notes) };
@@ -299,8 +295,8 @@ class ArtworkWorkflow {
             bytes[exportFile] = fs.readFileSync(this.local(record.exportFile));
             if (hash(bytes[exportFile]) !== record.sha256) throw new Error('Changed export checksum');
         }
-        const catalog = { ...buildThemeCatalog({ manifest, gearCompatibility, previewOnly: true }), previewOnly, rehearsalOnly: previewOnly };
-        const provenance = { schemaVersion: 1, previewOnly, packRevision: catalog.packRevision, manifestSha256: jsonHash(manifest), gearProofsSha256: gearProofs ? jsonHash(gearProofs) : null, assets: evidence };
+        const catalog = { ...buildThemeCatalog({ manifest, previewOnly: true }), previewOnly, rehearsalOnly: previewOnly };
+        const provenance = { schemaVersion: 1, previewOnly, packRevision: catalog.packRevision, manifestSha256: jsonHash(manifest), assets: evidence };
         fs.mkdirSync(path.dirname(target), { recursive: true });
         const lock = target + '.publish-lock'; const stage = target + '.stage-' + crypto.randomUUID();
         const descriptor = fs.openSync(lock, 'wx', 0o600);
@@ -309,7 +305,7 @@ class ArtworkWorkflow {
             fs.mkdirSync(stage); fs.mkdirSync(path.join(stage, 'assets'));
             const write = (name, value) => fs.writeFileSync(localPath(stage, name), value, { flag: 'wx', flush: true });
             for (const [name, image] of Object.entries(bytes)) write(name, image);
-            for (const [name, value] of Object.entries({ 'manifest.json': manifest, 'catalog.json': catalog, 'provenance.json': provenance, 'gear-compatibility.json': catalog.gear, ...(gearProofs ? { 'gear-import.json': gearProofs } : {}) })) write(name, JSON.stringify(value, null, 2) + '\n');
+            for (const [name, value] of Object.entries({ 'manifest.json': manifest, 'catalog.json': catalog, 'provenance.json': provenance })) write(name, JSON.stringify(value, null, 2) + '\n');
             loadThemePack({ directory: stage, previewOnly });
             if (fs.existsSync(target)) throw new Error('Pack destination conflict');
             for (const brief of this.briefs()) {

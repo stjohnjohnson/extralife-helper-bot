@@ -8,10 +8,10 @@ test('accepts only finite typed protocol vocabulary', () => {
     expect(validateServerMessage(snapshot)).toEqual(snapshot);
     expect(validateServerMessage({ version: 3, type: 'clear', mode: 'production', generation: 1 }).type).toBe('clear');
 });
-test('accepts the bounded missing-world diagnostic without image paths or extra metadata', () => {
-    const diagnostic = { version: 3, type: 'diagnostic', code: 'missing-theme-image' };
+test.each(['missing-theme-image', 'theme-render-error'])('accepts bounded diagnostic %s without private metadata', code => {
+    const diagnostic = { version: 3, type: 'diagnostic', code };
     expect(decodeClientMessage(JSON.stringify(diagnostic))).toEqual(diagnostic);
-    for (const patch of [{ image: 'sa_block_world_backdrop_minimal_strip' }, { path: '/private/images/missing.png' }, { code: 'missing-theme-image:/private/images/missing.png' }, { code: 'loadstring()' }]) {
+    for (const patch of [{ image: 'sa_block_world_backdrop_minimal_strip' }, { path: '/private/images/missing.png' }, { userId: 'private-user' }, { error: 'native exception' }, { code: 'missing-theme-image:/private/images/missing.png' }, { code: 'loadstring()' }]) {
         expect(() => decodeClientMessage(JSON.stringify({ ...diagnostic, ...patch }))).toThrow('Invalid Stream Avatars message');
     }
 });
@@ -40,4 +40,9 @@ test.each([{ gameIdentity: 'text-name' }, { themeId: 'other' }, { durationMs: 50
 });
 test('entrance expiry must be a finite numeric timestamp rather than a coercible string', () => {
     expect(() => validateServerMessage({ ...entrance, expiresAtMs: '11000' })).toThrow(/message/i);
+});
+
+
+test.each(['unsupported-avatar', 'gear-permission-required', 'missing-theme-gear', 'foreign-gear', 'gear-render-error'])('rejects retired cosmetic diagnostic %s', code => {
+    expect(() => decodeClientMessage(JSON.stringify({ version: 3, type: 'diagnostic', code }))).toThrow('Invalid Stream Avatars message');
 });

@@ -1,6 +1,5 @@
 const { createHash } = require('node:crypto');
 const { THEME_IDS } = require('./themes');
-const { SET_NAME, HATS, validateGearCompatibility } = require('./gearCompatibility');
 const PROFILE = Object.freeze({ referenceWidth: 1920, bandHeight: 120, baselineOffset: 4 });
 const hash = value => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const revision = value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
@@ -18,25 +17,23 @@ function buildThemeLayout({ theme, packRevision, referenceWidth = 1920 }) {
     const props = theme.props.map((asset, index) => ({ ...asset, x: propPosition(theme.themeId, asset.id, asset.width, index, theme.props.length, referenceWidth) }));
     return { tiles, props };
 }
-function buildThemeCatalog({ manifest, gearCompatibility, previewOnly = false } = {}) {
+function buildThemeCatalog({ manifest, previewOnly = false } = {}) {
     // Production promotion belongs to the selected-artifact/proof gate. Booleans in an arbitrary
     // candidate manifest are never approval. Until that gate supplies a catalog, defaults are empty.
-    if ((manifest || gearCompatibility) && (!manifest || previewOnly !== true)) throw new Error('Theme production promotion is required');
+    if (manifest && previewOnly !== true) throw new Error('Theme production promotion is required');
     const assets = [];
     if (manifest) {
         if (!manifest.assets || typeof manifest.assets !== 'object' || Array.isArray(manifest.assets)) throw new Error('Invalid theme assets');
         for (const [id, source] of Object.entries(manifest.assets).sort(([a], [b]) => a.localeCompare(b))) {
-            if (!source || !THEME_IDS.includes(source.theme) || !['scenery', 'backdrop', 'gear'].includes(source.kind) ||
+            if (!source || !THEME_IDS.includes(source.theme) || !['scenery', 'backdrop'].includes(source.kind) ||
                 source.assetId !== id || !new RegExp(`^${source.theme}\\.${source.kind}\\.[a-z0-9-]+$`).test(id) || !revision(source.sha256)) throw new Error('Invalid theme asset');
-            if (source.kind === 'gear' && (source.gearSlot !== 'head' || !HATS[source.theme].some(h => h.assetId === id))) throw new Error('Invalid hat design');
             if (typeof source.exportFile !== 'string' || !/^[a-zA-Z0-9_.-]+(?:\/[a-zA-Z0-9_.-]+)*\.png$/.test(source.exportFile) || source.exportFile.split('/').some(part => part === '..' || part === '.')) throw new Error('Invalid theme asset path');
             const frame = source.geometry?.frame; const anchor = source.geometry?.anchor;
             if (!frame || !anchor || !Number.isInteger(frame.width) || !Number.isInteger(frame.height) || frame.width < 1 || frame.height < 1 || frame.height > 120 ||
                 (source.kind === 'backdrop' ? frame.width !== 480 || frame.height !== 64 : frame.width > 120) ||
                 !Number.isFinite(anchor.x) || !Number.isFinite(anchor.y) || anchor.x < 0 || anchor.x > frame.width || anchor.y < 0 || anchor.y > frame.height) throw new Error('Invalid theme geometry');
             assets.push({ id, themeId: source.theme, kind: source.kind, image: `sa_${id.replaceAll('.', '_').replaceAll('-', '_')}`, width: frame.width, height: frame.height,
-                anchorX: anchor.x, anchorY: anchor.y, sha256: source.sha256, exportFile: source.exportFile,
-                ...(source.kind === 'gear' ? { slot: 'head', setName: SET_NAME, pieceName: HATS[source.theme].find(h => h.assetId === id).pieceName } : {}) });
+                anchorX: anchor.x, anchorY: anchor.y, sha256: source.sha256, exportFile: source.exportFile });
         }
     }
     const themes = {};
@@ -48,12 +45,7 @@ function buildThemeCatalog({ manifest, gearCompatibility, previewOnly = false } 
         const portable = asset => { const value = { ...asset }; delete value.exportFile; return value; };
         themes[themeId] = { themeId, backdrop: portable(backdrops[0]), props: props.map(portable) };
     }
-    const gear = validateGearCompatibility(gearCompatibility);
-    for (const fits of Object.values(gear.avatars)) for (const fit of Object.values(fits)) for (const piece of [fit.primary, fit.alternate].filter(Boolean)) {
-        if (!assets.some(a => a.kind === 'gear' && a.pieceName === piece.pieceName)) throw new Error('Compatible hat image is missing');
-    }
-    const portableGear = assets.filter(a => a.kind === 'gear').map(a => { const value = { ...a }; delete value.exportFile; return value; });
-    const packRevision = hash({ profile: PROFILE, themes, gear, gearAssets: portableGear });
-    return { schemaVersion: 1, previewOnly: manifest ? true : false, profile: { ...PROFILE }, packRevision, themes, gear, assets };
+    const packRevision = hash({ profile: PROFILE, themes });
+    return { schemaVersion: 1, previewOnly: manifest ? true : false, profile: { ...PROFILE }, packRevision, themes, assets };
 }
 module.exports = { buildThemeCatalog, buildThemeLayout, propPosition };

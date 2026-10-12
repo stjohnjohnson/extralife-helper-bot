@@ -82,46 +82,6 @@
       "referenceIds": []
     },
     {
-      "id": "block-world.gear.mining-helmet",
-      "theme": "block-world",
-      "kind": "gear",
-      "subject": "Squared mining helmet",
-      "sizeClass": "gear",
-      "required": true,
-      "frame": {
-        "width": 32,
-        "height": 32,
-        "padding": 2
-      },
-      "visibleHeightLimit": 16,
-      "anchor": {
-        "x": 16,
-        "y": 30
-      },
-      "gearSlot": "head",
-      "referenceIds": []
-    },
-    {
-      "id": "block-world.gear.explorer-cap",
-      "theme": "block-world",
-      "kind": "gear",
-      "subject": "Blocky explorer cap",
-      "sizeClass": "gear",
-      "required": true,
-      "frame": {
-        "width": 32,
-        "height": 32,
-        "padding": 2
-      },
-      "visibleHeightLimit": 16,
-      "anchor": {
-        "x": 16,
-        "y": 30
-      },
-      "gearSlot": "head",
-      "referenceIds": []
-    },
-    {
       "id": "kitchen.scenery.prep-counter",
       "theme": "kitchen",
       "kind": "scenery",
@@ -199,46 +159,6 @@
         "y": 28
       },
       "gearSlot": null,
-      "referenceIds": []
-    },
-    {
-      "id": "kitchen.gear.chef-hat",
-      "theme": "kitchen",
-      "kind": "gear",
-      "subject": "Chef hat",
-      "sizeClass": "gear",
-      "required": true,
-      "frame": {
-        "width": 32,
-        "height": 32,
-        "padding": 2
-      },
-      "visibleHeightLimit": 24,
-      "anchor": {
-        "x": 16,
-        "y": 30
-      },
-      "gearSlot": "head",
-      "referenceIds": []
-    },
-    {
-      "id": "kitchen.gear.cooks-cap",
-      "theme": "kitchen",
-      "kind": "gear",
-      "subject": "Cook's cap",
-      "sizeClass": "gear",
-      "required": true,
-      "frame": {
-        "width": 32,
-        "height": 32,
-        "padding": 2
-      },
-      "visibleHeightLimit": 16,
-      "anchor": {
-        "x": 16,
-        "y": 30
-      },
-      "gearSlot": "head",
       "referenceIds": []
     },
     {
@@ -322,46 +242,6 @@
       "referenceIds": []
     },
     {
-      "id": "outdoor.gear.hiking-hat",
-      "theme": "outdoor",
-      "kind": "gear",
-      "subject": "Hiking hat",
-      "sizeClass": "gear",
-      "required": true,
-      "frame": {
-        "width": 32,
-        "height": 32,
-        "padding": 2
-      },
-      "visibleHeightLimit": 16,
-      "anchor": {
-        "x": 16,
-        "y": 30
-      },
-      "gearSlot": "head",
-      "referenceIds": []
-    },
-    {
-      "id": "outdoor.gear.trail-cap",
-      "theme": "outdoor",
-      "kind": "gear",
-      "subject": "Trail cap",
-      "sizeClass": "gear",
-      "required": true,
-      "frame": {
-        "width": 32,
-        "height": 32,
-        "padding": 2
-      },
-      "visibleHeightLimit": 16,
-      "anchor": {
-        "x": 16,
-        "y": 30
-      },
-      "gearSlot": "head",
-      "referenceIds": []
-    },
-    {
       "id": "puzzle.scenery.puzzle-workbench",
       "theme": "puzzle",
       "kind": "scenery",
@@ -439,46 +319,6 @@
         "y": 28
       },
       "gearSlot": null,
-      "referenceIds": []
-    },
-    {
-      "id": "puzzle.gear.detective-cap",
-      "theme": "puzzle",
-      "kind": "gear",
-      "subject": "Detective cap",
-      "sizeClass": "gear",
-      "required": true,
-      "frame": {
-        "width": 32,
-        "height": 32,
-        "padding": 2
-      },
-      "visibleHeightLimit": 16,
-      "anchor": {
-        "x": 16,
-        "y": 30
-      },
-      "gearSlot": "head",
-      "referenceIds": []
-    },
-    {
-      "id": "puzzle.gear.technician-cap",
-      "theme": "puzzle",
-      "kind": "gear",
-      "subject": "Technician cap",
-      "sizeClass": "gear",
-      "required": true,
-      "frame": {
-        "width": 32,
-        "height": 32,
-        "padding": 2
-      },
-      "visibleHeightLimit": 16,
-      "anchor": {
-        "x": 16,
-        "y": 30
-      },
-      "gearSlot": "head",
       "referenceIds": []
     },
     {
@@ -562,46 +402,6 @@
       "referenceIds": []
     },
     {
-      "id": "space-salvage.gear.crew-helmet",
-      "theme": "space-salvage",
-      "kind": "gear",
-      "subject": "Crew helmet",
-      "sizeClass": "gear",
-      "required": true,
-      "frame": {
-        "width": 32,
-        "height": 32,
-        "padding": 2
-      },
-      "visibleHeightLimit": 16,
-      "anchor": {
-        "x": 16,
-        "y": 30
-      },
-      "gearSlot": "head",
-      "referenceIds": []
-    },
-    {
-      "id": "space-salvage.gear.utility-hardhat",
-      "theme": "space-salvage",
-      "kind": "gear",
-      "subject": "Utility hardhat",
-      "sizeClass": "gear",
-      "required": true,
-      "frame": {
-        "width": 32,
-        "height": 32,
-        "padding": 2
-      },
-      "visibleHeightLimit": 16,
-      "anchor": {
-        "x": 16,
-        "y": 30
-      },
-      "gearSlot": "head",
-      "referenceIds": []
-    },
-    {
       "id": "party.scenery.play-blocks",
       "theme": "party",
       "kind": "scenery",
@@ -679,46 +479,6 @@
         "y": 28
       },
       "gearSlot": null,
-      "referenceIds": []
-    },
-    {
-      "id": "party.gear.party-hat",
-      "theme": "party",
-      "kind": "gear",
-      "subject": "Party hat",
-      "sizeClass": "gear",
-      "required": true,
-      "frame": {
-        "width": 32,
-        "height": 32,
-        "padding": 2
-      },
-      "visibleHeightLimit": 16,
-      "anchor": {
-        "x": 16,
-        "y": 30
-      },
-      "gearSlot": "head",
-      "referenceIds": []
-    },
-    {
-      "id": "party.gear.jester-cap",
-      "theme": "party",
-      "kind": "gear",
-      "subject": "Jester cap",
-      "sizeClass": "gear",
-      "required": true,
-      "frame": {
-        "width": 32,
-        "height": 32,
-        "padding": 2
-      },
-      "visibleHeightLimit": 16,
-      "anchor": {
-        "x": 16,
-        "y": 30
-      },
-      "gearSlot": "head",
       "referenceIds": []
     },
     {
@@ -858,7 +618,6 @@
   ],
   "requiredKinds": {
     "scenery": 4,
-    "gear": 2,
     "backdrop": 1
   },
   "retiredAssets": [
@@ -907,6 +666,246 @@
       "theme": "space-salvage",
       "kind": "gear",
       "subject": "Work goggles",
+      "sizeClass": "gear",
+      "required": true,
+      "frame": {
+        "width": 32,
+        "height": 32,
+        "padding": 2
+      },
+      "visibleHeightLimit": 16,
+      "anchor": {
+        "x": 16,
+        "y": 30
+      },
+      "gearSlot": "head",
+      "referenceIds": []
+    },
+    {
+      "id": "block-world.gear.mining-helmet",
+      "theme": "block-world",
+      "kind": "gear",
+      "subject": "Squared mining helmet",
+      "sizeClass": "gear",
+      "required": true,
+      "frame": {
+        "width": 32,
+        "height": 32,
+        "padding": 2
+      },
+      "visibleHeightLimit": 16,
+      "anchor": {
+        "x": 16,
+        "y": 30
+      },
+      "gearSlot": "head",
+      "referenceIds": []
+    },
+    {
+      "id": "block-world.gear.explorer-cap",
+      "theme": "block-world",
+      "kind": "gear",
+      "subject": "Blocky explorer cap",
+      "sizeClass": "gear",
+      "required": true,
+      "frame": {
+        "width": 32,
+        "height": 32,
+        "padding": 2
+      },
+      "visibleHeightLimit": 16,
+      "anchor": {
+        "x": 16,
+        "y": 30
+      },
+      "gearSlot": "head",
+      "referenceIds": []
+    },
+    {
+      "id": "kitchen.gear.chef-hat",
+      "theme": "kitchen",
+      "kind": "gear",
+      "subject": "Chef hat",
+      "sizeClass": "gear",
+      "required": true,
+      "frame": {
+        "width": 32,
+        "height": 32,
+        "padding": 2
+      },
+      "visibleHeightLimit": 24,
+      "anchor": {
+        "x": 16,
+        "y": 30
+      },
+      "gearSlot": "head",
+      "referenceIds": []
+    },
+    {
+      "id": "kitchen.gear.cooks-cap",
+      "theme": "kitchen",
+      "kind": "gear",
+      "subject": "Cook's cap",
+      "sizeClass": "gear",
+      "required": true,
+      "frame": {
+        "width": 32,
+        "height": 32,
+        "padding": 2
+      },
+      "visibleHeightLimit": 16,
+      "anchor": {
+        "x": 16,
+        "y": 30
+      },
+      "gearSlot": "head",
+      "referenceIds": []
+    },
+    {
+      "id": "outdoor.gear.hiking-hat",
+      "theme": "outdoor",
+      "kind": "gear",
+      "subject": "Hiking hat",
+      "sizeClass": "gear",
+      "required": true,
+      "frame": {
+        "width": 32,
+        "height": 32,
+        "padding": 2
+      },
+      "visibleHeightLimit": 16,
+      "anchor": {
+        "x": 16,
+        "y": 30
+      },
+      "gearSlot": "head",
+      "referenceIds": []
+    },
+    {
+      "id": "outdoor.gear.trail-cap",
+      "theme": "outdoor",
+      "kind": "gear",
+      "subject": "Trail cap",
+      "sizeClass": "gear",
+      "required": true,
+      "frame": {
+        "width": 32,
+        "height": 32,
+        "padding": 2
+      },
+      "visibleHeightLimit": 16,
+      "anchor": {
+        "x": 16,
+        "y": 30
+      },
+      "gearSlot": "head",
+      "referenceIds": []
+    },
+    {
+      "id": "puzzle.gear.detective-cap",
+      "theme": "puzzle",
+      "kind": "gear",
+      "subject": "Detective cap",
+      "sizeClass": "gear",
+      "required": true,
+      "frame": {
+        "width": 32,
+        "height": 32,
+        "padding": 2
+      },
+      "visibleHeightLimit": 16,
+      "anchor": {
+        "x": 16,
+        "y": 30
+      },
+      "gearSlot": "head",
+      "referenceIds": []
+    },
+    {
+      "id": "puzzle.gear.technician-cap",
+      "theme": "puzzle",
+      "kind": "gear",
+      "subject": "Technician cap",
+      "sizeClass": "gear",
+      "required": true,
+      "frame": {
+        "width": 32,
+        "height": 32,
+        "padding": 2
+      },
+      "visibleHeightLimit": 16,
+      "anchor": {
+        "x": 16,
+        "y": 30
+      },
+      "gearSlot": "head",
+      "referenceIds": []
+    },
+    {
+      "id": "space-salvage.gear.crew-helmet",
+      "theme": "space-salvage",
+      "kind": "gear",
+      "subject": "Crew helmet",
+      "sizeClass": "gear",
+      "required": true,
+      "frame": {
+        "width": 32,
+        "height": 32,
+        "padding": 2
+      },
+      "visibleHeightLimit": 16,
+      "anchor": {
+        "x": 16,
+        "y": 30
+      },
+      "gearSlot": "head",
+      "referenceIds": []
+    },
+    {
+      "id": "space-salvage.gear.utility-hardhat",
+      "theme": "space-salvage",
+      "kind": "gear",
+      "subject": "Utility hardhat",
+      "sizeClass": "gear",
+      "required": true,
+      "frame": {
+        "width": 32,
+        "height": 32,
+        "padding": 2
+      },
+      "visibleHeightLimit": 16,
+      "anchor": {
+        "x": 16,
+        "y": 30
+      },
+      "gearSlot": "head",
+      "referenceIds": []
+    },
+    {
+      "id": "party.gear.party-hat",
+      "theme": "party",
+      "kind": "gear",
+      "subject": "Party hat",
+      "sizeClass": "gear",
+      "required": true,
+      "frame": {
+        "width": 32,
+        "height": 32,
+        "padding": 2
+      },
+      "visibleHeightLimit": 16,
+      "anchor": {
+        "x": 16,
+        "y": 30
+      },
+      "gearSlot": "head",
+      "referenceIds": []
+    },
+    {
+      "id": "party.gear.jester-cap",
+      "theme": "party",
+      "kind": "gear",
+      "subject": "Jester cap",
       "sizeClass": "gear",
       "required": true,
       "frame": {

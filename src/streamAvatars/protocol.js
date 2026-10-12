@@ -27,7 +27,7 @@ function decodeCampaignClientMessage(raw) {
     if (value?.version !== 3) invalid();
     if (value.type === 'auth' && exact(value, ['version','type','token']) && typeof value.token === 'string' && value.token.length <= 256) return value;
     if (value.type === 'heartbeat' && exact(value, ['version','type'])) return value;
-    if (value.type === 'diagnostic' && exact(value, ['version','type','code']) && ['missing-heart-image','missing-celebration-image','unsupported-message','render-error','custom-service-required','action-error','density-limit','missing-theme-image','unsupported-avatar','foreign-gear'].includes(value.code)) return value;
+    if (value.type === 'diagnostic' && exact(value, ['version','type','code']) && ['missing-heart-image','missing-celebration-image','unsupported-message','render-error','custom-service-required','action-error','density-limit','missing-theme-image','theme-render-error'].includes(value.code)) return value;
     if (value.type === 'ready' && exact(value, ['version','type','capabilities','resolution']) && Array.isArray(value.capabilities) &&
         value.capabilities.length <= 6 && new Set(value.capabilities).size === value.capabilities.length && value.capabilities.every(f => campaignFeatures.includes(f)) &&
         exact(value.resolution,['width','height']) && positive(value.resolution.width) && positive(value.resolution.height)) return value;

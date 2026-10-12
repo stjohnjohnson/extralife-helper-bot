@@ -96,10 +96,8 @@ return function()
     local snapshot, effect = nil, nil
     local themeObjects, chapterObjects = {}, {} -- Chapter owner reserved; no chapter art.
     local themeLoadToken, themeKey, themeLayout, entrance = 0, nil, nil, nil
-    local themeDiagnosticAt = 0
+    local themeDiagnosticAt, themeRenderDiagnosticAt = 0, 0
     local catalog = THEME_CATALOG_JSON and json.parse(THEME_CATALOG_JSON) or {themes={}}
-    local gearOwned, gearQueue, gearCursor, gearRefreshAt, gearEpoch, gearDiagnosticAt = {}, {}, 1, 0, 0, 0
-    local gearNow, gearClockFailed = nil, false
     local generationFloor = -1
     local loadSequence = get("sa_load_sequence") or 0
     local elapsed, serverOffset, updateElapsed = 0, 0, 0
@@ -120,6 +118,9 @@ return function()
     local function themeDiagnostic()
         -- Coalesce repeated tiles and rapid theme reloads across world owners.
         if elapsed>=themeDiagnosticAt then diagnostic("missing-theme-image"); themeDiagnosticAt=elapsed+30 end
+    end
+    local function themeRenderDiagnostic()
+        if elapsed>=themeRenderDiagnosticAt then diagnostic("theme-render-error"); themeRenderDiagnosticAt=elapsed+30 end
     end
     local function release(entry)
         local status=get(entry.key)
@@ -144,87 +145,8 @@ return function()
         themeObjects={}; themeLayout=nil; themeKey=nil
     end
     local function clearAll()
-        clearObjects(); clearTheme(); clearEntrance(); gearEpoch=gearEpoch+1; gearRefreshAt=0
+        clearObjects(); clearTheme(); clearEntrance()
         for _,entry in pairs(chapterObjects) do release(entry) end; chapterObjects={}
-    end
-    -- There is no native owner token or universal head slot. This set is exclusively
-    -- reserved for this integration. Same-set + same-piece foreign ownership is invisible.
-    local function gearDiagnostic()
-        if elapsed>=gearDiagnosticAt then diagnostic("render-error"); gearDiagnosticAt=elapsed+30 end
-    end
-    local function currentGearTheme()
-        if not snapshot or not snapshot.theme or not catalog.gear then return nil end
-        if catalog.previewOnly and (snapshot.mode~="integration" or not snapshot.integration.active) then return nil end
-        if snapshot.theme.packRevision~=catalog.packRevision then return nil end
-        return snapshot.theme.themeId
-    end
-    local function releaseHat(entry, effective)
-        -- A lease that expired could now be a saved identical piece. Never shorten it.
-        if gearNow<entry.expiresAt and effective[entry.setName]==entry.pieceName then
-            entry.user.setTemporaryGear(entry.setName,entry.pieceName,1)
-        end
-    end
-    local function reconcileHat(user, id)
-        local entry=gearOwned[id]
-        local theme=currentGearTheme()
-        local actor=user or (entry and entry.user)
-        if not actor then return end
-        local avatarKey=actor.avatar
-        local fit=user and user.isActive and theme and catalog.gear.avatars[avatarKey] and catalog.gear.avatars[avatarKey][theme] or nil
-        if not entry and not fit then if user and user.isActive and theme then gearDiagnostic() end; return end
-        local avatar=getAvatar(avatarKey); local allowed=false
-        if avatar then for _,setName in ipairs(avatar.getGear()) do if setName==catalog.gear.setName then allowed=true end end end
-        local candidate=nil
-        if fit and fit.slot=="head" then
-            if allowed then
-                local wearable={}; for _,piece in ipairs(user.getWearableGearSetPieces(catalog.gear.setName)) do wearable[piece]=true end
-                if entry and wearable[entry.pieceName] and entry.theme==theme and entry.avatarKey==avatarKey then candidate={setName=entry.setName,pieceName=entry.pieceName}
-                elseif wearable[fit.primary.pieceName] then candidate=fit.primary
-                elseif fit.alternate and wearable[fit.alternate.pieceName] then candidate=fit.alternate end
-            end
-        end
-        -- Native getGear logs each read. Read effective values only immediately before
-        -- a possible apply/renew/release; no early polling can improve write ownership.
-        if entry and candidate and entry.pieceName==candidate.pieceName and entry.theme==theme and entry.avatarKey==avatarKey and entry.generation==snapshot.generation and entry.epoch==gearEpoch and gearNow<entry.renewAt then return end
-        if not candidate and (not entry or not allowed or gearNow>=entry.expiresAt) then
-            gearOwned[id]=nil; if user and user.isActive and theme then gearDiagnostic() end; return
-        end
-        local effective=actor.getGear()
-        local owns=entry and user and tostring(user.id)==id and gearNow<entry.expiresAt and effective[entry.setName]==entry.pieceName
-        if entry and user then entry.user=user end -- fresh native wrappers share the stable character ID
-        if entry and (not candidate or not owns) then
-            releaseHat(entry,effective); gearOwned[id]=nil; entry=nil; owns=false
-        end
-        if not candidate then if user and user.isActive and theme then gearDiagnostic() end; return end
-        local occupied=effective[candidate.setName]
-        if not owns and occupied and occupied~="" and occupied~="none" then gearDiagnostic(); return end
-        user.setTemporaryGear(candidate.setName,candidate.pieceName,30)
-        gearOwned[id]={user=user,avatarKey=avatarKey,theme=theme,slot="head",generation=snapshot.generation,epoch=gearEpoch,setName=candidate.setName,pieceName=candidate.pieceName,renewAt=gearNow+10,expiresAt=gearNow+30}
-    end
-    local function renderGear()
-        if not catalog.gear or gearClockFailed then return end
-        -- Installed MoonSharp exposes os.time (fractional seconds); floor is conservative
-        -- against native DateTime lease expiry. Unity deltaTime may pause independently.
-        local ok,now=pcall(function() return os.time() end)
-        if not ok or not number(now) or now<0 then gearClockFailed=true; gearOwned={}; gearDiagnostic(); return end
-        now=math.floor(now)
-        if gearNow and now<gearNow then gearClockFailed=true; gearOwned={}; gearDiagnostic(); return end
-        gearNow=now
-        -- Host collections are real 1-based Lua tables. Snapshot enumeration is O(N),
-        -- while native reconciliation work is capped at32 users per tick, with a fair cursor.
-        if gearCursor>#gearQueue and elapsed>=gearRefreshAt then
-            local current={}; for _,user in ipairs(getUsers()) do current[tostring(user.id)]=user end
-            local ids={}; for id,_ in pairs(current) do ids[#ids+1]=id end
-            for id,_ in pairs(gearOwned) do if not current[id] then ids[#ids+1]=id end end
-            table.sort(ids); gearQueue={}; for _,id in ipairs(ids) do gearQueue[#gearQueue+1]={id=id,user=current[id]} end
-            gearCursor=1; gearRefreshAt=elapsed+1
-        end
-        for _=1,32 do
-            local work=gearQueue[gearCursor]; if not work then break end
-            gearCursor=gearCursor+1
-            local ok=pcall(reconcileHat,work.user,work.id)
-            if not ok then gearOwned[work.id]=nil; gearDiagnostic() end -- finite native lease is the failure fallback
-        end
     end
     local function reconcileTheme()
         local theme=snapshot and snapshot.theme
@@ -605,7 +527,7 @@ return function()
             generationFloor=value.generation; snapshot=value; serverOffset=value.serverNowMs-elapsed*1000; retryDelay=1
             if value.mode=="integration" and not previewHostSet then app.platformServiceSettings.SetStreamer(900000,"sa_integration_host"); previewHostSet=true end
             if value.mode=="production" then previewHostSet=false end
-            reconcileCrowd(value.mode=="integration" and value.integration.crowdIds or {}); reconcileTheme(); gearRefreshAt=0
+            reconcileCrowd(value.mode=="integration" and value.integration.crowdIds or {}); reconcileTheme()
             local resolution=app.getResolution()
             send({version=3,type="ready",capabilities={"hearts","crowd","campaign","celebrations","donation-recognition","themes"},resolution={width=resolution.x,height=resolution.y}})
         elseif value.type=="crowd" and snapshot and snapshot.mode=="integration" and value.mode==snapshot.mode and value.generation==snapshot.generation and validCrowd(value.crowdIds) then
@@ -666,30 +588,43 @@ return function()
         end
     end
     local function renderWorld()
+        -- Lifetime cleanup must run even while native bounds conversion fails.
+        if entrance and elapsed>=entrance.ends then clearEntrance() end
         local bottom=app.convertPercentToPosition(0,0); local top=app.convertPercentToPosition(1,1)
         local width,height=top.x-bottom.x,top.y-bottom.y
         local scale=width/REFERENCE_WIDTH
         local fits=number(scale) and number(height) and scale>0 and height>=(BAND_HEIGHT+BASELINE_OFFSET)*scale
         if entrance then
-            if elapsed>=entrance.ends then clearEntrance()
-            elseif fits then
+            if fits then
                 local positioned=pcall(function() entrance.object.setPosition(bottom.x+width/2,bottom.y+(BAND_HEIGHT+BASELINE_OFFSET)*scale) end)
                 if not positioned then clearEntrance(); diagnostic("render-error") end
             else clearEntrance() end
         end
         if not themeLayout then return end
         local components={}
-        for _,asset in ipairs(themeLayout.tiles) do components[#components+1]={asset=asset,layer="behindBackground",order=0} end
-        for _,asset in ipairs(themeLayout.props) do components[#components+1]={asset=asset,layer="background",order=1} end
+        -- Native background/0 must not occlude the continuous overlay. Both
+        -- component orders remain below the installed Characters sorting layer.
+        for _,asset in ipairs(themeLayout.tiles) do components[#components+1]={asset=asset,layer="background",order=1} end
+        for _,asset in ipairs(themeLayout.props) do components[#components+1]={asset=asset,layer="background",order=2} end
         for index,component in ipairs(components) do
             local entry=themeObjects[index]
             if not entry and fits then
                 local pending=get("sa_pending_images") or 0
                 if pending<100 then
-                    set("sa_pending_images",pending+1); loadSequence=loadSequence+1; set("sa_load_sequence",loadSequence)
+                    loadSequence=loadSequence+1; set("sa_load_sequence",loadSequence)
                     local key="sa_image_"..loadSequence
-                    entry={object=app.createGameObject(),key=key,deadline=elapsed+2,token=themeLoadToken}; themeObjects[index]=entry
-                    entry.object.setScale(0,0); entry.loader=async("sa_load_theme",entry.object,key,component.asset.image)
+                    entry={key=key,deadline=elapsed+2,token=themeLoadToken}; themeObjects[index]=entry
+                    local created=pcall(function()
+                        entry.object=app.createGameObject(); entry.object.setScale(0,0)
+                    end)
+                    if not created then
+                        if entry.object then pcall(entry.object.destroy) end
+                        entry.skipped=true; themeRenderDiagnostic()
+                    else
+                        -- Count only workers that can start after hidden-object setup.
+                        set("sa_pending_images",pending+1)
+                        entry.loader=async("sa_load_theme",entry.object,key,component.asset.image)
+                    end
                 end
             end
             if entry and not entry.skipped and entry.token==themeLoadToken then
@@ -698,13 +633,20 @@ return function()
                     elseif get(entry.key)=="failed" or elapsed>=entry.deadline then release(entry); entry.skipped=true; themeDiagnostic() end
                 end
                 if not entry.skipped then
-                    if fits and entry.loaded then
-                        local asset=component.asset
-                        -- Package sprites have center pivot. Image-space anchor Y points down.
-                        entry.object.setPosition(bottom.x+(asset.x+asset.width/2)*scale,bottom.y+(BASELINE_OFFSET+asset.anchorY-asset.height/2)*scale)
-                        entry.object.image.sorting(component.order,component.layer)
-                        entry.object.setScale(scale,scale)
-                    else entry.object.setScale(0,0) end
+                    local rendered=pcall(function()
+                        if fits and entry.loaded then
+                            local asset=component.asset
+                            -- Package sprites have center pivot. Image-space anchor Y points down.
+                            entry.object.setPosition(bottom.x+(asset.x+asset.width/2)*scale,bottom.y+(BASELINE_OFFSET+asset.anchorY-asset.height/2)*scale)
+                            entry.object.image.sorting(component.order,component.layer)
+                            entry.object.setScale(scale,scale)
+                        else entry.object.setScale(0,0) end
+                    end)
+                    if not rendered then
+                        -- Discard only this component; captions/hearts and the rest of
+                        -- the world keep their independent lifetimes and ownership.
+                        pcall(release,entry); entry.skipped=true; themeRenderDiagnostic()
+                    end
                 end
             end
         end
@@ -745,8 +687,7 @@ return function()
         end
         if updateElapsed>=0.05 then
             renderEntranceActions()
-            renderGear()
-            local worldOk=pcall(renderWorld); if not worldOk then clearTheme(); clearEntrance(); diagnostic("render-error") end
+            local worldOk=pcall(renderWorld); if not worldOk then clearTheme(); themeRenderDiagnostic() end
             local ok=pcall(renderTick); if not ok then clearObjects(); diagnostic("render-error") end
             updateElapsed=0
         end
