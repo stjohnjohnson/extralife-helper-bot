@@ -1,20 +1,26 @@
-// semantic-release keeps version calculation and publishing; this hook supplies
-// the same authored PR notes to its existing changelog and GitHub stages.
-function breakingNotes(message) {
-    const notes = [];
-    let current;
-    for (const line of message.split(/\r?\n/)) {
-        const start = line.match(/^[\s|*]*BREAKING(?: CHANGE|-CHANGE)[:\s]+(.*)/i);
-        if (start) {
-            current = [];
-            notes.push(current);
-            if (start[1]) current.push(start[1]);
-        } else if (current && /^(?:[A-Za-z][A-Za-z -]+: |(?:Closes|Fixes|Refs) #\d|## )/i.test(line)) {
-            current = undefined;
-        } else if (current && line.trim()) current.push(line.trim());
-    }
-    return notes.map(note => note.join(' ')).filter(Boolean);
-}
+// Extend the existing generator's writer; it owns commit parsing, Markdown
+// rendering, the version header, and breaking-change footers.
+const mainTemplate = `{{> header}}
+
+{{#if releaseNotes}}
+### Changes
+
+{{#each releaseNotes}}
+- {{text}} ([#{{number}}]({{url}}))
+{{/each}}
+{{else}}
+Internal maintenance; no user-facing changes.
+{{/if}}
+{{#if upgradeActions}}
+
+### Upgrade actions
+
+{{#each upgradeActions}}
+- {{text}} ([#{{number}}]({{url}}))
+{{/each}}
+{{/if}}
+{{> footer}}
+`;
 
 function section(body, name) {
     let heading, fence;
@@ -47,19 +53,15 @@ function bullets(text, pr, field) {
     return result;
 }
 
-async function generateNotes({ fetchImpl = fetch } = {}, context) {
-    const { commits, lastRelease = {}, nextRelease = {}, options, env } = context;
-    const repository = (options.repositoryUrl || '').replace(/^git@github\.com:/, 'https://github.com/').replace(/\.git$/, '').replace(/\/$/, '');
-    if (!/^(?:https:\/\/|ssh:\/\/(?:git@)?)github\.com\/[\w.-]+\/[\w.-]+$/.test(repository)) {
-        throw new Error('Configure a valid github.com repository URL for release notes.');
+async function finalizeContext(context, commits, { fetchImpl, token }) {
+    if (context.host !== 'https://github.com' || !/^[\w.-]+$/.test(context.owner || '') || !/^[\w.-]+$/.test(context.repository || '')) {
+        throw new Error('Configure a valid github.com repository for release notes.');
     }
-    const repositoryUrl = repository.replace(/^ssh:\/\/(?:git@)?/, 'https://');
-    const slug = new URL(repositoryUrl).pathname.slice(1);
-    const releaseCommits = commits.filter(commit => !/^chore\(release\):/.test(commit.message));
+    const slug = `${context.owner}/${context.repository}`;
+    const repositoryUrl = `${context.host}/${slug}`;
     const hashes = new Set(commits.map(commit => commit.hash));
     const prs = new Map(), mapped = new Set();
-    for (const commit of releaseCommits) {
-        const token = env.GITHUB_TOKEN || env.GH_TOKEN;
+    for (const commit of commits) {
         if (!token) throw new Error('Set GITHUB_TOKEN or GH_TOKEN to read release PR notes.');
         if (!/^[a-f0-9]{40}$/.test(commit.hash)) throw new Error('Release commits require full Git SHA values.');
         const endpoint = `https://api.github.com/repos/${slug}/commits/${commit.hash}/pulls`;
@@ -90,15 +92,14 @@ async function generateNotes({ fetchImpl = fetch } = {}, context) {
             url = response.headers.get('link')?.match(/<([^>]+)>;\s*rel="next"/)?.[1];
         }
     }
-    for (const commit of releaseCommits) {
-        const releasing = /^(?:feat|fix|perf)(?:\([^()]+\))?!?:/.test(commit.message) ||
-            /^(?:Revert|revert:)\s"?([\s\S]+?)"?\s*This reverts commit (\w{7,40})\b/i.test(commit.message) || breakingNotes(commit.message).length;
+    for (const commit of commits) {
+        const releasing = ['feat', 'fix', 'perf'].includes(commit.type) || commit.revert || commit.notes.length;
         if (releasing && !mapped.has(commit.hash)) throw new Error(`Release commit ${commit.hash.slice(0, 7)} is not associated with a merged PR; supply reviewed release notes.`);
     }
     const ordered = [...prs.values()].sort((a, b) => a.merged_at.localeCompare(b.merged_at) || a.number - b.number);
     const parsed = new Map(), replaced = new Set();
     for (const pr of ordered) {
-        const breaking = pr.commits.some(commit => breakingNotes(commit.message).length) || breakingNotes(pr.body || '').length;
+        const breaking = pr.commits.some(commit => commit.notes.length) || /!:\s/.test(pr.title);
         const bot = pr.user?.login === 'dependabot[bot]' && pr.user.type === 'Bot' && /^chore\(deps(?:-[a-z]+)?\): /.test(pr.title) && !breaking;
         const notes = section(pr.body, 'Release notes');
         const upgrades = section(pr.body, 'Upgrade actions');
@@ -119,17 +120,16 @@ async function generateNotes({ fetchImpl = fetch } = {}, context) {
         }
         parsed.set(pr.number, record);
     }
-    const active = ordered.filter(pr => !replaced.has(pr.number) && !parsed.get(pr.number).internal);
-    const cite = pr => ` ([#${pr.number}](${repositoryUrl}/pull/${pr.number}))`;
-    const lines = [`# v${nextRelease.version}`, ''];
-    if (lastRelease.gitTag && nextRelease.gitTag) lines.push(`[Full changelog](${repositoryUrl}/compare/${encodeURIComponent(lastRelease.gitTag)}...${encodeURIComponent(nextRelease.gitTag)})`, '');
-    const breaking = [...new Set(releaseCommits.flatMap(commit => breakingNotes(commit.message)))];
-    if (breaking.length) lines.push('### Breaking changes', '', ...breaking.map(note => `- ${note}`), '');
-    if (active.length) lines.push('### Changes', '', ...active.flatMap(pr => parsed.get(pr.number).notes.map(note => `- ${note}${cite(pr)}`)));
-    else lines.push('Internal maintenance; no user-facing changes.');
-    const upgrades = active.flatMap(pr => parsed.get(pr.number).upgrades.map(note => `- ${note}${cite(pr)}`));
-    if (upgrades.length) lines.push('', '### Upgrade actions', '', ...upgrades);
-    return lines.join('\n').trim() + '\n';
+    const active = ordered.filter(pr => !replaced.has(pr.number));
+    const fields = name => active.flatMap(pr => parsed.get(pr.number)[name].map(text => ({ text, number: pr.number, url: `${repositoryUrl}/pull/${pr.number}` })));
+    return { ...context, releaseNotes: fields('notes'), upgradeActions: fields('upgrades') };
 }
 
-module.exports = { generateNotes };
+module.exports = ({ fetchImpl = fetch, token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN } = {}) => ({
+    mainTemplate,
+    // Retain all parsed commits for PR lookup, including maintenance that the
+    // default Angular transform omits. Leave parsed notes/reverts untouched.
+    transform: commit => commit,
+    skip: commit => /^chore\(release\):/.test(commit.message),
+    finalizeContext: (context, _options, _filtered, _key, commits) => finalizeContext(context, commits, { fetchImpl, token })
+});
