@@ -42,3 +42,26 @@ test('avatar service attaches to the application listener and stopping it preser
     });
     expect(response).toBe('other integration');
 });
+
+test('production keeps default randomness independently of developer action settings', async () => {
+    await service.stop();
+    const draw = jest.spyOn(Math, 'random').mockReturnValue(0.1);
+    try {
+        service = await startStreamAvatars({ webServer, config: { participantId: '123', twitch: { channel: 'streamer' }, streamAvatars: { config: {
+            token: 't'.repeat(32), stateDir: directory, graceMs: 900000, recognitionAction: 'hug'
+        } } }, logger: { info() {}, warn() {} }, realClock: { nowMs: () => now } });
+        await service.observeProduction({ status: 'online', observedAtMs: now, startedAtMs: now - 1000, streamId: 'real' });
+        const accept = donations => service.acceptDonations({ expectedSessionId: service.getStatus().state.sessionId,
+            scan: { complete: true, participantId: '123', fromMs: service.getSessionWindow().fromMs, throughMs: now, donations }, observedAtMs: now });
+        await accept([]);
+        socket = new WebSocket(`ws://127.0.0.1:${webServer.address.port}/sa/socket`); await once(socket, 'open');
+        const first = waitFor('snapshot'); socket.send(JSON.stringify({ version: 2, type: 'auth', token: 't'.repeat(32) })); await first;
+        socket.send(JSON.stringify({ version: 2, type: 'ready', capabilities: ['celebrations', 'donation-recognition'], resolution: { width: 1920, height: 1080 } }));
+        for (let i = 0; i < 30 && !service.getStatus().companionReady; i++) await new Promise(resolve => setTimeout(resolve, 2));
+        expect(service.getStatus().companionReady).toBe(true);
+        const received = waitFor('celebration'); now++;
+        await accept([{ id: 'live', participantId: '123', createdAtMs: now - 1, amountCents: 2500 }]);
+        expect(await received).toMatchObject({ recognitionAction: 'jump', donationCount: 1, donationTotalCents: 2500 });
+        expect(draw).toHaveBeenCalledTimes(1);
+    } finally { draw.mockRestore(); }
+});

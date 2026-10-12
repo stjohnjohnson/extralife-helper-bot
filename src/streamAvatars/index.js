@@ -15,7 +15,7 @@ async function startStreamAvatars({ config, logger, signal, webServer, realClock
     const participantId = config.participantId, intervalCents = settings.donationIntervalCents ?? 50000;
     const session = await createSessionController({ store: createSessionStore({ path: join(settings.stateDir, mode, 'state.json'), mode, channel, participantId, intervalCents }),
         clock: realClock, mode, channel, participantId, intervalCents, graceMs: settings.graceMs, cadenceMs });
-    const composer = createCelebrationComposer({ clock: realClock });
+    const composer = createCelebrationComposer({ clock: realClock, ...(integration?.recognitionAction === 'jump' ? { random: () => 0 } : integration?.recognitionAction === 'hug' ? { random: () => 0.5 } : {}) });
     let server, events, stopping, lastResolution = null, active = true, generation = 1, renderedIdentity = '', lastRealObservation = null;
     const snapshot = () => {
         const state = session.getSnapshot();

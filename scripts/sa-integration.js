@@ -2,12 +2,13 @@ const { parseWebServerConfiguration } = require('../src/webServerConfig');
 const { runIntegration } = require('../src/streamAvatars/integration');
 async function run(args = process.argv.slice(2), env = process.env) {
     require('dotenv').config({ quiet: true });
-    let scenario = 'all', crowdCount = 20, hue = false;
+    let scenario = 'all', crowdCount = 20, hue = false, recognition = 'random';
     for (let i=0;i<args.length;i++) {
         if (args[i]==='--scenario' && args[i+1]) scenario=args[++i];
         else if (args[i]==='--crowd' && /^\d+$/.test(args[i+1] || '')) crowdCount=Number(args[++i]);
+        else if (args[i]==='--recognition' && ['random','jump','hug'].includes(args[i+1])) recognition=args[++i];
         else if (args[i]==='--hue') hue=true;
-        else throw new Error('Use --scenario ordinary|anonymous|batch|milestone|large|goal|all, --crowd 0..100, or --hue.');
+        else throw new Error('Use --scenario ordinary|anonymous|batch|milestone|large|goal|all, --crowd 0..100, --recognition random|jump|hug, or --hue.');
     }
     const listenerConfig = parseWebServerConfiguration(env);
     if (listenerConfig.errors.length) throw new Error(listenerConfig.errors.join('; '));
@@ -20,7 +21,7 @@ async function run(args = process.argv.slice(2), env = process.env) {
     const controller = new AbortController();
     const shutdown = signal => { process.exitCode=signal==='SIGINT' ? 130 : 143; controller.abort(); };
     process.once('SIGINT',shutdown); process.once('SIGTERM',shutdown);
-    try { return await runIntegration({ listenerConfig, token: env.STREAM_AVATARS_TOKEN, crowdCount, scenario, signal: controller.signal, hueOutput }); }
+    try { return await runIntegration({ listenerConfig, token: env.STREAM_AVATARS_TOKEN, crowdCount, scenario, recognition, signal: controller.signal, hueOutput }); }
     catch (error) { if (!controller.signal.aborted) throw error; }
     finally { process.removeListener('SIGINT',shutdown); process.removeListener('SIGTERM',shutdown); }
 }

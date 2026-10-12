@@ -5,7 +5,8 @@ const { setTimeout: delay } = require('node:timers/promises');
 const { startStreamAvatars } = require('./index');
 const { createDonationSource } = require('../donations/source');
 const scenarios = require('../../tests/fixtures/donations/integration-scenarios');
-async function runIntegration({ listenerConfig, token, crowdCount = 20, scenario = 'all', signal, hueOutput, logger = console, wait = ms => delay(ms, undefined, { signal }), clock = { nowMs: Date.now } }) {
+async function runIntegration({ listenerConfig, token, crowdCount = 20, scenario = 'all', recognition = 'random', signal, hueOutput, logger = console, wait = ms => delay(ms, undefined, { signal }), clock = { nowMs: Date.now } }) {
+    if (!['random','jump','hug'].includes(recognition)) throw new Error('Invalid integration recognition; use random, jump or hug');
     if (!Number.isInteger(crowdCount) || crowdCount < 0 || crowdCount > 100 || typeof token !== 'string' || token.length < 16 || token.length > 256) throw new Error('Invalid integration crowd/token configuration');
     const selected = scenarios.filter(item => scenario === 'all' || item.name === scenario);
     if (!selected.length) throw new Error('Unknown integration scenario');
@@ -18,7 +19,7 @@ async function runIntegration({ listenerConfig, token, crowdCount = 20, scenario
     try {
         service = await startStreamAvatars({ config: { participantId: 'integration', twitch: { channel: 'local-integration' }, webServer: listenerConfig,
             streamAvatars: { config: { token, stateDir: directory, graceMs: 900000, donationIntervalCents: 50000 } } },
-        integration: { crowdIds: Array.from({ length: crowdCount }, (_, i) => 'sa_integration_' + (i + 1)) }, logger, realClock: clock });
+        integration: { recognitionAction: recognition, crowdIds: Array.from({ length: crowdCount }, (_, i) => 'sa_integration_' + (i + 1)) }, logger, realClock: clock });
         logger.info(`Stream Avatars integration listener: ${service.address.address}:${service.address.port}. Import companion v2 and select Custom Lua.`, { address: service.address, stateDir: directory });
         const readyDeadline = clock.nowMs() + 60000;
         while (!service.getStatus().companionReady) { check(); if (clock.nowMs() >= readyDeadline) throw new Error('Companion v2 was not ready within 60000 ms'); await wait(100); }

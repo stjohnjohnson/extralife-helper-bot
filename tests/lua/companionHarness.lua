@@ -65,11 +65,11 @@ local env; env = {
 }
 -- MoonSharp json.null is a function; parsed JSON null is special userdata.
 local nativeNull
-if scenario=="native-null-donation" or scenario=="native-null-goal" then
+if scenario=="native-null-donation" or scenario=="native-null-goal" or scenario=="native-null-hidden" or scenario=="native-null-goal-only" then
     nativeNull=assert(io.tmpfile())
     env.json.null=function() return nativeNull end
     env.json.isnull=function(value) return value==nil or value==nativeNull end
-    env.json.parse=function(text) local value=codec.decode(text);if value.milestoneCents==codec.null then value.milestoneCents=nativeNull end;return value end
+    env.json.parse=function(text) local value=codec.decode(text);for key,item in pairs(value) do if item==codec.null then value[key]=nativeNull end end;return value end
 end
 -- The companion has no filesystem, shell, package, clock or dynamic-code access.
 local hostMath={};for key,value in pairs(math) do hostMath[key]=value end
@@ -173,7 +173,13 @@ local function timedGift(now,id,kind)
     if kind=="goal" then v.partyUntilMs=now+20000 elseif kind=="milestone" then v.partyUntilMs=now+18000 end
     return v
 end
-if scenario:match("^hug%-crowd%-%d+$") then
+if scenario=="native-null-hidden" or scenario=="native-null-goal-only" then
+    addUser(1);send(snapshot());local v=celebration(scenario=="native-null-goal-only" and "goal" or "donation")
+    if scenario=="native-null-hidden" then v.donationTotalCents=codec.null
+    else v.donationCount=0;v.donationTotalCents=0;v.recognitionStartedAtMs=codec.null;v.recognitionAction=codec.null;v.heartsUntilMs=0 end
+    send(v);tick();assert(captionText()==(scenario=="native-null-hidden" and "THANK YOU!" or "EXTRA LIFE GOAL REACHED!"),"must accept native userdata null metadata")
+    assert(assetCount("sa_heart")== (scenario=="native-null-hidden" and 1 or 0))
+elseif scenario:match("^hug%-crowd%-%d+$") then
     local n=tonumber(scenario:match("(%d+)$"));for i=1,n do addUser(i) end;send(snapshot());local v=celebration();v.recognitionAction="hug";send(v);tick()
     assert(#hugs==math.floor(n/2) and jumps==n%2,"must issue one initiating hug per pair")
     local used={};for _,pair in ipairs(hugs) do local a,b=tostring(pair.from.id),tostring(pair.to.id);assert(not used[a] and not used[b] and a~=b,"must pair without reuse");used[a]=true;used[b]=true end

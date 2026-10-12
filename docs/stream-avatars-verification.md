@@ -103,3 +103,26 @@ The public Lua API reports sprite names without the logical action or command re
 Thirteen added Lua scenarios cover Wander admission, delayed ownership/expiry, clear/reload before start, original avatar preservation across reload, different custom actions before/after ownership, rejected requests, pre-existing dances, and native mapped/tween variants. Reproduced cleanup failures were verified failing before correction. The full suite passes 820 tests across 52 suites; all 105 companion checks also pass on Lua 5.2.4, and lint is clean. The regenerated 19-image ZIP is accepted by the installed native ZIP reader/import types.
 
 A temporary subsystem run on loopback port 3010 dispatched all six scenarios with 20 synthetic viewers plus the caster. Native UI observations show Thank you with following hearts and 21 Jump states, the $500 caption without .00 with scattered gold paper faces, and the Extra Life goal caption with confetti. Synthetic-only diagnostics show all 21 avatars entering CustomAnimation/custom2 during parties and returning to idle under their native animation settings. The temporary probe/script is restored byte-for-byte afterwards; private settings and real bot clients are untouched. This verifies the local macOS native host; Windows deployment, LAN/OBS capture, 101-avatar performance and optional physical Hue remain acceptance checks.
+
+## Combined amounts and random recognition (2026-10-11)
+
+The follow-up displays `$25 - THANK YOU!` for a single gift and `$25 FROM 2 DONATIONS - THANK YOU!` for a combined batch. Tests distinguish fresh money from revealed historical amounts, preserve hidden totals, and select jump/hug once per bounded window. Strict Node/Lua contracts carry the amount/count/start/action fields; real WebSocket tests reject older celebration-only companions before readiness. Reimport the latest ZIP, including its three additional fixed caption images.
+
+Lua behavioral tests cover 1, 2, 3, 20 and 101 eligible avatars, shuffled matching without self/reciprocal/reused pairs, busy-state rechecks, late joins, amount updates, unsafe internal IDs, synchronous exceptions and cleanup/reconnect/reload. Deliberate mutations prove the pairing and admission guards matter. Party captions/actions remain suppressed after expiry while remaining hearts finish. Long captions fit small, resized and negative-coordinate canvases; amount changes release unused objects. Tests run on both local Lua and Lua 5.2.4. The temporary runner's forced actions are tested through real localhost sockets and child processes, preserving production state and optional Hue isolation.
+
+Native command inspection establishes that a hug travels to its target, temporarily uses Targeted state, and releases it within the native action sequence. The companion emits one initiator, never a reciprocal request or forced hug cleanup. This is control-flow evidence; command access/cooldowns, partner departure or another action during travel may affect the host result. A quiet command has no success return, so silent native rejection cannot trigger automatic fallback/retry.
+
+The latest native host is closed and the available UI launcher could not start it. No installed script, private settings or credentials were changed for this follow-up. Visual acceptance of the new captions/hugs and native partner release is therefore pending, including busy/departing targets and dense performance. Earlier dance observations above apply to the previous verified build.
+
+With the companion's private address set to the same port and its matching token already in your environment, run:
+
+```sh
+WEB_PORT=3010 npm run sa:integration -- --scenario all --crowd 20 --recognition jump
+WEB_PORT=3010 npm run sa:integration -- --scenario all --crowd 20 --recognition hug
+WEB_PORT=3010 npm run sa:integration -- --scenario ordinary --crowd 0 --recognition hug
+WEB_PORT=3010 npm run sa:integration -- --scenario ordinary --crowd 100 --recognition hug
+```
+
+Observe combined captions, one initiating hug per eligible pair, odd-avatar jumps, native partner release, and unchanged milestone/goal dancing. During travel, check a departing/busy target without forcibly exiting its partner. Dispatch logs alone are not a visual pass.
+
+Follow-up verification: `npm ci`, clean `npm run lint`, and complete `npm test -- --runInBand` pass 894 tests across 52 suites. All 141 companion contracts/mutations pass with Lua 5.2.4. `npm run sa:package` produces a deterministic 22-image, 25-entry ZIP accepted by the installed native ZIP reader and import types, including the three phrase dimensions and placeholder settings.

@@ -22,17 +22,21 @@ function companion(address, packets) {
         if (value.type === 'heartbeat') socket.send(JSON.stringify({ version: 2, type: 'heartbeat' }));
     }); return socket;
 }
-test('temporary subsystem runs every fixture without real clients or production state', async () => {
-    const packets = [], dirs = []; let socket, now = Date.now();
+test.each(['random','jump','hug'])('temporary subsystem runs every fixture with %s without real clients or production state', async recognition => {
+    const packets = [], dirs = [], messages = []; let socket, now = Date.now();
     const hue = { initialize: jest.fn().mockResolvedValue(true), celebrateDonation: jest.fn().mockResolvedValue(), stop: jest.fn().mockResolvedValue() };
-    const logger = { warn: jest.fn(), info(message, metadata) { if (metadata?.address) { dirs.push(metadata.stateDir); socket = companion(metadata.address, packets); } } };
+    const logger = { warn: jest.fn(), info(message, metadata) { messages.push(message); if (metadata?.address) { dirs.push(metadata.stateDir); socket = companion(metadata.address, packets); } } };
     try {
-        const result = await runIntegration({ listenerConfig: { host: '127.0.0.1', port: 0 }, token, logger, clock: { nowMs: () => now }, hueOutput: hue,
+        const result = await runIntegration({ listenerConfig: { host: '127.0.0.1', port: 0 }, token, logger, recognition, clock: { nowMs: () => now }, hueOutput: hue,
             wait: async ms => { now+=ms; await new Promise(resolve => setTimeout(resolve, 2)); } });
         expect(result).toMatchObject({ completedScenarios: ['ordinary','anonymous','batch','milestone','large','goal'], finalTotalCents: 10000 });
         expect(packets.filter(value => value.type === 'celebration').map(value => [value.kind,value.liveTotalCents])).toEqual([
             ['donation',2500],['donation',2500],['donation',2500],['milestone',50000],['milestone',155000],['goal',10000]
         ]);
+        expect(messages).toContain('batch: expect $25 FROM 2 DONATIONS - THANK YOU! for 5s; dispatched. Verify visually.');
+        const effects = packets.filter(value => value.type === 'celebration');
+        expect(effects.map(value => [value.donationCount, value.donationTotalCents])).toEqual([[1,2500],[1,2500],[2,2500],[1,1000],[1,106000],[1,10000]]);
+        for (const effect of effects) expect(recognition === 'random' ? ['jump','hug'] : [recognition]).toContain(effect.recognitionAction);
         expect(packets.filter(value => value.type === 'snapshot').every(value => value.mode === 'integration')).toBe(true);
         expect(hue.celebrateDonation).toHaveBeenCalledTimes(6); expect(hue.stop).toHaveBeenCalledTimes(1);
         for (const dir of dirs) await expect(fs.stat(dir)).rejects.toMatchObject({ code: 'ENOENT' });
@@ -59,7 +63,7 @@ test.each(['SIGINT','SIGTERM'])('CLI uses only listener/token and %s delivers cl
     const reservation = await startWebServer({ config: { host: '127.0.0.1', port: 0 } }); const port = reservation.address.port; await reservation.stop();
     const env = { PATH: process.env.PATH, HOME: process.env.HOME, WEB_HOST: '127.0.0.1', WEB_PORT: String(port), STREAM_AVATARS_TOKEN: token, STREAM_AVATARS_STATE_DIR: directory,
         HUE_USERNAME: 'must-not-connect', HUE_IPADDRESS: 'must-not-connect', HUE_GROUPID: '1' };
-    const child = spawn(process.execPath, ['scripts/sa-integration.js','--scenario','ordinary','--crowd','20'], { env, stdio: ['ignore','pipe','pipe'] });
+    const child = spawn(process.execPath, ['scripts/sa-integration.js','--scenario','ordinary','--crowd','20','--recognition',signal==='SIGINT' ? 'jump' : 'hug'], { env, stdio: ['ignore','pipe','pipe'] });
     let stdout='', stderr='', socket; const packets=[];
     const done = once(child,'exit');
     const ready = new Promise((resolve, reject) => {
@@ -76,7 +80,14 @@ test.each(['SIGINT','SIGTERM'])('CLI uses only listener/token and %s delivers cl
     try {
         await ready; child.kill(signal); const [code] = await done;
         expect(code).toBe(signal==='SIGINT' ? 130 : 143); expect(stderr).toBe('');
-        expect(stdout).toContain('ordinary'); expect(packets.some(value => value.type==='clear')).toBe(true);
+        expect(packets.find(value => value.type==='celebration')).toMatchObject({ recognitionAction: signal==='SIGINT' ? 'jump' : 'hug', donationTotalCents: 2500 });
+        expect(stdout).toContain('$25 - THANK YOU!'); expect(stdout).toContain('ordinary'); expect(packets.some(value => value.type==='clear')).toBe(true);
         expect(await fs.readFile(sentinel,'utf8')).toBe('unchanged'); expect(await fs.readdir(directory)).toEqual(['sentinel']);
     } finally { child.kill('SIGTERM'); socket?.terminate(); await fs.rm(directory,{recursive:true,force:true}); }
 },10000);
+
+test('runner rejects unknown recognition before creating a listener', async () => {
+    const logger = { info: jest.fn(), warn: jest.fn() };
+    await expect(runIntegration({ listenerConfig: { host: '127.0.0.1', port: 0 }, token, recognition: 'explode', logger, wait: async () => { throw new Error('listener was created'); } })).rejects.toThrow(/recognition/);
+    expect(logger.info).not.toHaveBeenCalled();
+});
