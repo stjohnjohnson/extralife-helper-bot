@@ -1,4 +1,4 @@
-const { createInitialState, reduceObservation, validateSessionState } = require('../src/broadcastSession/state');
+const { createInitialState, reduceObservation, validateSessionState } = require('../src/gameSession/state');
 const options = { graceMs: 900000, cadenceMs: 60000, newSessionId: () => 'stable-id' };
 const empty = () => createInitialState({ mode: 'production', channel: 'streamer' });
 const observe = (state, status, time, extra = {}) => reduceObservation(state, { status, observedAtMs: time, ...extra }, options);
@@ -83,6 +83,6 @@ test.each([
     { observedAtMs: 100, confirmedAtMs: '120', source: 'discord-category' },
     { observedAtMs: 100, confirmedAtMs: 120, source: 'twitch' }
 ])('rejects malformed or read-supplied successful-write confirmation %j', value => {
-    const { validGameObservation } = require('../src/broadcastSession/state');
+    const { validGameObservation } = require('../src/gameSession/state');
     expect(Boolean(validGameObservation({ gameName: 'Minecraft', ...value }))).toBe(false);
 });

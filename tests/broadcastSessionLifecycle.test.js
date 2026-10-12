@@ -1,5 +1,5 @@
-const { createSessionController } = require('../src/broadcastSession');
-const { createInitialState } = require('../src/broadcastSession/state');
+const { createSessionController } = require('../src/gameSession');
+const { createInitialState } = require('../src/gameSession/state');
 function memoryStore(initial = null) {
     let state = initial;
     return { load: async () => state, save: async value => { state = value; }, flush: async () => {}, close: async () => {}, archiveAndReset: async () => createInitialState({ mode: 'production', channel: 'streamer' }), recoverLastBackup: async () => state };

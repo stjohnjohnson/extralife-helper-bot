@@ -63,7 +63,7 @@ describe('portable Stream Avatars packages', () => {
         for (const asset of Object.values(assets)) Object.assign(asset, { scale: 999, originX: 0, originY: 0 });
         expect(() => buildPackage({ integrationDir, themeManifest, themeAssetsDir: directory })).toThrow(/promotion/);
         const result = buildPackage({ integrationDir, themeManifest, themeAssetsDir: directory, previewOnly: true });
-        expect(result.imageCount).toBe(6);
+        expect(result.imageCount).toBe(27);
         expect(result.packRevision).toMatch(/^[a-f0-9]{64}$/);
         const entries = decode(result.archive);
         const script = strFromU8(entries[`${commandPath}sa_helper_bridge.lua`]);

@@ -2,7 +2,7 @@ local script, scenario = arg[1], arg[2]
 local shared, packets, users, objects, callbacks = {}, {}, {}, {}, {}
 local codec = dofile("tests/lua/vendor/json.lua")
 local logs = {}
-local gearScenario = scenario:match("^gear%-")
+local gearScenario = scenario:match("^gear%-") and scenario~="gear-preservation"
 local gearClock, gearCalls, gearAttempts, gearClockOffset, invalidGearClock = 0, {}, {}, 0, false
 local themeScenario = scenario:match("^theme%-") or scenario:match("^entrance%-")
 local themeRevision = themeScenario and arg[3] or string.rep("a",64)
@@ -62,7 +62,7 @@ local env; env = {
             -- Actual User.CreateUser allocates a fresh public wrapper on every enumeration.
             list[#list+1]=setmetatable({}, {__index=user})
         else list[#list+1]=user end end return list end,
-    applyImage = function(ob,name) assert(type(name)=="string" and name:match("^sa_") and not ob.removed); ob.asset=name; ob.name=name; if (scenario=="celebration-missing-confetti" and name=="sa_confetti") or (scenario=="celebration-missing-heart" and name=="sa_heart") then error("missing layer") end; if scenario=="missing-image" then error("missing image") end
+    applyImage = function(ob,name) assert(type(name)=="string" and name:match("^sa_") and not ob.removed); ob.asset=name; ob.name=name; if themeScenario and name~="sa_heart" then assert(ob.scale==0, "pending theme must be invisible") end; if (scenario=="celebration-missing-confetti" and name=="sa_confetti") or (scenario=="celebration-missing-heart" and name=="sa_heart") then error("missing layer") end; if scenario=="missing-image" then error("missing image") end
         if scenario=="theme-missing-backdrop" and name:find("backdrop") then error("missing backdrop") end
         if scenario=="theme-missing-prop" and name:find("scenery_one") then error("missing prop") end
         if scenario=="theme-backdrop-timeout" and name:find("backdrop") then
@@ -322,7 +322,7 @@ if themeScenario then
         value=value or themed()
         return {version=3,type="game-entrance",mode=value.mode,generation=value.generation,campaignId=value.campaign.campaignId,id=id or "entrance",gameIdentity=value.theme.gameIdentity,themeId=value.theme.themeId,issuedAtMs=1000,expiresAtMs=11000,durationMs=6000}
     end
-    local function themes() local n=0 for _,ob in ipairs(objects) do if ob.name and ob.name~="sa_heart" and not ob.removed and ob.scale>0 then n=n+1 end end return n end
+    local function themes() local n=0 for _,ob in ipairs(objects) do if ob.layer and not ob.removed and ob.scale>0 then n=n+1 end end return n end
     local function captions() local list={} for _,ob in ipairs(objects) do if ob.caption and not ob.removed then list[#list+1]=ob end end return list end
     local function themeObject() for _,ob in ipairs(objects) do if ob.name and ob.name~="sa_heart" and not ob.removed and ob.scale>0 then return ob end end end
     local worldFailure=scenario=="theme-missing-backdrop" or scenario=="theme-missing-prop" or scenario=="theme-backdrop-timeout" or scenario=="theme-load-timeout"
@@ -331,7 +331,7 @@ if themeScenario then
         for _,packet in ipairs(packets) do if packet.type=="diagnostic" then
             assert(packet.code=="missing-theme-image", "world failure must report a dedicated diagnostic without unrelated gear errors")
             local fields=0; for _ in pairs(packet) do fields=fields+1 end
-            assert(fields==3 and packet.version==1, "world diagnostic must contain only bounded allowlisted vocabulary")
+            assert(fields==3 and packet.version==3, "world diagnostic must contain only bounded allowlisted vocabulary")
             n=n+1
         end end
         assert(n==expected, "world failure must emit one diagnostic per cooldown without a tile/reload flood")
@@ -405,9 +405,20 @@ if themeScenario then
             send(hearts()); assert(count()==9); send(entranceEvent()); assert(count()==9 and #captions()==1); tick(5.1); tick(); assert(themes()==8 and count()==8 and #captions()==1); tick(1); tick(); assert(themes()==8 and #captions()==0)
         elseif scenario=="theme-reconnect-no-entrance" then
             assert(jumps==0 and #captions()==0); send(entranceEvent()); assert(jumps==1); callbacks.websocket("sa_helper_bridge","OnClose","",""); tick(); assert(themes()==0 and #captions()==0); tick(1.1); send(themed()); tick(); assert(themes()==8 and jumps==1 and #captions()==0)
-        elseif scenario=="theme-production-gate" then
-            local value=themed(); value.mode="production"; value.rehearsal.active=false; send(value); assert(themes()==0, "candidate must never render in production")
-            value=themed(); value.rehearsal.active=false; send(value); assert(themes()==0, "candidate requires active rehearsal")
+        elseif scenario=="theme-wire-neutral" then
+        local value=themed(); value.theme.themeId=codec.null; send(value); assert(themes()==0, "native JSON null must clear theme")
+    elseif scenario=="theme-donation-jump" or scenario=="theme-donation-hug" or scenario=="theme-donation-party" then
+        users={}; addUser(1); addUser(2)
+        local gift=celebration(scenario=="theme-donation-party" and "milestone" or "donation")
+        if scenario=="theme-donation-hug" then gift.recognitionAction="hug" end
+        raw(codec.encode(entranceEvent())); raw(codec.encode(gift)); tick()
+        assert(themes()==8 and #captions()==1, "donation must preserve world and entrance caption")
+        if scenario=="theme-donation-jump" then assert(jumps==2, "same-frame entrance and donation must jump each avatar only once")
+        elseif scenario=="theme-donation-hug" then assert(jumps==0 and #hugs==1, "entrance must defer to donation hug ownership")
+        else assert(jumps==0 and dances==2, "entrance must defer to donation party ownership") end
+    elseif scenario=="theme-production-gate" then
+            local value=themed(); value.mode="production"; value.integration.active=false; send(value); assert(themes()==0, "candidate must never render in production")
+            value=themed(); value.integration.active=false; send(value); assert(themes()==0, "candidate requires active rehearsal")
         elseif scenario=="theme-revision" then
             send(entranceEvent()); assert(#captions()==1); send(themed(nil,string.rep("d",64))); assert(themes()==0 and #captions()==0, "theme revision must cancel entrance"); send(themed()); tick(); assert(themes()==8 and #objects==17)
         elseif scenario=="theme-scope-cancellation" then
@@ -415,7 +426,7 @@ if themeScenario then
                 send(themed()); tick(); send(entranceEvent(change)); assert(#captions()==1)
                 if change=="clear" then send({version=3,type="clear",mode="integration",generation=1})
                 elseif change=="mode" then local value=snapshot("production"); send(value)
-                elseif change=="session" then local value=snapshot(); value.session.sessionId="next"; send(value)
+                elseif change=="session" then local value=snapshot(); value.campaign.campaignId="next"; send(value)
                 else callbacks.websocket("sa_helper_bridge","OnClose","",""); tick() end
                 assert(themes()==0 and #captions()==0, "scope cancellation must clear theme and entrance")
             end
@@ -426,7 +437,7 @@ if themeScenario then
         elseif scenario=="entrance-obsolete" then
             local value=entranceEvent(); value.gameIdentity=string.rep("c",64); send(value); assert(jumps==0)
             value=entranceEvent(); value.themeId="kitchen"; send(value); assert(jumps==0)
-            value=entranceEvent(); value.sessionId="wrong"; send(value); assert(jumps==0)
+            value=entranceEvent(); value.campaignId="wrong"; send(value); assert(jumps==0)
             value=entranceEvent(); value.generation=0; send(value); assert(jumps==0)
         elseif scenario=="entrance-caption" then
             local value=themed(); value.theme.gameName="<size=900>"..string.rep("遊",70).."</size>"; send(value); send(entranceEvent(nil,value))

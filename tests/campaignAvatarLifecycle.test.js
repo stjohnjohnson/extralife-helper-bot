@@ -19,7 +19,10 @@ afterEach(async()=>{for(const s of sockets)s.terminate();await service.stop();aw
 async function baseline(){await accept({donations:[],complete:true,campaign:campaign()});await time.advance(1);}
 const effects=()=>packets.filter(p=>p.type==='celebration');
 test('campaign intake works without a stream session and thanks precedes a milestone party',async()=>{
-    expect(service.getPollCheckpoint()).toMatchObject({participantId:'12',baselineNeeded:true});expect(service.observeProduction).toBeUndefined();
+    expect(service.getPollCheckpoint()).toMatchObject({participantId:'12',baselineNeeded:true});expect(service.getStatus().game).toBeNull();
+    const before = service.getPollCheckpoint();
+    await service.observeProduction({ status: 'offline', observedAtMs: time.clock.nowMs() });
+    expect(service.getPollCheckpoint()).toEqual(before);
     await baseline();await connect();await accept({donations:[gift('fresh')],campaign:campaign(252500)});await flush();
     expect(effects().map(p=>p.phase)).toEqual(['recognition']);expect(effects()[0]).toMatchObject({donationTotalCents:5000,kind:'donation'});
     await time.advance(5000);await flush();expect(effects().map(p=>p.phase)).toEqual(['recognition','party']);expect(effects()[1]).toMatchObject({campaignTotalCents:252500,kind:'milestone'});

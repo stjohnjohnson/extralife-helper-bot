@@ -97,7 +97,7 @@ test.each(['donation','milestone','goal','hidden','goal-only'])('Lua renders act
 
 const { buildThemeCatalog, buildThemeLayout } = require('../src/streamAvatars/themeLayout');
 const { candidate } = require('./fixtures/themeCandidates');
-const themeScenarios = ['theme-stale-load', 'theme-shared-game', 'theme-neutral', 'theme-missing-backdrop', 'theme-missing-prop', 'theme-backdrop-timeout', 'theme-resize', 'theme-small-bounds', 'theme-heart-coexistence', 'theme-reconnect-no-entrance', 'theme-production-gate', 'theme-revision', 'theme-load-timeout', 'theme-pending-cap', 'theme-scope-cancellation', 'entrance-timing', 'entrance-obsolete', 'entrance-caption', 'entrance-neutral', 'entrance-supersession', 'theme-density-0', 'theme-density-20', 'theme-density-100', 'theme-kitchen', 'entrance-caption-error', 'entrance-position-error', 'entrance-unicode'];
+const themeScenarios = ['theme-donation-jump', 'theme-donation-hug', 'theme-donation-party', 'theme-wire-neutral', 'theme-stale-load', 'theme-shared-game', 'theme-neutral', 'theme-missing-backdrop', 'theme-missing-prop', 'theme-backdrop-timeout', 'theme-resize', 'theme-small-bounds', 'theme-heart-coexistence', 'theme-reconnect-no-entrance', 'theme-production-gate', 'theme-revision', 'theme-load-timeout', 'theme-pending-cap', 'theme-scope-cancellation', 'entrance-timing', 'entrance-obsolete', 'entrance-caption', 'entrance-neutral', 'entrance-supersession', 'theme-density-0', 'theme-density-20', 'theme-density-100', 'theme-kitchen', 'entrance-caption-error', 'entrance-position-error', 'entrance-unicode'];
 function themeSource() {
     const manifest = candidate();
     for (const asset of Object.values(manifest.assets)) {
@@ -125,7 +125,7 @@ test.each([
     ['theme-stale-load', 'entry.object.setScale(0,0); entry.loader=async("sa_load_theme"', 'entry.object.setScale(1,1); entry.loader=async("sa_load_theme"'],
     ['theme-shared-game', 'if key==themeKey then return end', 'if false then return end'],
     ['theme-production-gate', 'not catalog.previewOnly or', 'true or'],
-    ['theme-production-gate', 'and snapshot.rehearsal.active', ''],
+    ['theme-production-gate', 'and snapshot.integration.active', ''],
     ['theme-revision', 'theme.packRevision==catalog.packRevision', 'true'],
     ['theme-shared-game', 'layer="behindBackground",order=0', 'layer="background",order=0'],
     ['theme-resize', 'local scale=width/REFERENCE_WIDTH', 'local scale=1000/REFERENCE_WIDTH'],

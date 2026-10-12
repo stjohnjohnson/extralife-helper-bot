@@ -46,7 +46,7 @@ test('native gear-only packaging contains own namespace images and no private av
         for (const a of Object.values(manifest.assets)) { const { width, height } = a.geometry.frame; const bytes = PNG.sync.write({ width, height, data: Buffer.alloc(width * height * 4) }); fs.writeFileSync(path.join(directory, a.exportFile), bytes); a.sha256 = createHash('sha256').update(bytes).digest('hex'); }
         const result = buildPackage({ themeManifest: manifest, gearCompatibility: compatibility, themeAssetsDir: directory, previewOnly: true });
         const entries = unzipSync(result.archive); const data = JSON.parse(strFromU8(entries['data.txt']));
-        expect(result.imageCount).toBe(8); expect(data.avatar).toEqual({}); expect(Object.keys(data.gear)).toEqual([SET_NAME]);
+        expect(result.imageCount).toBe(29); expect(data.avatar).toEqual({}); expect(Object.keys(data.gear)).toEqual([SET_NAME]);
         const pieces = data.gear[SET_NAME].gearPiece;
         expect(Object.keys(pieces)).toEqual(HATS['block-world'].map(h => h.pieceName).sort());
         expect(pieces[HATS['block-world'][0].pieceName]).toMatchObject({ setName: SET_NAME, pieceName: HATS['block-world'][0].pieceName, width: 32, height: 32, PPU: 1, isAnimated: false, flipsWithAvatarX: true });

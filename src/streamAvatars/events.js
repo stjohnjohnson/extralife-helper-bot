@@ -16,9 +16,13 @@ function createEventDispatcher({ realClock, send, newEventId = randomUUID }) {
         },
         publishGameEntrance({ mode, generation, campaignId, gameIdentity, themeId }) {
             if (!active) return false;
+            const id = newEventId(); const key = mode + ':' + generation + ':' + id;
+            if (seen.has(key)) return false;
             const issuedAtMs = realClock.nowMs();
-            return send(validateServerMessage({ version: 3, type: 'game-entrance', mode, generation, campaignId, gameIdentity, themeId,
-                id: newEventId(), issuedAtMs, expiresAtMs: issuedAtMs + 10000, durationMs: 6000 }));
+            const delivered = send(validateServerMessage({ version: 3, type: 'game-entrance', mode, generation, campaignId, gameIdentity, themeId,
+                id, issuedAtMs, expiresAtMs: issuedAtMs + 10000, durationMs: 6000 }));
+            if (delivered) { seen.add(key); if (seen.size > 256) seen.delete(seen.values().next().value); }
+            return delivered;
         },
         publishCelebration(message) {
             if (!active) return false;

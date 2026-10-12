@@ -1,7 +1,7 @@
 const { join } = require('node:path');
-const { createSessionController } = require('../broadcastSession');
-const { createSessionStore } = require('../broadcastSession/store');
-const { validObservation, validGameObservation } = require('../broadcastSession/state');
+const { createSessionController } = require('../gameSession');
+const { createSessionStore } = require('../gameSession/store');
+const { validObservation, validGameObservation } = require('../gameSession/state');
 const { loadThemeConfiguration, resolveGame, THEME_IDS } = require('./themes');
 const { createHash } = require('node:crypto');
 const { buildThemeCatalog } = require('./themeLayout');
@@ -107,10 +107,11 @@ async function startStreamAvatars({ config, logger = { warn() {} }, signal, webS
             const latestAt = Math.max(lastRealObservation?.observedAtMs ?? -1, gameSession.getSnapshot().latestObservation?.observedAtMs ?? -1);
             if (observation.observedAtMs <= latestAt) return;
             lastRealObservation = structuredClone(observation);
-            await gameSession.observe(observation);
+            if (!gameSession.getStatus().recoveryRequired) await gameSession.observe(observation);
         }); },
         observeGame(observation) { return enqueueObservation(async () => {
-            if (integration || !themes.enabled || !validGameObservation(observation) || lastRealObservation?.status !== 'online' ||
+            if (integration || gameSession.getStatus().recoveryRequired || !themes.enabled || !validGameObservation(observation) || lastRealObservation?.status !== 'online' ||
+                (observation.confirmedAtMs ?? observation.observedAtMs) < lastRealObservation.observedAtMs ||
                 realClock.nowMs() - lastRealObservation.observedAtMs > 2 * cadenceMs) return;
             await gameSession.observeGame(observation, { announce: reconciledGame && currentGame() !== null });
             if (observation.source === 'twitch') reconciledGame = true;
@@ -134,6 +135,14 @@ async function startStreamAvatars({ config, logger = { warn() {} }, signal, webS
         async dispatch(action) {
             if (!active) return { status: 'unavailable', message: 'Stream Avatars stopped.' };
             if (action.name === 'status') return { status: 'ok', message: 'Campaign progress available.' };
+            if (['game.reset', 'game.recover'].includes(action.name) && !integration) return enqueueObservation(async () => {
+                if (lastRealObservation?.status !== 'offline' || realClock.nowMs() - lastRealObservation.observedAtMs > 2 * cadenceMs) {
+                    return { status: 'denied', message: 'Game controls require a fresh confirmed offline Twitch observation.' };
+                }
+                if (action.name === 'game.reset') await gameSession.reset(); else await gameSession.recover();
+                reconciledGame = false;
+                return { status: 'ok', message: 'Game state ' + (action.name === 'game.reset' ? 'reset' : 'recovered') + '; campaign progress and donation effects are unchanged.' };
+            });
             if (!['campaign.reset','campaign.recover'].includes(action.name) || integration) return { status: 'invalid', message: 'Use npm run sa:integration for development effects.' };
             invalidate();
             if (action.name === 'campaign.reset') await progress.reset(); else await progress.recover();

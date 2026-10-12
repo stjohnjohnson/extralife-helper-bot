@@ -27,7 +27,7 @@ async function startBridgeServer({ config, getSnapshot, onClientMessage = async 
         if (message.type === 'game-entrance' && !record.capabilities?.includes('themes')) return false;
         // Older v3 companions validate exact snapshot keys before advertising capabilities.
         if (message.type === 'snapshot' && !record.capabilities?.includes('themes')) {
-            const { theme: _theme, ...base } = message;
+            const base = { ...message }; delete base.theme;
             message = { ...base, features: base.features.filter(feature => feature !== 'themes') };
         }
         const body = JSON.stringify(validateServerMessage(message));

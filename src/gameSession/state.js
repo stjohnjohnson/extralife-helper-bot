@@ -1,3 +1,5 @@
+// Legacy session fields are retained only for lossless game-state migration.
+// Campaign donation accounting never reads or writes this state.
 const { randomUUID } = require('node:crypto');
 const { cleanGameName, THEME_IDS } = require('../streamAvatars/themes');
 const validGameIdentity = value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);

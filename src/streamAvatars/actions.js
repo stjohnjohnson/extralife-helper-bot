@@ -2,7 +2,7 @@ function parseAction(input) {
     if (typeof input !== 'string') throw new Error('Invalid Stream Avatars command');
     const words = input.trim().toLowerCase().split(/\s+/);
     if (words.length === 1 && words[0] === 'status') return { name: 'status', args: [] };
-    if (words.length === 3 && words[0] === 'campaign' && ['reset','recover'].includes(words[1]) && words[2] === 'confirm') return { name: 'campaign.' + words[1], args: [] };
-    throw new Error('Use !sa status or campaign reset|recover confirm. For development effects use npm run sa:integration.');
+    if (words.length === 3 && ['campaign', 'game'].includes(words[0]) && ['reset','recover'].includes(words[1]) && words[2] === 'confirm') return { name: words[0] + '.' + words[1], args: [] };
+    throw new Error('Use !sa status or campaign|game reset|recover confirm. For development effects use npm run sa:integration.');
 }
 module.exports = { parseAction };

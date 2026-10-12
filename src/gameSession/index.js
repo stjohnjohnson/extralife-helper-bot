@@ -1,3 +1,4 @@
+// Persistent game lifecycle is independent of campaign donation progress.
 const { createInitialState, reduceObservation, validGameObservation } = require('./state');
 const { resolveGame } = require('../streamAvatars/themes');
 

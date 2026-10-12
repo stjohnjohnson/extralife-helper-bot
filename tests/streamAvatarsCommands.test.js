@@ -24,3 +24,15 @@ test('invalid command, missing message identity and unavailable service cannot e
     expect(await run('campaign reset confirm', context(), null)).toMatch(/disabled|unavailable/i);
     expect(count).toBe(0);
 });
+
+test.each(['reset', 'recover'])('game %s requires an explicit confirmation and an administrator', async verb => {
+    expect(await run('game ' + verb)).toMatch(/confirm|Use/);
+    expect(await run('game ' + verb + ' confirm', context({ tags: { username: 'viewer', id: 'game-viewer-' + verb, 'tmi-sent-ts': '100000' } }))).toMatch(/permission/);
+    expect(count).toBe(0);
+    expect(await run('game ' + verb + ' confirm')).toBe('game.' + verb);
+    expect(count).toBe(1);
+});
+test('status exposes the independent game recovery gate', async () => {
+    const target = { ...service, getStatus: () => ({ ...service.getStatus(), gameRecoveryRequired: true }) };
+    expect(await run('status', context(), target)).toMatch(/game recovery required/);
+});

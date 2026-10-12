@@ -496,7 +496,7 @@ test('artWorkflowRetainsFoundationScriptsAndCatalog', () => {
     expect(packageJson.scripts).toMatchObject({
         'sa:art': 'node scripts/sa-artwork.js',
         'sa:package': 'node scripts/sa-package.js',
-        'sa:rehearse': 'node scripts/sa-rehearse.js'
+        'sa:integration': 'node scripts/sa-integration.js'
     });
     expect(packageJson.dependencies).toMatchObject({ pngjs: '7.0.0', ws: '8.22.0', fflate: '0.8.3' });
     expect(packageJson.devDependencies).not.toHaveProperty('pngjs');

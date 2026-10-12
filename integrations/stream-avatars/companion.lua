@@ -154,7 +154,7 @@ return function()
     end
     local function currentGearTheme()
         if not snapshot or not snapshot.theme or not catalog.gear then return nil end
-        if catalog.previewOnly and (snapshot.mode~="rehearsal" or not snapshot.rehearsal.active) then return nil end
+        if catalog.previewOnly and (snapshot.mode~="integration" or not snapshot.integration.active) then return nil end
         if snapshot.theme.packRevision~=catalog.packRevision then return nil end
         return snapshot.theme.themeId
     end
@@ -239,7 +239,7 @@ return function()
         if theme==nil or (type(json.isnull)=="function" and json.isnull(theme)) or (type(json.null)~="function" and theme==json.null) then return true end
         if type(theme)~="table" or not validIdentity(theme.gameIdentity) or not validIdentity(theme.packRevision) or type(theme.gameName)~="string" or #theme.gameName==0 or #theme.gameName>800 then return false end
         local allowed={ ["block-world"]=true,kitchen=true,outdoor=true,puzzle=true,["space-salvage"]=true,party=true }
-        return theme.themeId==nil or allowed[theme.themeId]==true
+        return theme.themeId==nil or (type(json.isnull)=="function" and json.isnull(theme.themeId)) or (type(json.null)~="function" and theme.themeId==json.null) or allowed[theme.themeId]==true
     end
     local function caption(value)
         local points, i = {}, 1
@@ -273,12 +273,10 @@ return function()
     end
     local function startEntrance()
         clearEntrance()
-        local object=app.createGameObject(); entrance={object=object,ends=elapsed+6}
+        local object=app.createGameObject(); entrance={object=object,ends=elapsed+6,jumpPending=true}
         local ok=pcall(function() object.text.setText(caption(snapshot.theme.gameName)); object.text.setSize(24) end)
         if not ok then clearEntrance(); diagnostic("render-error"); return end
-        for _,user in ipairs(getUsers()) do if user.isActive then pcall(function()
-            local state=user.getState(); if state=="Idle" or state=="Wander" then user.runCommand("!{cmd:jump}",true) end
-        end) end end
+
     end
     local function reconcileCrowd(ids)
         local desired = {}
@@ -577,8 +575,20 @@ return function()
         saveDances()
         for id,entry in pairs(heartLayer) do if not liveIds[id] then if entry.object then release(entry) end; heartLayer[id]=nil end end
     end
+    local function renderEntranceActions()
+        if not entrance or not entrance.jumpPending then return end
+        entrance.jumpPending=false
+        -- Donation recognition/parties own native actions for this frame, including
+        -- hug requests whose host state transition has not completed yet.
+        if recognition or celebration then return end
+        for _,user in ipairs(getUsers()) do if eligible(user) then
+            local ok=pcall(function() user.runCommand("!{cmd:jump}",true) end)
+            if not ok then report("action-error") end
+        end end
+    end
     local function handleMessage(value)
         if type(value)~="table" or value.version~=3 then diagnostic("unsupported-message"); return end
+        if value.type=="game-entrance" and jsonNull(value.themeId) then value.themeId=nil end
         if value.type=="heartbeat" and number(value.serverNowMs) then
             serverOffset=value.serverNowMs-elapsed*1000
             send({version=3,type="heartbeat"}); return
@@ -591,7 +601,7 @@ return function()
             elseif (snapshot.theme and snapshot.theme.gameIdentity)~=(value.theme and value.theme.gameIdentity) or
                 (snapshot.theme and snapshot.theme.themeId)~=(value.theme and value.theme.themeId) or
                 (snapshot.theme and snapshot.theme.packRevision)~=(value.theme and value.theme.packRevision) then clearEntrance() end
-            if jsonNull(value.theme) then value.theme=nil end
+            if jsonNull(value.theme) then value.theme=nil elseif jsonNull(value.theme.themeId) then value.theme.themeId=nil end
             generationFloor=value.generation; snapshot=value; serverOffset=value.serverNowMs-elapsed*1000; retryDelay=1
             if value.mode=="integration" and not previewHostSet then app.platformServiceSettings.SetStreamer(900000,"sa_integration_host"); previewHostSet=true end
             if value.mode=="production" then previewHostSet=false end
@@ -734,6 +744,7 @@ return function()
             else diagnostic("unsupported-message") end
         end
         if updateElapsed>=0.05 then
+            renderEntranceActions()
             renderGear()
             local worldOk=pcall(renderWorld); if not worldOk then clearTheme(); clearEntrance(); diagnostic("render-error") end
             local ok=pcall(renderTick); if not ok then clearObjects(); diagnostic("render-error") end
@@ -743,7 +754,7 @@ return function()
         if number(delta) and delta>0 then
             elapsed=elapsed+delta; updateElapsed=updateElapsed+delta
             local now=os.time()
-            if now>=pruneActionsAt then
+            if number(now) and now>=pruneActionsAt then
                 local changed=false
                 for id,request in pairs(actionRequests) do
                     for action,untilTime in pairs(request) do if now>=untilTime then request[action]=nil; changed=true end end

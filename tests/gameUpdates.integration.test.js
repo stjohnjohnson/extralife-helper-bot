@@ -322,7 +322,7 @@ describe('overlapping category write and viewer read', () => {
         let now = 90; const spy = jest.spyOn(Date, 'now').mockImplementation(() => now);
         let controller;
         try {
-            const { createSessionController } = require('../src/broadcastSession');
+            const { createSessionController } = require('../src/gameSession');
             const { loadThemeConfiguration } = require('../src/streamAvatars/themes');
             const config = { twitch: { channel: 'streamer', clientId: 'client', clientSecret: 'secret', refreshToken: 'refresh' }, gameUpdates: {} };
             const logger = { debug() {}, info() {}, warn() {}, error() {} }; const observations = [];

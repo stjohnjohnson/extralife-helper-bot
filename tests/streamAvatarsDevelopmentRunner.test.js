@@ -119,6 +119,9 @@ test.each([
         expect(entrances.length).toBe(options.scenario === 'themes' ? 10 : 1);
         expect(entrances.every(value => value.version === 3 && value.mode === 'integration' && value.campaignId === 'integration')).toBe(true);
         if (options.scenario === 'ordinary') {
+            const entranceAt = packets.findIndex(value => value.type === 'game-entrance');
+            const giftAt = packets.findIndex(value => value.type === 'celebration');
+            expect(packets.slice(entranceAt, giftAt).some(value => value.type === 'clear')).toBe(false);
             expect(packets.some(value => value.type === 'celebration' && value.donationTotalCents === 2500)).toBe(true);
             expect(packets.filter(value => value.type === 'snapshot' && value.theme).every(value => value.theme.themeId === 'kitchen')).toBe(true);
         } else expect(packets.filter(value => value.type === 'snapshot' && value.theme).at(-1).theme.themeId).toBeNull();

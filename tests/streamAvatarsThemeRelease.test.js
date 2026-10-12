@@ -51,9 +51,9 @@ test('explicit candidate pack is portable, atomic and deterministic; approval fl
     expect(serialized).not.toContain(root); expect(serialized).not.toContain('sourceFile');
     const one = buildPackage({ themePackDir: destination, previewOnly: true });
     const two = buildPackage({ themePackDir: destination, previewOnly: true });
-    expect(one.imageCount).toBe(43); expect(one.archive).toEqual(two.archive);
+    expect(one.imageCount).toBe(64); expect(one.archive).toEqual(two.archive);
     const files = unzipSync(one.archive);
-    expect(Object.keys(files).filter(f => f.endsWith('.png'))).toHaveLength(43);
+    expect(Object.keys(files).filter(f => f.endsWith('.png'))).toHaveLength(64);
     expect(strFromU8(files['scripts/sa_helper_bridge/sa_helper_bridge.lua'])).toContain(pack.packRevision);
     expect(() => buildPackage({ themePackDir: destination })).toThrow(/rehearsal|preview/i);
     expect(() => workflow.promote({ destination: path.join(root, 'prod'), gearProofs: {} })).toThrow(/selection|release|unapproved/i);
@@ -66,7 +66,7 @@ test('strict promotion needs exact current selections and all native hat proofs'
     expect(fs.existsSync(path.join(root, 'bad'))).toBe(false);
     const good = proofs(); const pack = workflow.promote({ destination: path.join(root, 'prod'), gearProofs: good });
     expect(pack.catalog.previewOnly).toBe(false); expect(pack.catalog.rehearsalOnly).toBe(false);
-    expect(buildPackage({ themePackDir: path.join(root, 'prod') }).imageCount).toBe(43);
+    expect(buildPackage({ themePackDir: path.join(root, 'prod') }).imageCount).toBe(64);
     const file = path.join(root, 'prod', pack.catalog.assets[0].exportFile); fs.appendFileSync(file, 'tamper');
     expect(() => buildPackage({ themePackDir: path.join(root, 'prod') })).toThrow(/checksum/i);
 });

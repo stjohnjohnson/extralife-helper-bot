@@ -30,7 +30,7 @@ async function runIntegration({ listenerConfig, token, crowdCount = 20, scenario
         const readyDeadline = clock.nowMs() + 60000;
         while (!service.getStatus().companionReady || (themed && !service.getStatus().themeReady)) { check(); if (clock.nowMs() >= readyDeadline) throw new Error('Companion v3 was not ready within 60000 ms'); await wait(100); }
         if (hueOutput && !await hueOutput.initialize()) throw new Error('Optional Hue initialization failed');
-        if (themed) {
+        if (scenario === 'themes') {
             const steps = scenario === 'themes' && (theme === undefined || theme === 'all') && game === undefined ? [
                 ...THEME_IDS.map(value => ({ theme: value })), { gameName: 'Raft' }, { gameName: 'PEAK' }, { gameName: 'Minecraft Bedrock' }, { theme: 'neutral' }
             ] : [game !== undefined ? { gameName: game } : { theme: theme || 'neutral' }];
@@ -64,6 +64,12 @@ async function runIntegration({ listenerConfig, token, crowdCount = 20, scenario
             await service.resetIntegration(); donations = []; campaign = { sumDonations: item.startingCampaignCents / 100, fundraisingGoal: item.goalCents / 100 };
             const gift = (id, cents) => ({ donationID: id, participantID: 'integration', createdDateUTC: new Date(clock.nowMs()).toISOString(), amount: cents / 100, displayName: item.anonymous ? null : 'Integration gift', isRegFee: false });
             await poll(); await wait(500); check();
+            if (themed) {
+                const step = game !== undefined ? { gameName: game } : { theme };
+                const preview = await service.previewGame(step);
+                if (preview.changed && !preview.delivered) throw new Error('Theme preview was not dispatched');
+                logger.info(`Theme preview ${theme || game}: dispatched; verify scenery, caption and hats visually.`);
+            }
             for (const [index,cents] of item.gifts.entries()) donations.push(gift(item.name + '-' + index,cents));
             campaign.sumDonations = item.totalCents / 100;
             logger.info(`${item.name}: next ${item.caption} for 5s${item.partyCaption ? '; then ' + item.partyCaption : ''}.`);
