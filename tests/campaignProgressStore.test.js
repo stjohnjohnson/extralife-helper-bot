@@ -14,7 +14,10 @@ function store(extra = {}) {
 const state = revision => ({ ...createCampaignState({ mode: 'production', participantId: '12' }), revision, processedDonationIds: ['donation-1'], donationCheckpointCount: 5 });
 test('persists complete ledger and rejects another owner, then reloads after close', async () => {
     const first = store(); expect(await first.load()).toBeNull(); await first.save(state(1));
-    await expect(store().load()).rejects.toThrow(/owner/i);
+    await expect(store().load()).rejects.toMatchObject({
+        message: expect.stringMatching(/owner/i),
+        cause: expect.objectContaining({ code: 'EEXIST', path: join(dir, 'campaign.json.lock') })
+    });
     await first.close(); expect(await store().load()).toEqual(state(1));
 });
 test('failed atomic rename preserves previous good state and older revisions cannot overwrite', async () => {
@@ -30,7 +33,10 @@ test('failed atomic rename preserves previous good state and older revisions can
 test('corrupt state is quarantined and recovery uses validated last backup', async () => {
     const value = store(); await value.load(); await value.save(state(1)); await value.save(state(2)); await value.close();
     await fs.writeFile(join(dir, 'campaign.json'), '{broken');
-    const next = store(); await expect(next.load()).rejects.toThrow(/recovery/i);
+    const next = store(); await expect(next.load()).rejects.toMatchObject({
+        message: expect.stringMatching(/recovery/i),
+        cause: expect.any(SyntaxError)
+    });
     expect((await fs.readdir(dir)).some(name => name.includes('quarantine'))).toBe(true);
     expect(await next.recoverLastBackup()).toEqual(state(1));
     const reset = await next.archiveAndReset(); expect(reset.donationCheckpointCount).toBe(0);
