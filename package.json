@@ -13,6 +13,7 @@
     "start": "node app.js",
     "semantic-release": "semantic-release",
     "pr:check": "node scripts/check-pr-description.js",
+    "release:preview": "node scripts/preview-release-notes.js",
     "sa:integration": "node scripts/sa-integration.js",
     "sa:package": "node scripts/sa-package.js"
   },

@@ -111,6 +111,9 @@ function validatePrDescription(pr) {
     if (isDependabotMaintenance(pr)) {
         return { errors, warnings };
     }
+    if (titleMatch?.[2] && !/^BREAKING CHANGE:\s*\S/m.test(pr.body || '')) {
+        errors.push('Breaking PR titles require a BREAKING CHANGE: footer for version analysis.');
+    }
     try {
         const parsed = parsePrDescription(pr.body);
         if (parsed.internalOnly && (titleMatch?.[1] === 'feat' || titleMatch?.[2] || /^BREAKING(?: CHANGE|-CHANGE):/m.test(pr.body))) {

@@ -32,6 +32,11 @@ describe('PR release-note contract', () => {
         expect(validatePrDescription({ title: 'fix: change protocol', body: body('Internal only.') + '\nBREAKING CHANGE: Reimport the companion.' }).errors).not.toEqual([]);
     });
 
+    test('breaking PR titles require the footer used by the existing version analyzer', () => {
+        expect(validatePrDescription({ title: 'feat!: replace protocol', body: body() }).errors).not.toEqual([]);
+        expect(validatePrDescription({ title: 'feat!: replace protocol', body: body() + '\nBREAKING CHANGE: Reimport the companion.' }).errors).toEqual([]);
+    });
+
     test.each([
         ['', 'empty body'],
         [body().replace('## Validation', '## Evidence'), 'missing section'],
@@ -97,4 +102,3 @@ describe('PR release-note contract', () => {
         }
     });
 });
-

@@ -25,6 +25,10 @@ jobs:
         with:
           node-version: '24'
       - run: npm run pr:check -- --event "$GITHUB_EVENT_PATH"
+      - name: Preview release notes
+        run: npm run release:preview -- --from "$(git describe --tags --abbrev=0 origin/main)" --to HEAD --candidate-event "$GITHUB_EVENT_PATH"
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
 
   build:
     if: github.event_name != 'pull_request' || github.event.action != 'edited'
