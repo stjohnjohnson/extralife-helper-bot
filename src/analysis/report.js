@@ -116,7 +116,7 @@ function timelineSvg({ timeline, eventWindow, gameSegments, donations, timezone 
     const width = 1000;
     const height = 450;
     const left = 72;
-    const right = 24;
+    const right = 96;
     const plotTop = 40;
     const plotBottom = 260;
     const plotWidth = width - left - right;
@@ -128,6 +128,33 @@ function timelineSvg({ timeline, eventWindow, gameSegments, donations, timezone 
     const end = new Date(eventWindow.end).getTime();
     const duration = Math.max(1, end - start);
     const x = timestamp => left + (Math.min(end, Math.max(start, new Date(timestamp).getTime())) - start) / duration * plotWidth;
+
+    const visibleDonations = (donations || []).filter(donation => {
+        const timestamp = new Date(donation.timestamp).getTime();
+        return timestamp >= start && timestamp <= end;
+    }).sort((left, right) => new Date(left.timestamp) - new Date(right.timestamp));
+    const totalCents = visibleDonations.reduce((sum, donation) => sum + Math.round(donation.amount * 100), 0);
+    const dollarStep = niceStep(Math.max(1, totalCents / 100) / 5);
+    const dollarMax = dollarStep * 5;
+    const dollarY = cents => plotBottom - cents / 100 / dollarMax * plotHeight;
+    const dollarTicks = Array.from({ length: 6 }, (_, index) => index * dollarStep);
+    const dollarAxisMarkup = dollarTicks.map(value =>
+        `<text x="${width - right + 10}" y="${dollarY(Math.round(value * 100)).toFixed(1)}" class="axis-label" dominant-baseline="middle">${escapeHtml(formatMoney(value))}</text>`
+    ).join('');
+    let raisedCents = 0;
+    const donationPoints = [`${left},${plotBottom}`];
+    const donationPointMarkup = visibleDonations.map(donation => {
+        const timestamp = new Date(donation.timestamp).getTime();
+        const position = x(timestamp).toFixed(1);
+        donationPoints.push(`${position},${dollarY(raisedCents).toFixed(1)}`);
+        raisedCents += Math.round(donation.amount * 100);
+        const height = dollarY(raisedCents).toFixed(1);
+        donationPoints.push(`${position},${height}`);
+        const name = escapeHtml(donation.displayName || 'Anonymous');
+        const message = donation.message ? ` — ${escapeHtml(donation.message)}` : '';
+        return `<circle cx="${position}" cy="${height}" r="3.5" class="donation-point"><title>Donation: ${escapeHtml(formatMoney(donation.amount))} — ${name} at ${escapeHtml(formatClock(timestamp, timezone))}. Raised so far: ${escapeHtml(formatMoney(raisedCents / 100))}${message}</title></circle>`;
+    }).join('');
+    donationPoints.push(`${width - right},${dollarY(raisedCents).toFixed(1)}`);
 
     const viewerMax = Math.max(0, ...timeline.map(bin => Number(bin.averageViewers) || 0));
     const yStep = niceStep(Math.max(5, viewerMax) / 5);
@@ -193,10 +220,6 @@ function timelineSvg({ timeline, eventWindow, gameSegments, donations, timezone 
         return `<line x1="${position}" y1="${plotTop}" x2="${position}" y2="${gameTop + gameHeight}" class="game-transition"><title>Game transition: ${from} → ${to} at ${escapeHtml(formatClock(timestamp, timezone))}</title></line>`;
     }).join('');
 
-    const visibleDonations = (donations || []).filter(donation => {
-        const timestamp = new Date(donation.timestamp).getTime();
-        return timestamp >= start && timestamp <= end;
-    });
     const donationMarkup = visibleDonations.map((donation, index) => {
         const timestamp = new Date(donation.timestamp).getTime();
         const position = x(timestamp);
@@ -209,16 +232,18 @@ function timelineSvg({ timeline, eventWindow, gameSegments, donations, timezone 
     }).join('');
 
     return `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Average viewers, game transitions, and donations over the event">
-        <desc>Viewer averages by 15-minute interval with ${visibleSegments.length} game segments and ${visibleDonations.length} confirmed live donations.</desc>
+        <desc>Viewer averages by 15-minute interval with ${visibleSegments.length} game segments and ${visibleDonations.length} confirmed live donations. The gold step line shows cumulative donations rising from $0.00 to ${escapeHtml(formatMoney(totalCents / 100))}, using the right dollar axis.</desc>
         <g class="viewer-axis">${yMarkup}<line x1="${left}" y1="${plotTop}" x2="${left}" y2="${plotBottom}" class="axis"></line><text x="18" y="${(plotTop + plotBottom) / 2}" class="axis-title" text-anchor="middle" transform="rotate(-90 18 ${(plotTop + plotBottom) / 2})">Viewers</text></g>
+        <g class="donation-axis"><line x1="${width - right}" y1="${plotTop}" x2="${width - right}" y2="${plotBottom}" class="axis"></line>${dollarAxisMarkup}<text x="${width - 12}" y="${(plotTop + plotBottom) / 2}" class="axis-title" text-anchor="middle" transform="rotate(90 ${width - 12} ${(plotTop + plotBottom) / 2})">Raised ($)</text></g>
         <g class="time-axis"><line x1="${left}" y1="${plotBottom}" x2="${width - right}" y2="${plotBottom}" class="axis"></line>${xMarkup}</g>
+        <polyline points="${donationPoints.join(' ')}" class="donation-line"><title>Total raised during selected event: ${escapeHtml(formatMoney(totalCents / 100))} in confirmed live donations</title></polyline>${donationPointMarkup}
         ${viewerLineMarkup}
         ${viewerPointsMarkup}
         ${transitionMarkup}
         <text x="${left - 10}" y="${gameTop + 21}" class="lane-label" text-anchor="end">Games</text>${gameMarkup}
         <line x1="${left}" y1="${donationY}" x2="${width - right}" y2="${donationY}" class="donation-lane"></line>
         <text x="${left - 10}" y="${donationY + 4}" class="lane-label" text-anchor="end">Gifts</text>${donationMarkup}
-        <g class="timeline-legend" transform="translate(${left} 428)"><line x1="0" y1="0" x2="24" y2="0" class="viewer-line"></line><text x="32" y="4">Viewer average</text><rect x="170" y="-8" width="22" height="12" class="legend-game-segment"></rect><text x="200" y="4">Game segment</text><line x1="330" y1="-10" x2="330" y2="8" class="legend-game-transition"></line><text x="340" y="4">Game transition</text><polygon points="490,-8 496,-2 490,4 484,-2" class="legend-donation-marker"></polygon><text x="504" y="4">Donation</text></g>
+        <g class="timeline-legend" transform="translate(${left} 428)"><line x1="0" y1="0" x2="24" y2="0" class="viewer-line"></line><text x="32" y="4">Viewer average</text><rect x="170" y="-8" width="22" height="12" class="legend-game-segment"></rect><text x="200" y="4">Game segment</text><line x1="330" y1="-10" x2="330" y2="8" class="legend-game-transition"></line><text x="340" y="4">Game transition</text><path d="M490 4 H502 V-6 H514" class="donation-line"></path><text x="524" y="4">Raised so far ($)</text><polygon points="680,-8 686,-2 680,4 674,-2" class="legend-donation-marker"></polygon><text x="694" y="4">Donation</text></g>
     </svg>`;
 }
 
@@ -312,7 +337,7 @@ function renderHtml(report, timezone) {
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,sans-serif}main{max-width:1180px;margin:auto;padding:32px}
 h1,h2{line-height:1.15}h2{margin-top:38px}.notice{padding:12px 16px;border-left:4px solid var(--gold);background:#332b1b}.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px}.card{background:var(--panel);padding:16px;border-radius:8px}.card span{display:block;color:var(--muted)}.card strong{font-size:1.5rem}
 .table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;background:var(--panel)}th,td{padding:9px;border-bottom:1px solid #31404c;text-align:left;white-space:nowrap}th{cursor:pointer;color:var(--accent)}.filter{display:block;margin:0 0 12px}input{margin-left:8px;padding:7px;background:var(--panel);color:var(--ink);border:1px solid #526878}
-svg{width:100%;background:var(--panel);border-radius:8px}.axis{stroke:#526878}.grid-line{stroke:#31404c;stroke-width:1}.axis-label,.elapsed-label,.lane-label,.timeline-legend text{fill:var(--muted);font-size:12px}.elapsed-label{font-size:10px}.axis-title{fill:var(--ink);font-size:12px}.viewer-line{fill:none;stroke:var(--accent);stroke-width:3}.viewer-point{fill:var(--accent);stroke:var(--panel);stroke-width:1}.game-segment,.legend-game-segment{fill:#3d6680;stroke:#7ea7bc;stroke-width:1}.game-segment[data-band="1"]{fill:#365267}.game-label{fill:var(--ink);font-size:11px;pointer-events:none}.game-transition,.legend-game-transition{stroke:#f29d49;stroke-width:2;stroke-dasharray:5 4}.donation-lane{stroke:#526878}.donation-marker,.legend-donation-marker{fill:var(--gold);stroke:#101820;stroke-width:1}.timeline-legend{font-size:12px}ol{max-width:480px;padding:0;list-style-position:inside}li{display:flex;justify-content:space-between;padding:5px;border-bottom:1px solid #31404c}dl{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px}dl div{background:var(--panel);padding:10px}dt{color:var(--muted)}dd{margin:0;font-size:1.25rem}footer{margin-top:40px;color:var(--muted)}
+svg{width:100%;background:var(--panel);border-radius:8px}.axis{stroke:#526878}.grid-line{stroke:#31404c;stroke-width:1}.axis-label,.elapsed-label,.lane-label,.timeline-legend text{fill:var(--muted);font-size:12px}.elapsed-label{font-size:10px}.axis-title{fill:var(--ink);font-size:12px}.viewer-line{fill:none;stroke:var(--accent);stroke-width:3}.viewer-point{fill:var(--accent);stroke:var(--panel);stroke-width:1}.donation-line{fill:none;stroke:var(--gold);stroke-width:2.5}.donation-point{fill:var(--gold);stroke:var(--panel);stroke-width:1}.donation-axis .axis-label,.donation-axis .axis-title{fill:var(--gold)}.game-segment,.legend-game-segment{fill:#3d6680;stroke:#7ea7bc;stroke-width:1}.game-segment[data-band="1"]{fill:#365267}.game-label{fill:var(--ink);font-size:11px;pointer-events:none}.game-transition,.legend-game-transition{stroke:#f29d49;stroke-width:2;stroke-dasharray:5 4}.donation-lane{stroke:#526878}.donation-marker,.legend-donation-marker{fill:var(--gold);stroke:#101820;stroke-width:1}.timeline-legend{font-size:12px}ol{max-width:480px;padding:0;list-style-position:inside}li{display:flex;justify-content:space-between;padding:5px;border-bottom:1px solid #31404c}dl{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px}dl div{background:var(--panel);padding:10px}dt{color:var(--muted)}dd{margin:0;font-size:1.25rem}footer{margin-top:40px;color:var(--muted)}
 </style></head><body><main>
 <h1>Extra Life Event Analysis</h1><p class="notice"><strong>Private local report.</strong> It may contain donor names, chatter names, and message text. Do not publish it without review.</p>
 <p>${escapeHtml(formatDate(metrics.eventWindow.start, timezone))} – ${escapeHtml(formatDate(metrics.eventWindow.end, timezone))} (${escapeHtml(timezone)})</p>
