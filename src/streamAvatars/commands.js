@@ -1,5 +1,5 @@
 const { isAdmin } = require('../config');
-const { parseAction } = require('./rehearsal');
+const { parseAction } = require('./actions');
 const seen = new Map();
 const normalizeChannel = channel => typeof channel === 'string' ? channel.replace(/^#/, '').toLowerCase() : '';
 async function handleStreamAvatarsCommand(input, context, { config, service, logger, nowMs = Date.now }) {
@@ -18,7 +18,13 @@ async function handleStreamAvatarsCommand(input, context, { config, service, log
     try { action = parseAction(input); } catch (error) { return error.message; }
     if (action.name === 'status') {
         const status = service.getStatus();
-        return `Stream Avatars ${status.mode}: ${status.crowdCount} avatars, ${Math.floor(status.elapsedMs / 3600000)}h elapsed, companion ${status.companionConnected ? 'connected' : 'disconnected'}${status.recoveryRequired ? ', recovery required' : ''}.`;
+        const money = cents => {
+            if (!Number.isSafeInteger(cents) || cents < 0) return 'pending';
+            const value = BigInt(cents), fraction = value % 100n;
+            return '$' + (value / 100n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',') + (fraction ? '.' + fraction.toString().padStart(2, '0') : '');
+        };
+        return `Stream Avatars ${status.mode}: ${status.crowdCount} avatars, campaign ${money(status.campaignTotalCents)} / ${money(status.campaignGoalCents)}, next milestone ${money(status.nextMilestoneCents)}, companion ${status.companionConnected ? 'connected' : 'disconnected'}${status.recoveryRequired ? ', recovery required' : ''}${status.reconciliationRequired ? ', establishing baseline' : ''}.`;
+
     }
     try {
         const result = await service.dispatch(action, { platform: 'twitch', login, messageId: id });

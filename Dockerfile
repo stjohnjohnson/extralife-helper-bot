@@ -20,7 +20,8 @@ RUN npm ci --omit=dev
 # Copy application code
 COPY --chown=node:node *.js .
 COPY --chown=node:node src ./src
-COPY --chown=node:node scripts/sa-rehearse.js ./scripts/sa-rehearse.js
+COPY --chown=node:node scripts/sa-integration.js ./scripts/sa-integration.js
+COPY --chown=node:node tests/fixtures/donations/integration-scenarios.js ./tests/fixtures/donations/integration-scenarios.js
 
 # Writable persistent state, owned by the unprivileged runtime user
 RUN mkdir -p data/stream-avatars

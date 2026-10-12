@@ -1,86 +1,87 @@
 const { join } = require('node:path');
-const { createSessionController } = require('../broadcastSession');
-const { createInitialState, validObservation } = require('../broadcastSession/state');
-const { createSessionStore } = require('../broadcastSession/store');
+const { publicCampaign } = require('./protocol');
+const { createCampaignCelebrationComposer } = require('./celebrations');
+const { createCampaignProgress } = require('./campaignProgress');
+const { createCampaignStore } = require('./campaignStore');
 const { startBridgeServer } = require('./server');
 const { createEventDispatcher } = require('./events');
-const { createRehearsalController } = require('./rehearsal');
-async function startStreamAvatars({ config, logger, signal, webServer, standalone = false, realClock = { nowMs: Date.now }, onRehearsalStopped = () => {} }) {
-    const settings = config.streamAvatars.config;
-    const productionPath = join(settings.stateDir, 'production', 'state.json');
-    const channel = config.twitch.channel;
-    const cadenceMs = (config.twitch.viewerSampleIntervalSeconds || 60) * 1000;
-    const createSession = (mode, path, clock) => createSessionController({ store: createSessionStore({ path, mode, channel }), clock, mode, channel, graceMs: settings.graceMs, cadenceMs });
-    const production = standalone ? null : await createSession('production', productionPath, realClock);
-    let server; let events; let rehearsal; let active = true; let generation = 1; let stopping; let lastRealObservation = null;
-    let renderedIdentity = ''; let lastResolution = null;
-    const context = () => {
-        const simulated = rehearsal?.getStatus(); const mode = simulated?.active ? 'rehearsal' : 'production';
-        const state = mode === 'rehearsal' ? simulated.state : production?.getSnapshot() || createInitialState({ mode: 'production', channel });
-        const now = realClock.nowMs();
-        return { mode, state, now, simulated };
+async function startStreamAvatars({ config, logger = { warn() {} }, signal, webServer, realClock = { nowMs: Date.now }, timers = { setTimeout, clearTimeout }, integration = null }) {
+    const settings = config.streamAvatars.config, mode = integration ? 'integration' : 'production';
+    const crowdIds = integration ? [...integration.crowdIds] : [], participantId = String(config.participantId), intervalCents = settings.donationIntervalCents ?? 50000;
+    const progress = await createCampaignProgress({ store: createCampaignStore({ path: join(settings.stateDir, mode, 'campaign.json'), mode, participantId, intervalCents }),
+        clock: realClock, mode, participantId, intervalCents });
+    const composer = createCampaignCelebrationComposer({ clock: realClock, ...(integration?.recognitionAction === 'jump' ? { random: () => 0 } : integration?.recognitionAction === 'hug' ? { random: () => 0.5 } : {}) });
+    let server, events, stopping, phaseTimer = null, lastResolution = null, active = true, generation = 1;
+    const snapshot = () => ({ version: 3, type: 'snapshot', mode, generation, serverNowMs: realClock.nowMs(), campaign: publicCampaign(progress.getSnapshot()),
+        integration: { active: Boolean(integration), crowdIds }, features: ['hearts','crowd','campaign','celebrations','donation-recognition'] });
+    const cancelTimer = () => { if (phaseTimer !== null) timers.clearTimeout(phaseTimer); phaseTimer = null; };
+    const discardVisuals = () => { cancelTimer(); composer.clear(); progress.clearConfirmations(); };
+    const invalidate = () => { discardVisuals(); generation++; events?.clear({ mode, generation }); server?.send(snapshot()); };
+    const notify = () => { if (active) server?.send(snapshot()); };
+    const unsubscribe = progress.subscribe(notify);
+    const ready = () => Boolean(server?.getStatus().readyClients);
+    const publish = messages => {
+        if (!ready()) { discardVisuals(); return false; }
+        let delivered = false;
+        for (const message of messages) delivered = events.publishCelebration({ ...message, campaignId: participantId, mode, generation }) || delivered;
+        if (messages.length && !delivered) discardVisuals();
+        return delivered;
     };
-    const snapshot = () => {
-        const { mode, state, now, simulated } = context();
-        return { version: 1, type: 'snapshot', mode, generation, serverNowMs: realClock.nowMs(), session: state,
-            elapsedMs: state.startedAtMs === null ? 0 : Math.max(0, (state.endedAtMs ?? now) - state.startedAtMs),
-            rehearsal: { active: mode === 'rehearsal', crowdIds: mode === 'rehearsal' ? simulated.crowdIds : [] }, features: ['hearts', 'crowd', 'session'] };
+    const arm = () => {
+        cancelTimer(); const at = composer.nextTransitionAt();
+        if (!active || at === null || !ready()) return;
+        const token = generation;
+        phaseTimer = timers.setTimeout(() => {
+            phaseTimer = null;
+            if (!active || generation !== token) return;
+            try { publish(composer.advance()); arm(); }
+            catch { invalidate(); logger.warn('Stream Avatars celebration sequencing failed'); }
+        }, Math.max(0, at - realClock.nowMs()));
+        phaseTimer?.unref?.();
     };
-    const notify = invalidate => {
-        if (!active) return;
-        const { mode, state } = context(); const identity = mode + ':' + state.sessionId;
-        if (invalidate || renderedIdentity !== identity) { generation++; events?.clear({ mode, generation }); renderedIdentity = identity; }
-        server?.send(snapshot());
-    };
-    const unsubscribe = production?.subscribe(() => notify(false));
     const stop = () => {
         if (!stopping) stopping = (async () => {
-            active = false; unsubscribe?.(); events?.clear({ mode: 'production', generation: ++generation });
-            await rehearsal?.stop(); events?.stop(); await server?.stop(); await production?.stop();
+            active = false; signal?.removeEventListener('abort', abort); cancelTimer(); composer.stop(); unsubscribe(); events?.clear({ mode, generation: ++generation });
+            await server?.drain(); events?.stop(); await server?.stop(); await progress.stop();
         })(); return stopping;
     };
+    const abort = () => { void stop(); };
     try {
-        events = createEventDispatcher({ realClock, send: message => server?.send(message) || false });
-        rehearsal = createRehearsalController({ channel, productionStatus: () => lastRealObservation, realClock, cadenceMs, standalone, notify,
-            eventDispatcher: { publishHearts: ({ sessionId }) => events.publishHearts({ mode: 'rehearsal', generation, sessionId }) } });
-        server = await startBridgeServer({ config: { ...settings, ...config.webServer }, webServer, getSnapshot: snapshot, logger, signal, onClientMessage: async message => {
-            if (message.type === 'ready') lastResolution = message.resolution;
-            if (message.type === 'diagnostic') logger.warn('Stream Avatars companion diagnostic', { code: message.code });
-        } });
         if (signal?.aborted) throw new Error('Stream Avatars startup aborted');
+        events = createEventDispatcher({ realClock, send: message => server?.send(message) || false });
+        server = await startBridgeServer({ config: { ...settings, ...config.webServer }, webServer, getSnapshot: snapshot, logger, clock: realClock,
+            onLastReadyDisconnect: () => { if (active) invalidate(); },
+            onClientMessage: async message => {
+                if (message.type === 'ready') lastResolution = message.resolution;
+                if (message.type === 'diagnostic') logger.warn('Stream Avatars companion diagnostic', { code: message.code });
+            } });
+        if (signal?.aborted) throw new Error('Stream Avatars startup aborted');
+        signal?.addEventListener('abort', abort, { once: true });
     } catch (error) { await stop(); throw error; }
-    return { address: server.address,
-        async observeProduction(observation) {
-            if (!active || standalone) return;
-            const latestAt = Math.max(lastRealObservation?.observedAtMs ?? -1, production.getSnapshot().latestObservation?.observedAtMs ?? -1);
-            if (!validObservation(observation) || observation.observedAtMs <= latestAt) return;
-            lastRealObservation = structuredClone(observation);
-            const stoppedRehearsal = rehearsal.observeProduction(observation);
-            await production.observe(observation);
-            if (stoppedRehearsal && active) onRehearsalStopped();
+    return { address: server.address, getPollCheckpoint: () => active ? progress.getPollCheckpoint() : null,
+        async acceptObservation(input) {
+            if (!active) return { accepted: false, intent: null, delivered: false, diagnostics: ['unavailable'] };
+            const token = generation;
+            const result = await progress.acceptObservation(input);
+            if (!active || token !== generation || !ready()) { discardVisuals(); return { ...result, delivered: false }; }
+            for (const code of result.diagnostics) logger.warn('Donation accounting diagnostic', { code });
+            const delivered = result.intent ? publish(composer.accept(result.intent)) : false;
+            arm(); return { ...result, delivered };
         },
+        async resetIntegration() { if (!integration || !active) throw new Error('Integration reset unavailable'); invalidate(); await progress.reset(); },
         getStatus() {
-            const current = context(); const state = current.state;
-            return { mode: current.mode, state, crowdCount: current.simulated?.active ? current.simulated.crowdIds.length : 0,
-                elapsedMs: state.startedAtMs === null ? 0 : Math.max(0, current.now - state.startedAtMs), recoveryRequired: production?.getStatus().recoveryRequired,
-                companionConnected: server.getStatus().authenticatedClients > 0, resolution: lastResolution };
+            const state = progress.getSnapshot(), c = publicCampaign(state);
+            return { mode, state, crowdCount: crowdIds.length, ...progress.getStatus(), initialized: c.initialized,
+                campaignTotalCents: c.totalCents, campaignGoalCents: c.goalCents, nextMilestoneCents: c.nextMilestoneCents,
+                companionReady: ready(), companionConnected: server.getStatus().authenticatedClients > 0, resolution: lastResolution };
         },
-        async dispatch(action, commandContext) {
+        async dispatch(action) {
             if (!active) return { status: 'unavailable', message: 'Stream Avatars stopped.' };
-            if (['session.reset', 'session.recover'].includes(action.name)) {
-                if (!production) return { status: 'denied', message: 'Production recovery is unavailable in standalone rehearsal.' };
-                if (lastRealObservation?.status !== 'offline' || realClock.nowMs() - lastRealObservation.observedAtMs > 2 * cadenceMs) return { status: 'denied', message: 'Production recovery/reset requires confirmed offline status.' };
-                if (action.name === 'session.reset') await production.reset(); else await production.recover();
-                notify(true); return { status: 'ok', message: 'Production session ' + (action.name === 'session.reset' ? 'reset and archived.' : 'recovered without replay.') };
-            }
-            if (action.name === 'hearts' && !rehearsal.getStatus().active) {
-                const state = production?.getSnapshot();
-                if (!state?.sessionId || state.endedAtMs !== null || production.getStatus().recoveryRequired || lastRealObservation?.status !== 'online' || realClock.nowMs() - lastRealObservation.observedAtMs > 2 * cadenceMs) return { status: 'denied', message: 'Heart preview requires active rehearsal or confirmed live production.' };
-                const delivered = events.publishHearts({ mode: 'production', generation, sessionId: state.sessionId });
-                return { status: delivered ? 'ok' : 'unavailable', message: delivered ? 'Heart preview sent.' : 'Stream Avatars companion unavailable; preview was not queued.' };
-            }
-            return rehearsal.dispatch(action, commandContext);
-        },
-        stop };
+            if (action.name === 'status') return { status: 'ok', message: 'Campaign progress available.' };
+            if (!['campaign.reset','campaign.recover'].includes(action.name) || integration) return { status: 'invalid', message: 'Use npm run sa:integration for development effects.' };
+            invalidate();
+            if (action.name === 'campaign.reset') await progress.reset(); else await progress.recover();
+            return { status: 'ok', message: 'Campaign ' + (action.name === 'campaign.reset' ? 'reset' : 'recovered') + '; current donations and totals will be baselined without replay.' };
+        }, stop };
 }
 module.exports = { startStreamAvatars };

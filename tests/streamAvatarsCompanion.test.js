@@ -1,10 +1,11 @@
+const { publicCampaign } = require('../src/streamAvatars/protocol');
 const { spawnSync } = require('node:child_process');
 const { resolve, join } = require('node:path');
 const { mkdtempSync, readFileSync, writeFileSync, rmSync } = require('node:fs');
 const { tmpdir } = require('node:os');
-const { createInitialState, reduceObservation } = require('../src/broadcastSession/state');
-const { validateServerMessage } = require('../src/streamAvatars/protocol');
-test.each(['address-ip', 'address-port', 'address-wss', 'address-ipv6', 'invalid-address', 'image-loaded-before-clear', 'image-pending-cap', 'missing-image-host', 'image-load-delay', 'image-load-timeout', 'pending-image-stop', 'host-json-escapes', 'auth', 'movement', 'density', 'cleanup', 'expiry', 'generation', 'crowd', 'invalid', 'missing-image', 'reconnect', 'late-join', 'empty-crowd', 'negative-bounds', 'resized-bounds', 'small-bounds', 'density-rotation', 'same-snapshot', 'new-session', 'stale-control', 'stop', 'close-open-race', 'socket-error', 'async-open', 'backoff', 'mailbox-burst', 'mailbox-overflow', 'malformed-json', 'invalid-snapshot', 'wrong-session', 'heartbeat-expiry', 'elapsed-state', 'crowd-no-extra-config', 'reload', 'invalid-settings', 'invalid-token'])('shipped Lua companion: %s', scenario => {
+const { createCampaignState } = require('../src/streamAvatars/campaignState');
+const { validateCampaignServerMessage: validateServerMessage } = require('../src/streamAvatars/protocol');
+test.each(['phase-delayed-party-update', 'phase-ordered', 'phase-regression', 'phase-schema', 'phase-party-update', 'cooldown-boundary', 'cooldown-game-clock', 'cooldown-dance-once', 'cooldown-dance-rejected', 'cooldown-dance-upgrade', 'cooldown-dance-busy', 'cooldown-clear', 'cooldown-reload', 'cooldown-disconnect', 'cooldown-custom', 'cooldown-hug', 'cooldown-hug-reload', 'cooldown-invalid', 'recognition-delayed-extension', 'recognition-delayed-hug', 'recognition-delayed-suppression', 'native-null-hidden', 'native-null-goal-only', 'hug-crowd-1', 'hug-crowd-2', 'hug-crowd-3', 'hug-crowd-20', 'hug-crowd-101', 'hug-shuffle', 'hug-once', 'hug-busy', 'jump-busy', 'hug-recheck', 'hug-recheck-initiator', 'hug-unsafe', 'hug-exception', 'hug-party', 'hug-clear', 'hug-reload', 'hug-disconnect', 'hug-target-leaves', 'hug-takeover', 'caption-single', 'caption-batch', 'caption-cents', 'caption-hidden', 'caption-party', 'caption-shortening', 'caption-bounds', 'recognition-schema', 'async-dance-manual-interruption', 'async-dance-pending-avatar-reload', 'dance-wander', 'async-dance-alias', 'async-dance-tween', 'dance-other-animation', 'dance-avatar-change', 'async-dance-expiry', 'async-dance-reload', 'async-dance-cancel', 'async-dance-interrupted', 'async-dance-rejected', 'async-dance-existing', 'native-null-donation', 'native-null-goal', 'milestone-whole-dollars', 'confetti-scatter', 'celebration-pending-cap', 'celebration-stale', 'celebration-density', 'celebration-missing-confetti', 'celebration-missing-heart', 'celebration-delay-cancel', 'ordinary-101', 'milestone-banner', 'goal-banner', 'gear-preservation', 'celebration-faults', 'celebration-expiry', 'celebration-merge', 'celebration-late-join', 'celebration-cancel', 'address-ip', 'address-port', 'address-wss', 'address-ipv6', 'invalid-address', 'image-loaded-before-clear', 'image-pending-cap', 'missing-image-host', 'image-load-delay', 'image-load-timeout', 'pending-image-stop', 'host-json-escapes', 'auth', 'movement', 'density', 'cleanup', 'expiry', 'generation', 'crowd', 'invalid', 'missing-image', 'reconnect', 'late-join', 'empty-crowd', 'negative-bounds', 'resized-bounds', 'small-bounds', 'density-rotation', 'same-snapshot', 'new-campaign', 'stale-control', 'stop', 'close-open-race', 'socket-error', 'async-open', 'backoff', 'mailbox-burst', 'mailbox-overflow', 'malformed-json', 'invalid-snapshot', 'wrong-campaign', 'heartbeat-expiry', 'campaign-state', 'crowd-no-extra-config', 'reload', 'invalid-settings', 'invalid-token'])('shipped Lua companion: %s', scenario => {
     const result = spawnSync(process.env.LUA_BIN || 'lua', [resolve('tests/lua/companionHarness.lua'), resolve('integrations/stream-avatars/companion.lua'), scenario], { encoding: 'utf8', timeout: 5000 });
     if (result.error) throw new Error('Install Lua 5.2+ or set LUA_BIN: ' + result.error.code);
     expect({ status: result.status, stderr: result.stderr, stdout: result.stdout.trim() }).toEqual({ status: 0, stderr: '', stdout: 'OK ' + scenario });
@@ -16,8 +17,8 @@ function run(script, scenario, fixture) {
 test('Lua consumes the actual Node protocol JSON, including nulls and UTF-8 fields', () => {
     const directory = mkdtempSync(join(tmpdir(), 'sa-wire-'));
     try {
-        const session = reduceObservation(createInitialState({ mode: 'rehearsal', channel: 'streamer_é' }), { status: 'online', observedAtMs: 1001, startedAtMs: 1000, streamId: 'fixture' }, { graceMs: 900000, cadenceMs: 60000, newSessionId: () => 'session' });
-        const message = validateServerMessage({ version: 1, type: 'snapshot', mode: 'rehearsal', generation: 1, serverNowMs: 1000, session, elapsedMs: 1, rehearsal: { active: true, crowdIds: [] }, features: ['hearts', 'crowd', 'session'] });
+        const state = createCampaignState({ mode: 'integration', participantId: 'session_é' });
+        const message = validateServerMessage({ version: 3, type: 'snapshot', mode: 'integration', generation: 1, serverNowMs: 1000, campaign: publicCampaign(state), integration: { active: true, crowdIds: [] }, features: ['hearts', 'crowd', 'campaign'] });
         const fixture = join(directory, 'snapshot.json'); writeFileSync(fixture, JSON.stringify(message));
         const result = run(resolve('integrations/stream-avatars/companion.lua'), 'wire-contract', fixture);
         expect({ status: result.status, stderr: result.stderr, stdout: result.stdout.trim() }).toEqual({ status: 0, stderr: '', stdout: 'OK wire-contract' });
@@ -33,6 +34,23 @@ test('companion works with Windows CRLF source and a script path containing spac
 });
 // Prove these tests reject plausible defects, rather than merely executing happy paths.
 test.each([
+    ['phase-regression', 'value.phase=="recognition" and partySequences[value.sequenceId]', 'false'],
+    ['phase-delayed-party-update', 'partySequenceId==value.sequenceId and partyWindowStartedAt==value.partyStartedAtMs', 'celebration and celebration.sequenceId==value.sequenceId and celebration.startedAtMs==value.partyStartedAtMs'],
+    ['phase-party-update', 'local sameParty=partySequenceId==value.sequenceId and partyWindowStartedAt==value.partyStartedAtMs', 'local sameParty=false'],
+    ['new-campaign', 'snapshot.campaign.campaignId~=value.campaign.campaignId', 'false'],
+    ['cooldown-dance-once', 'and not actionAttempts[id] then', 'then'],
+    ['cooldown-clear', 'if request[action] and now<request[action] then return false end', 'if false then return false end'],
+    ['cooldown-reload', 'get("sa_action_requests") or {}', '{}'],
+    ['cooldown-boundary', 'now+actionCooldowns[action]+1', 'now+actionCooldowns[action]'],
+    ['recognition-delayed-extension', 'recognitionSequenceId==value.sequenceId and recognitionWindowStartedAt==value.recognitionStartedAtMs', 'recognition and recognition.startedAtMs==value.recognitionStartedAtMs'],
+    ['hug-crowd-2', 'candidates[i+1]', 'candidates[i]'],
+    ['hug-once', 'if not sameWindow then clearLayer(heartLayer); heartLayer={}; handled={} end', 'clearLayer(heartLayer); heartLayer={}; handled={}'],
+    ['hug-busy', 'ordinaryState(user.getState()) end)', 'true end)'],
+    ['hug-unsafe', 'target:match("^[A-Za-z0-9_:%-]+$")', 'true'],
+    ['hug-crowd-2', 'initiator.runCommand("!{cmd:hug} "..target,true)', 'initiator.runCommand("!{cmd:hug} "..target,true); partner.runCommand("!{cmd:hug} "..tostring(initiator.id),true)'],
+    ['ordinary-101', 'if i<=101 then', 'if i<=50 then'],
+    ['celebration-pending-cap', 'if pending>=128 then return nil end', 'if false then return nil end'],
+    ['milestone-banner', 'then user.exitState() end', 'then local ignored=true end'],
     ['pending-image-stop', 'entry.object.setScale(0,0)', 'entry.object.setScale(1,1)'],
     ['image-loaded-before-clear', 'status~="loaded"', 'true'],
     ['missing-image-host', 'deadline=elapsed+2', 'deadline=elapsed+20'],
@@ -58,6 +76,21 @@ test.each([
         if (!source.includes(original)) throw new Error('Mutation target moved; update the behavioral mutation');
         const script = join(directory, 'companion.lua'); writeFileSync(script, source.replaceAll(original, broken));
         const result = run(script, scenario);
-        expect(result.error).toBeUndefined(); expect(result.status).toBe(1); expect(result.stderr).toMatch(scenario === 'host-json-escapes' ? /escape changed value|invalid escape sequence/ : /assertion failed|must|density|disconnect/);
+        expect(result.error).toBeUndefined(); expect(result.status).toBe(1); expect(result.stderr).toMatch(scenario === 'host-json-escapes' ? /escape changed value|invalid escape sequence/ : /assertion failed|must|density|disconnect|amount updates|delayed extension/);
+    } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+
+test.each(['donation','milestone','goal','hidden','goal-only'])('Lua renders actual validated Node celebration JSON: %s', kind => {
+    const directory = mkdtempSync(join(tmpdir(), 'sa-celebration-wire-'));
+    try {
+        const wireKind = kind === 'goal-only' ? 'goal' : kind === 'hidden' ? 'donation' : kind;
+        const party = wireKind !== 'donation';
+        const packet = validateServerMessage({ version: 3, type: 'celebration', mode: 'integration', generation: 1, campaignId: 'session', id: 'node-wire', sequenceId: 'node-sequence', issuedAtMs: 1000, expiresAtMs: 11000,
+            phase: party ? 'party' : 'recognition', donationCount: party ? 0 : 1, donationTotalCents: party ? 0 : kind === 'hidden' ? null : 2500,
+            recognitionStartedAtMs: party ? null : 1000, recognitionAction: party ? null : 'jump', heartsUntilMs: party ? 0 : 6000, partyStartedAtMs: party ? 1000 : null,
+            partyUntilMs: wireKind === 'goal' ? 21000 : wireKind === 'milestone' ? 19000 : 0, kind: wireKind, campaignTotalCents: 154350, milestoneCents: kind === 'milestone' ? 150000 : null });
+        const fixture = join(directory, 'celebration.json'); writeFileSync(fixture, JSON.stringify(packet));
+        const result = run(resolve('integrations/stream-avatars/companion.lua'), 'wire-celebration', fixture);
+        expect({ status: result.status, stderr: result.stderr, stdout: result.stdout.trim() }).toEqual({ status: 0, stderr: '', stdout: 'OK wire-celebration' });
     } finally { rmSync(directory, { recursive: true, force: true }); }
 });

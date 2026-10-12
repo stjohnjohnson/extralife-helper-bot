@@ -1,0 +1,11 @@
+{
+  "name": "sa_thanks",
+  "file": "sa_thanks.png",
+  "frameWidth": 179,
+  "frameHeight": 23,
+  "frames": 1,
+  "rows": 1,
+  "framesPerSecond": 1,
+  "loop": true,
+  "transparent": true
+}

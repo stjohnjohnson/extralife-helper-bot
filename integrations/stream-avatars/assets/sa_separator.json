@@ -1,0 +1,11 @@
+{
+  "name": "sa_separator",
+  "file": "sa_separator.png",
+  "frameWidth": 53,
+  "frameHeight": 23,
+  "frames": 1,
+  "rows": 1,
+  "framesPerSecond": 1,
+  "loop": true,
+  "transparent": true
+}

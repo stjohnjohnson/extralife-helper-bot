@@ -1,0 +1,11 @@
+{
+  "name": "sa_comma",
+  "file": "sa_comma.png",
+  "frameWidth": 17,
+  "frameHeight": 23,
+  "frames": 1,
+  "rows": 1,
+  "framesPerSecond": 1,
+  "loop": true,
+  "transparent": true
+}

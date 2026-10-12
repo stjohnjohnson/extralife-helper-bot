@@ -6,57 +6,34 @@ const WebSocket = require('ws');
 const { startStreamAvatars } = require('../src/streamAvatars');
 const http = require('node:http');
 const { startWebServer } = require('../src/webServer');
-const { parseAction } = require('../src/streamAvatars/rehearsal');
 let directory; let service; let socket; let now; let webServer;
 beforeEach(async () => {
     directory = await fs.mkdtemp(join(tmpdir(), 'sa-integration-')); now = 10000000;
     webServer = await startWebServer({ config: { host: '127.0.0.1', port: 0 } });
     webServer.registerHttp(['/health'], (req, res) => { res.end('other integration'); });
-    service = await startStreamAvatars({ webServer, config: { twitch: { channel: 'streamer' }, streamAvatars: { config: {
-        host: '127.0.0.1', port: 0, token: 't'.repeat(32), stateDir: directory, graceMs: 900000,
+    service = await startStreamAvatars({ webServer, config: { participantId: '123', streamAvatars: { config: {
+        host: '127.0.0.1', port: 0, token: 't'.repeat(32), stateDir: directory, 
         strip: { x: -10.5, y: -8.25, width: 20, height: 5.5 }, maxHearts: 50, heartOffset: 1.5
     } } }, logger: { info() {}, warn() {} }, realClock: { nowMs: () => now } });
 });
 afterEach(async () => { socket?.terminate(); socket = null; await service.stop(); await webServer.stop(); await fs.rm(directory, { recursive: true, force: true }); });
-const dispatch = input => service.dispatch(parseAction(input));
 const waitFor = (type, accept = () => true) => new Promise(resolve => {
     const listener = raw => { const message = JSON.parse(raw); if (message.type === type && accept(message)) { socket.removeListener('message', listener); resolve(message); } };
     socket.on('message', listener);
 });
-test('rehearsal expires effects in wall time, clears on real live, and reconnects without replay', async () => {
-    await service.observeProduction({ status: 'offline', observedAtMs: now });
-    const productionFile = join(directory, 'production/state.json'); const before = await fs.readFile(productionFile, 'utf8');
-    socket = new WebSocket(`ws://127.0.0.1:${service.address.port}/sa/socket`); await once(socket, 'open');
-    let pending = waitFor('snapshot'); socket.send(JSON.stringify({ version: 1, type: 'auth', token: 't'.repeat(32) }));
-    expect((await pending).mode).toBe('production');
-    pending = waitFor('snapshot', message => message.mode === 'rehearsal' && message.session.sessionId !== null); await dispatch('rehearsal start'); const rehearsal = await pending;
-    await dispatch('crowd 100');
-    pending = waitFor('hearts'); expect((await dispatch('hearts')).status).toBe('ok'); const effect = await pending;
-    expect(effect).toMatchObject({ mode: 'rehearsal', issuedAtMs: now, expiresAtMs: now + 10000, durationMs: 5000, sessionId: rehearsal.session.sessionId });
-    expect(await fs.readFile(productionFile, 'utf8')).toBe(before);
-    pending = waitFor('clear'); now++; await service.observeProduction({ status: 'online', observedAtMs: now, startedAtMs: now - 3600000, streamId: 'real' });
-    const clear = await pending; expect(clear.mode).toBe('production'); expect(clear.generation).toBeGreaterThan(effect.generation);
-    expect(service.getStatus()).toMatchObject({ mode: 'production', crowdCount: 0 });
-    socket.terminate(); socket = new WebSocket(`ws://127.0.0.1:${service.address.port}/sa/socket`); await once(socket, 'open');
-    const received = []; socket.on('message', raw => received.push(JSON.parse(raw)));
-    pending = waitFor('snapshot'); socket.send(JSON.stringify({ version: 1, type: 'auth', token: 't'.repeat(32) })); const resumed = await pending;
-    expect(resumed).toMatchObject({ mode: 'production', rehearsal: { active: false, crowdIds: [] }, elapsedMs: 3600000 });
-    expect(received.map(message => message.type)).toEqual(['snapshot']);
+test('stale and malformed campaign observations preserve durable totals', async () => {
+    const accept = campaign => service.acceptObservation({ expectedEpochId: service.getPollCheckpoint().epochId, batchId: 'batch', observedAtMs: now, campaign });
+    await accept({ observedAtMs: now, totalCents: 90000, goalCents: 100000 });
+    const before = service.getStatus().campaignTotalCents;
+    await accept({ observedAtMs: now - 1, totalCents: 100000, goalCents: 100000 });
+    expect((await accept({ observedAtMs: now, totalCents: -1, goalCents: 100000 })).diagnostics).toContain('invalid-campaign');
+    expect(service.getStatus().campaignTotalCents).toBe(before);
 });
-test('stale online and malformed observations cannot change rehearsal admission or preempt it', async () => {
-    await service.observeProduction({ status: 'offline', observedAtMs: now }); await dispatch('rehearsal start');
-    await service.observeProduction({ status: 'online', observedAtMs: now - 1, startedAtMs: now - 100, streamId: 'old' });
-    expect(service.getStatus().mode).toBe('rehearsal');
-    await service.observeProduction({ status: 'online', observedAtMs: now + 1, startedAtMs: now + 2, streamId: 'invalid' });
-    expect(service.getStatus().mode).toBe('rehearsal');
-    await dispatch('rehearsal stop'); expect((await dispatch('rehearsal start')).status).toBe('ok');
-});
-
 
 test('avatar service attaches to the application listener and stopping it preserves other routes', async () => {
     expect(service.address.port).toBe(webServer.address.port);
     socket = new WebSocket(`ws://127.0.0.1:${webServer.address.port}/sa/socket`); await once(socket, 'open');
-    const received = waitFor('snapshot'); socket.send(JSON.stringify({ version: 1, type: 'auth', token: 't'.repeat(32) }));
+    const received = waitFor('snapshot'); socket.send(JSON.stringify({ version: 3, type: 'auth', token: 't'.repeat(32) }));
     expect((await received).mode).toBe('production');
     const closed = once(socket, 'close'); await service.stop(); await closed;
     const response = await new Promise((resolve, reject) => {
@@ -65,4 +42,26 @@ test('avatar service attaches to the application listener and stopping it preser
         }); req.on('error', reject);
     });
     expect(response).toBe('other integration');
+});
+
+test('production keeps default randomness independently of developer action settings', async () => {
+    await service.stop();
+    const draw = jest.spyOn(Math, 'random').mockReturnValue(0.1);
+    try {
+        service = await startStreamAvatars({ webServer, config: { participantId: '123', twitch: { channel: 'streamer' }, streamAvatars: { config: {
+            token: 't'.repeat(32), stateDir: directory,  recognitionAction: 'hug'
+        } } }, logger: { info() {}, warn() {} }, realClock: { nowMs: () => now } });
+        const accept = donations => service.acceptObservation({ expectedEpochId: service.getPollCheckpoint().epochId,
+            batchId: 'batch', complete: true, donations, observedAtMs: now });
+        await accept([]);
+        socket = new WebSocket(`ws://127.0.0.1:${webServer.address.port}/sa/socket`); await once(socket, 'open');
+        const first = waitFor('snapshot'); socket.send(JSON.stringify({ version: 3, type: 'auth', token: 't'.repeat(32) })); await first;
+        socket.send(JSON.stringify({ version: 3, type: 'ready', capabilities: ['campaign', 'celebrations', 'donation-recognition'], resolution: { width: 1920, height: 1080 } }));
+        for (let i = 0; i < 30 && !service.getStatus().companionReady; i++) await new Promise(resolve => setTimeout(resolve, 2));
+        expect(service.getStatus().companionReady).toBe(true);
+        const received = waitFor('celebration'); now++;
+        await accept([{ id: 'live', participantId: '123', createdAtMs: now - 1, amountCents: 2500 }]);
+        expect(await received).toMatchObject({ recognitionAction: 'jump', donationCount: 1, donationTotalCents: 2500 });
+        expect(draw).toHaveBeenCalledTimes(1);
+    } finally { draw.mockRestore(); }
 });

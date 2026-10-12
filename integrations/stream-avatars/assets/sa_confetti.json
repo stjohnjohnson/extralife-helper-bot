@@ -1,0 +1,11 @@
+{
+  "name": "sa_confetti",
+  "file": "sa_confetti.png",
+  "frameWidth": 8,
+  "frameHeight": 8,
+  "frames": 4,
+  "rows": 1,
+  "framesPerSecond": 8,
+  "loop": true,
+  "transparent": true
+}

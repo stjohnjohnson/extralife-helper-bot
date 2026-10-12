@@ -1,0 +1,11 @@
+{
+  "name": "sa_digit_1",
+  "file": "sa_digit_1.png",
+  "frameWidth": 17,
+  "frameHeight": 23,
+  "frames": 1,
+  "rows": 1,
+  "framesPerSecond": 1,
+  "loop": true,
+  "transparent": true
+}

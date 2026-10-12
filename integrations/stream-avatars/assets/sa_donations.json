@@ -1,0 +1,11 @@
+{
+  "name": "sa_donations",
+  "file": "sa_donations.png",
+  "frameWidth": 233,
+  "frameHeight": 23,
+  "frames": 1,
+  "rows": 1,
+  "framesPerSecond": 1,
+  "loop": true,
+  "transparent": true
+}

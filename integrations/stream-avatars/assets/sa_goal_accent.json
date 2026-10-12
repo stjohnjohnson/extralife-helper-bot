@@ -1,0 +1,11 @@
+{
+  "name": "sa_goal_accent",
+  "file": "sa_goal_accent.png",
+  "frameWidth": 32,
+  "frameHeight": 32,
+  "frames": 1,
+  "rows": 1,
+  "framesPerSecond": 1,
+  "loop": true,
+  "transparent": true
+}

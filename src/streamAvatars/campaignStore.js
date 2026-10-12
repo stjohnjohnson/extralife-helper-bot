@@ -1,7 +1,7 @@
 const defaultFs = require('node:fs/promises');
 const { resolve, dirname, join } = require('node:path');
 const { randomUUID } = require('node:crypto');
-const { createInitialState, validateSessionState } = require('./state');
+const { createCampaignState, validateCampaignState } = require('./campaignState');
 
 async function identity(path) {
     const absolute = resolve(path);
@@ -18,7 +18,7 @@ async function assertDistinctPaths(first, second) {
         throw new Error('Production and rehearsal stores must be separate');
     }
 }
-function createSessionStore({ path, mode, channel, fs = defaultFs }) {
+function createCampaignStore({ path, mode, participantId, intervalCents, fs = defaultFs }) {
     const file = resolve(path);
     const lock = file + '.lock';
     const recovery = file + '.recovery-required';
@@ -26,14 +26,14 @@ function createSessionStore({ path, mode, channel, fs = defaultFs }) {
     let closed = false;
     let lastRevision = -1;
     let tail = Promise.resolve();
-    const validate = value => validateSessionState(value, { mode, channel });
+    const validate = value => validateCampaignState(value, { mode, participantId, intervalCents });
     const enqueue = operation => {
         const result = tail.then(operation);
         tail = result.catch(() => {});
         return result;
     };
-    const assertOwner = () => { if (closed) throw new Error('Session store closed'); if (!owned) throw new Error('Session store requires its owner'); };
-    const read = async source => validate(JSON.parse(await fs.readFile(source, 'utf8')));
+    const assertOwner = () => { if (closed) throw new Error('Campaign store closed'); if (!owned) throw new Error('Campaign store requires its owner'); };
+    const read = async source => validateCampaignState(JSON.parse(await fs.readFile(source, 'utf8')), { mode, participantId, intervalCents });
     const syncDirectory = async () => {
         if (process.platform !== 'linux') return;
         const directory = await fs.open(dirname(file), 'r');
@@ -57,16 +57,16 @@ function createSessionStore({ path, mode, channel, fs = defaultFs }) {
     });
     return {
         async load() {
-            if (closed) throw new Error('Session store closed');
+            if (closed) throw new Error('Campaign store closed');
             await fs.mkdir(dirname(file), { recursive: true, mode: 0o700 });
             try {
                 const info = await fs.lstat(file);
-                if (info.isSymbolicLink() || info.nlink > 1) throw new Error('Session state must not use links');
+                if (info.isSymbolicLink() || info.nlink > 1) throw new Error('Campaign state must not use links');
             } catch (error) { if (error.code !== 'ENOENT') throw error; }
             if (!owned) {
                 let handle;
                 try { handle = await fs.open(lock, 'wx', 0o600); }
-                catch (error) { if (error.code === 'EEXIST') throw new Error('Session store already has an owner; validate stale lock before removal'); throw error; }
+                catch (error) { if (error.code === 'EEXIST') throw new Error('Campaign store already has an owner; validate stale lock before removal'); throw error; }
                 owned = true;
                 try { await handle.writeFile(JSON.stringify({ pid: process.pid })); } finally { await handle.close(); }
             }
@@ -75,10 +75,18 @@ function createSessionStore({ path, mode, channel, fs = defaultFs }) {
             if (requiresRecovery) {
                 // Finish an interrupted quarantine without replacing the last valid backup.
                 try { await read(file); } catch (error) { if (error.code !== 'ENOENT') await quarantine(); }
-                throw new Error('Session state requires recovery');
+                throw new Error('Campaign state requires recovery');
             }
             try {
-                const state = await read(file); lastRevision = state.revision; return state;
+                const raw = JSON.parse(await fs.readFile(file, 'utf8'));
+                const state = validateCampaignState(raw, { mode, participantId: raw.participantId });
+                lastRevision = state.revision;
+                if (state.participantId !== String(participantId)) {
+                    await fs.copyFile(file, file + '.archive-' + randomUUID());
+                    const initial = { ...createCampaignState({ mode, participantId, intervalCents }), revision: lastRevision + 1 };
+                    await save(initial); return initial;
+                }
+                return state;
             } catch (error) {
                 if (error.code === 'ENOENT') return null;
                 // Persist the recovery gate before moving the corrupt original, including across crashes.
@@ -86,14 +94,14 @@ function createSessionStore({ path, mode, channel, fs = defaultFs }) {
                 try { await marker.writeFile('corrupt-state'); await marker.sync(); } finally { await marker.close(); }
                 await syncDirectory();
                 await quarantine();
-                throw new Error('Session state requires recovery');
+                throw new Error('Campaign state requires recovery');
             }
         },
         save,
         async archiveAndReset() {
             await tail; assertOwner();
             try { await fs.copyFile(file, file + '.archive-' + randomUUID()); } catch (error) { if (error.code !== 'ENOENT') throw error; }
-            const initial = { ...createInitialState({ mode, channel }), revision: Math.max(0, lastRevision + 1) };
+            const initial = { ...createCampaignState({ mode, participantId, intervalCents }), revision: Math.max(0, lastRevision + 1) };
             await save(initial); await clearRecovery(); return initial;
         },
         async recoverLastBackup() {
@@ -106,4 +114,4 @@ function createSessionStore({ path, mode, channel, fs = defaultFs }) {
         async close() { await tail; if (owned) { await fs.rm(lock, { force: true }); owned = false; } closed = true; }
     };
 }
-module.exports = { createSessionStore, assertDistinctPaths };
+module.exports = { createCampaignStore, assertDistinctPaths };
