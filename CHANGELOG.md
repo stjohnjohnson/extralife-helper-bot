@@ -1,3 +1,14 @@
+# [4.11.0](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v4.10.0...v4.11.0) (2026-10-12)
+
+### Changes
+
+- Releases describe final shipped changes and required upgrade actions using reviewed PR notes. ([#84](https://github.com/stjohnjohnson/extralife-helper-bot/pull/84))
+- Contributors receive concise writing guidance and a PR template with explicit release-note and upgrade sections. ([#84](https://github.com/stjohnjohnson/extralife-helper-bot/pull/84))
+
+### Upgrade actions
+
+- Complete the template before merging human-authored PRs. Non-breaking Dependabot maintenance remains exempt. Preserve applicable BREAKING CHANGE: footers. ([#84](https://github.com/stjohnjohnson/extralife-helper-bot/pull/84))
+
 # [4.10.0](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v4.9.0...v4.10.0) (2026-10-12)
 
 
