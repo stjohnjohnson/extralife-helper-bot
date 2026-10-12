@@ -79,7 +79,7 @@ test('default production snapshots use the same complete scenery revision as nor
     const { catalog } = require('../src/streamAvatars/themeRelease').loadThemePack({
         directory: require('../src/streamAvatars/themeRelease').BUNDLED_THEME_PACK_DIR
     });
-    expect(require('../src/streamAvatars/package').buildPackage().imageCount).toBe(52);
+    expect(require('../src/streamAvatars/package').buildPackage().imageCount).toBe(54);
     await online(); await connectThemes();
     const pending = waitFor('snapshot', value => value.theme?.gameName === 'Minecraft');
     await observeGame('Minecraft');

@@ -5,6 +5,7 @@ script_trigger_type = "On Connect"
 local HEART_WIDTH, HEART_HEIGHT = 32, 32
 local RAISED_WIDTH = 143
 local MAX_HEARTS, AVATAR_TOP = 50, 40
+local STATUS_SIZE, STATUS_SCALE, STATUS_TIMEOUT = 32, 0.5, 30
 -- Only the portable package builder may embed trusted image IDs and geometry.
 -- Empty until explicit candidate packaging or separately gated production promotion.
 local THEME_CATALOG_JSON = nil
@@ -43,7 +44,7 @@ function sa_load_theme(object, key, image)
 end
 
 function sa_on_socket(title, event, message, code)
-    if title ~= "sa_helper_bridge" then return end
+    if title ~= "sa_helper_bridge" or not get("sa_connection_enabled") then return end
     local app = getApp()
     if event == "OnOpen" then
         local settings = get("sa_settings")
@@ -63,9 +64,10 @@ end
 return function()
     load()
     local settings = get("data")
-    if type(settings) ~= "table" or type(settings.address or settings.url) ~= "string" or type(settings.token) ~= "string" or #settings.token < 16 then
+    if type(settings)~="table" then settings={} end
+    local connectionEnabled=type(settings.address or settings.url)=="string" and type(settings.token)=="string" and #settings.token>=16
+    if not connectionEnabled then
         log("SA bridge: configure private address/token in the script JSON settings")
-        return
     end
     local function number(value) return type(value)=="number" and value==value and value~=math.huge and value~=-math.huge end
     local function integer(value) return number(value) and value%1==0 end
@@ -73,7 +75,9 @@ return function()
     if actionCooldowns.dance==nil then actionCooldowns.dance=10 end
     if actionCooldowns.hug==nil then actionCooldowns.hug=10 end
     for _,seconds in pairs(actionCooldowns) do
-        if not number(seconds) or seconds<0 or seconds>86400 then log("SA bridge: action cooldown seconds must be numbers from 0 to 86400"); return end
+        if not number(seconds) or seconds<0 or seconds>86400 then
+            log("SA bridge: action cooldown seconds must be numbers from 0 to 86400"); connectionEnabled=false
+        end
     end
     -- Native timers use real time, while yield() returns scaled game time.
     -- os.time() is also used by the host's Lua cooldown helper. Persist only
@@ -102,9 +106,15 @@ return function()
     local loadSequence = get("sa_load_sequence") or 0
     local elapsed, serverOffset, updateElapsed = 0, 0, 0
     local retryAt, retryDelay, rotation, wasConnected = 0, 1, 0, false
+    local statusImages, lastBridgeAt, statusWarning, statusDisabled = {}, nil, false, false
+    local statusHostId
     local address = settings.address or settings.url
-    if #address==0 or address:find("%s") then log("SA bridge: invalid connection address"); return end
-    settings.url = address:match("^wss?://") and address or ("ws://"..address..(address:match(":%d+$") and "" or ":3000").."/sa/socket")
+    if type(address)=="string" and (#address==0 or address:find("%s")) then
+        log("SA bridge: invalid connection address"); connectionEnabled=false
+    end
+    if connectionEnabled then
+        settings.url = address:match("^wss?://") and address or ("ws://"..address..(address:match(":%d+$") and "" or ":3000").."/sa/socket")
+    else settings.url=nil end
     local previewHostSet = false
     local function gameBounds()
         local bottom=app.convertPercentToPosition(0,0); local top=app.convertPercentToPosition(1,1)
@@ -129,6 +139,61 @@ return function()
             -- alive until it returns, then let the worker discard the image.
             set(entry.key,"cancelled")
         else set(entry.key,nil); pcall(entry.object.destroy) end
+    end
+    local function hideStatus()
+        statusHostId=nil
+        for _,entry in pairs(statusImages) do if not entry.failed then pcall(entry.object.setScale,0,0) end end
+    end
+    local function warnStatus()
+        if not statusWarning then
+            statusWarning=true
+            log("SA bridge: connection indicator unavailable; reimport the latest ZIP and reload")
+        end
+    end
+    local function statusImage(asset, now)
+        local entry=statusImages[asset]
+        if not entry then
+            local pending=get("sa_pending_images") or 0
+            if pending>=128 then return nil end
+            loadSequence=loadSequence+1; set("sa_load_sequence",loadSequence)
+            local key="sa_image_"..loadSequence
+            entry={object=app.createGameObject(),key=key,deadline=now+2}; statusImages[asset]=entry
+            entry.object.setScale(0,0)
+            set("sa_pending_images",pending+1); entry.pending=true
+            entry.loader=async("sa_load_heart",entry.object,key,asset)
+        end
+        if entry.failed then return nil end
+        if not entry.loaded then
+            if get(entry.key)=="loaded" then
+                entry.loaded=true; set(entry.key,nil)
+                entry.object.image.sorting(0,"afterForeground")
+            elseif get(entry.key)=="failed" or now>=entry.deadline then
+                release(entry); entry.failed=true; warnStatus(); return nil
+            end
+        end
+        return entry.loaded and entry or nil
+    end
+    local function renderStatus()
+        hideStatus()
+        if statusDisabled then return end
+        local host=app.getStreamerUser()
+        if not host or not host.isActive then return end
+        local now=os.time()
+        if not number(now) then return end
+        local bounds=gameBounds()
+        if not bounds or bounds.width<STATUS_SIZE or bounds.height<STATUS_SIZE then return end
+        local pos=host.getPosition()
+        if not number(pos.x) or not number(pos.y) then return end
+        local unknown=statusImage("sa_bridge_unknown",now)
+        local logo=statusImage("sa_bridge_healthy",now)
+        local healthy=snapshot and get("sa_connected") and lastBridgeAt and now>=lastBridgeAt and now-lastBridgeAt<STATUS_TIMEOUT
+        local entry=healthy and logo or unknown
+        if not entry then return end
+        local half=STATUS_SIZE/2
+        local x=math.max(bounds.x+half,math.min(bounds.x+bounds.width-half,pos.x))
+        local y=math.max(bounds.y+half,math.min(bounds.y+bounds.height-half,pos.y+AVATAR_TOP+half))
+        entry.object.setPosition(x,y); entry.object.setScale(STATUS_SCALE,STATUS_SCALE)
+        statusHostId=tostring(host.id)
     end
     local clearCelebration
     local function clearObjects()
@@ -179,7 +244,7 @@ return function()
         set("sa_owned_ids",idsToRemember)
     end
     local function cleanup()
-        clearAll(); reconcileCrowd({}); snapshot=nil; generationFloor=-1
+        clearAll(); reconcileCrowd({}); snapshot=nil; generationFloor=-1; lastBridgeAt=nil
     end
     local function validCrowd(ids)
         if type(ids)~="table" or #ids>100 then return false end
@@ -438,7 +503,7 @@ return function()
             local id=tostring(user.id); liveIds[id]=true
             if recognition then
                 local pos=user.getPosition()
-                place(heartLayer,id,"sa_heart",math.max(bounds.x+16,math.min(bounds.x+bounds.width-16,pos.x)),math.max(bounds.y+16,math.min(bounds.y+bounds.height-16,pos.y+AVATAR_TOP+16)),1)
+                place(heartLayer,id,"sa_heart",math.max(bounds.x+16,math.min(bounds.x+bounds.width-16,pos.x)),math.max(bounds.y+16,math.min(bounds.y+bounds.height-16,pos.y+AVATAR_TOP+16)),id==statusHostId and 0 or 1)
             end
             if celebration and not dancing[id] and not pendingDances[id] and not actionAttempts[id] then
                 local ok=pcall(function()
@@ -482,6 +547,7 @@ return function()
         if value.type=="game-entrance" and jsonNull(value.themeId) then value.themeId=nil end
         if value.type=="heartbeat" and number(value.serverNowMs) then
             serverOffset=value.serverNowMs-elapsed*1000
+            if snapshot then lastBridgeAt=os.time() end
             send({version=3,type="heartbeat"}); return
         end
         if (value.mode~="production" and value.mode~="integration") or not integer(value.generation) or value.generation<generationFloor or value.generation<0 then return end
@@ -493,7 +559,7 @@ return function()
             elseif (snapshot.theme and snapshot.theme.gameIdentity)~=(value.theme and value.theme.gameIdentity) or
                 (snapshot.theme and snapshot.theme.themeId)~=(value.theme and value.theme.themeId) or
                 (snapshot.theme and snapshot.theme.packRevision)~=(value.theme and value.theme.packRevision) then clearEntrance() end
-            generationFloor=value.generation; snapshot=value; serverOffset=value.serverNowMs-elapsed*1000; retryDelay=1
+            generationFloor=value.generation; snapshot=value; serverOffset=value.serverNowMs-elapsed*1000; retryDelay=1; lastBridgeAt=os.time()
             if value.mode=="integration" and not previewHostSet then app.platformServiceSettings.SetStreamer(900000,"sa_integration_host"); previewHostSet=true end
             if value.mode=="production" then previewHostSet=false end
             reconcileCrowd(value.mode=="integration" and value.integration.crowdIds or {}); reconcileTheme()
@@ -553,8 +619,17 @@ return function()
             local x=math.max(strip.x+HEART_WIDTH/2,math.min(strip.x+strip.width-HEART_WIDTH/2,pos.x))
             local y=math.max(strip.y+HEART_HEIGHT/2,math.min(strip.y+strip.height-HEART_HEIGHT/2,pos.y+AVATAR_TOP+HEART_HEIGHT/2))
             entry.object.setPosition(x,y)
-            if entry.loaded then entry.object.setScale(1,1) end
+            if entry.loaded then local scale=id==statusHostId and 0 or 1; entry.object.setScale(scale,scale) end
         end
+    end
+    local function refreshHeartVisibility(layer)
+        for id,entry in pairs(layer) do if entry.loaded then
+            local hidden=id==statusHostId
+            if entry.statusHidden~=hidden then
+                local scale=hidden and 0 or 1
+                entry.object.setScale(scale,scale); entry.statusHidden=hidden
+            end
+        end end
     end
     local function renderWorld()
         local bottom=app.convertPercentToPosition(0,0); local top=app.convertPercentToPosition(1,1)
@@ -624,7 +699,7 @@ return function()
     end
     set("sa_owned_dances",{}); reconcileDances()
     set("sa_pending_images",0)
-    set("sa_settings",settings); set("sa_mailbox",{}); set("sa_connected",false); set("sa_disconnect_pending",false)
+    set("sa_settings",settings); set("sa_connection_enabled",connectionEnabled); set("sa_mailbox",{}); set("sa_connected",false); set("sa_disconnect_pending",false)
     app.removeWebSocket(socket); addEvent("websocket","sa_on_socket")
     local bottom=app.convertPercentToPosition(0,0); local top=app.convertPercentToPosition(1,1)
     log("SA game bounds: "..bottom.x..","..bottom.y.." to "..top.x..","..top.y)
@@ -635,7 +710,7 @@ return function()
             if not connected then retryAt=elapsed+retryDelay; retryDelay=math.min(30,retryDelay*2) end
         end
         wasConnected=connected
-        if not connected and elapsed>=retryAt then
+        if connectionEnabled and not connected and elapsed>=retryAt then
             retryAt=elapsed+retryDelay; retryDelay=math.min(30,retryDelay*2)
             app.removeWebSocket(socket); app.createWebsocket(socket,settings.url)
             wasConnected=get("sa_connected")
@@ -646,6 +721,22 @@ return function()
             if ok then local handled=pcall(handleMessage,value); if not handled then clearAll(); diagnostic("render-error") end
             else diagnostic("unsupported-message") end
         end
+        -- Bridge health follows wall time even when Unity's game time is paused.
+        local statusOk=pcall(renderStatus)
+        if not statusOk then
+            hideStatus(); warnStatus(); statusDisabled=true
+            for _,entry in pairs(statusImages) do if not entry.failed then
+                if entry.loader then release(entry)
+                else
+                    pcall(entry.object.destroy); set(entry.key,nil)
+                    if entry.pending then set("sa_pending_images",math.max(0,(get("sa_pending_images") or 1)-1)) end
+                end
+                entry.failed=true
+            end end
+        end
+        -- Host-heart replacement follows displayed status even while game time is paused.
+        if not pcall(refreshHeartVisibility,heartLayer) then clearCelebration(); diagnostic("render-error") end
+        if not pcall(refreshHeartVisibility,objects) then clearObjects(); diagnostic("render-error") end
         if updateElapsed>=0.05 then
             renderEntranceActions()
             local worldOk=pcall(renderWorld); if not worldOk then clearTheme(); themeRenderDiagnostic() end

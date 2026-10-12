@@ -8,7 +8,7 @@ const { parseStreamAvatarsConfiguration } = require('../src/streamAvatars/config
 const { THEME_IDS } = require('../src/streamAvatars/themes');
 const directory = path.resolve(__dirname, '../integrations/stream-avatars/themes/bundled');
 test('normal packaging ships all scenery and campaign images without an external theme pack', () => {
-    expect(buildPackage().imageCount).toBe(52);
+    expect(buildPackage().imageCount).toBe(54);
 });
 test('the tracked default pack supplies six complete worlds with exact source checksums', () => {
     const { catalog, manifest, provenance } = loadThemePack({ directory });
