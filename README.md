@@ -133,7 +133,7 @@ npm run analyze -- extralife.log \
   --timezone America/Los_Angeles
 ```
 
-The report covers game durations and transitions, viewer levels and retention, chat participation and human-versus-bot emote use, donation timing and amounts, and data-quality warnings. Games with less than 30 minutes of coverage are shown but excluded from rankings. Comparisons are descriptive correlations, not evidence that a game caused a viewer or donation change.
+The report covers game durations and transitions, viewer levels and retention, chat participation and human-versus-bot emote use, donation timing and amounts, and data-quality warnings. The viewer timeline overlays a gold cumulative donation step line: each jump shows a confirmed gift at its timestamp, with viewers on the left axis and dollars raised during the selected event on the right. Hover over a step point for the gift amount and running total. Games with less than 30 minutes of coverage are shown but excluded from rankings. Comparisons are descriptive correlations, not evidence that a game caused a viewer or donation change.
 
 Legacy mixed-text logs have three important limitations: Twitch chat dates are inferred from surrounding timestamped records, donation records are counted as live only when the associated chat notification and status update confirm them, and emotes are recognized from a checked-in exact-name catalog because Twitch tags were not retained. Ambiguous records remain visible in diagnostics but are excluded from totals requiring certainty. New bot logs add structured metadata, donation IDs, full chat timestamps, and authoritative Twitch emote tags automatically.
 
@@ -332,7 +332,7 @@ The bot automatically manages Twitch access tokens when game update notification
 
 Discord follows `DISCORD_GAME_UPDATE_USER_ID` in the guild containing `DISCORD_DONATION_CHANNEL`. The bot needs access to that guild and voice channels; its existing voice-state intent supplies participation data. Total humans include the streamer, companions exclude the streamer, and bots are separate. The new voice events retain counts and guild/channel identifiers without member names or user IDs. No audio or speaking activity is recorded.
 
-Voice samples occur at startup, on relevant count/channel changes, and periodically. Only periodic observations contribute to average, median, peak, start, and end summaries; all observations appear on the timeline. Reports show cadence, sample sizes, coverage, gaps, and service failures. Coverage is the union of successful periodic sampling intervals clipped to each window. Missing data is unavailable rather than zero; confirmed disconnection and offline Twitch samples are valid zero observations. Existing historical logs retain their original deterministic reports.
+Voice samples occur at startup, on relevant count/channel changes, and periodically. Only periodic observations contribute to average, median, peak, start, and end summaries; all observations appear on the timeline. Reports show cadence, sample sizes, coverage, gaps, and service failures. Coverage is the union of successful periodic sampling intervals clipped to each window. Missing data is unavailable rather than zero; confirmed disconnection and offline Twitch samples are valid zero observations. Historical logs retain their original metrics and include the cumulative donation overlay in deterministic reports.
 
 ### OBS voice overlay
 

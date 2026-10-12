@@ -1,4 +1,5 @@
 const { renderHtml, stableStringify } = require('../../src/analysis/report.js');
+const { JSDOM } = require('jsdom');
 
 describe('analysis report rendering', () => {
     const report = {
@@ -124,5 +125,94 @@ describe('analysis report rendering', () => {
         expect(html).not.toContain('<h3>Top words</h3>');
         expect(html).not.toContain('<h3>Top phrases</h3>');
         expect(html).not.toContain('<th>Coverage samples</th>');
+    });
+
+    function timelineFor(donations) {
+        const input = structuredClone(report);
+        input.metrics.donations.items = donations;
+        const document = new JSDOM(renderHtml(input, 'America/Los_Angeles')).window.document;
+        return document.querySelector('svg');
+    }
+
+    function stepPoints(svg) {
+        return svg.querySelector('.donation-line').getAttribute('points').trim().split(/\s+/)
+            .map(point => point.split(',').map(Number));
+    }
+
+    test('shows chronological donation increases on a separate dollar axis from zero through event end', () => {
+        const donations = [
+            { timestamp: '2025-11-01T10:45:00.000Z', amount: 75, displayName: 'Second' },
+            { timestamp: '2025-11-01T10:15:00.000Z', amount: 25, displayName: 'First' }
+        ];
+        const original = structuredClone(donations);
+        const svg = timelineFor(donations);
+        expect(svg.querySelector('.donation-axis').textContent).toContain('Raised ($)');
+        expect(svg.querySelector('.viewer-axis').textContent).toContain('Viewers');
+        const zero = svg.querySelector('.donation-axis line');
+        const left = Number(svg.querySelector('.viewer-axis line.axis').getAttribute('x1'));
+        const right = Number(zero.getAttribute('x1'));
+        const bottom = Number(zero.getAttribute('y2'));
+        const top = Number(zero.getAttribute('y1'));
+        const early = left + (right - left) / 4;
+        const late = left + (right - left) * 3 / 4;
+        const points = stepPoints(svg);
+        expect(points).toHaveLength(6);
+        [[left, bottom], [early, bottom], [early, top + (bottom - top) * 0.75],
+            [late, top + (bottom - top) * 0.75], [late, top], [right, top]].forEach((expected, index) => {
+            expect(points[index][0]).toBeCloseTo(expected[0], 0);
+            expect(points[index][1]).toBeCloseTo(expected[1], 0);
+        });
+        expect(svg.querySelector('.donation-axis').textContent).toContain('$100.00');
+        expect(svg.querySelector('.donation-line').textContent).toContain('Total raised during selected event: $100.00');
+        expect(svg.querySelector('.donation-line').textContent).not.toContain('Raised so far');
+        const tooltips = [...svg.querySelectorAll('.donation-point title')].map(title => title.textContent);
+        expect(tooltips[0]).toContain('$25.00');
+        expect(tooltips[0]).toContain('03:15');
+        expect(tooltips[0]).toContain('Raised so far: $25.00');
+        expect(tooltips[1]).toContain('Raised so far: $100.00');
+        expect(donations).toEqual(original);
+    });
+
+    test('keeps same-time gifts as separate increases and excludes gifts outside the event', () => {
+        const svg = timelineFor([
+            { timestamp: '2025-11-01T09:59:59.000Z', amount: 1000 },
+            { timestamp: '2025-11-01T10:00:00.000Z', amount: 10 },
+            { timestamp: '2025-11-01T10:30:00.000Z', amount: 20 },
+            { timestamp: '2025-11-01T10:30:00.000Z', amount: 30 },
+            { timestamp: '2025-11-01T11:00:00.000Z', amount: 40 },
+            { timestamp: '2025-11-01T11:00:01.000Z', amount: 1000 }
+        ]);
+        const gifts = [...svg.querySelectorAll('.donation-point')];
+        expect(gifts).toHaveLength(4);
+        expect(gifts[1].getAttribute('cx')).toBe(gifts[2].getAttribute('cx'));
+        expect(Number(gifts[2].getAttribute('cy'))).toBeLessThan(Number(gifts[1].getAttribute('cy')));
+        expect(gifts.map(point => point.textContent)).toEqual(expect.arrayContaining([
+            expect.stringContaining('Raised so far: $10.00'),
+            expect.stringContaining('Raised so far: $30.00'),
+            expect.stringContaining('Raised so far: $60.00'),
+            expect.stringContaining('Raised so far: $100.00')
+        ]));
+        expect(svg.querySelector('.donation-line').textContent).toContain('$100.00');
+    });
+
+    test.each([{ donations: [] }, { donations: [{ timestamp: '2025-11-01T10:10:00.000Z', amount: 0 }] }])('renders a finite flat zero-dollar line for $donations', ({ donations }) => {
+        const svg = timelineFor(donations);
+        const points = stepPoints(svg);
+        expect(points.every(([x, y]) => Number.isFinite(x) && Number.isFinite(y))).toBe(true);
+        expect(new Set(points.map(([, y]) => y)).size).toBe(1);
+        expect(svg.querySelector('.donation-line').textContent).toContain('$0.00');
+        expect(svg.querySelector('.donation-axis').textContent).toContain('$0.00');
+    });
+
+    test('preserves cents in cumulative totals and escapes donation overlay tooltips', () => {
+        const svg = timelineFor([
+            { timestamp: '2025-11-01T10:10:00.000Z', amount: 0.1, displayName: '</title><script>bad()</script>', message: '<img src=x onerror=bad()>' },
+            { timestamp: '2025-11-01T10:20:00.000Z', amount: 0.2 }
+        ]);
+        expect(svg.querySelectorAll('script, img')).toHaveLength(0);
+        expect(svg.querySelector('.donation-point title').textContent).toContain('</title><script>bad()</script>');
+        expect(svg.querySelector('.donation-point title').textContent).toContain('<img src=x onerror=bad()>');
+        expect(svg.querySelector('.donation-line').textContent).toContain('$0.30');
+        expect([...svg.querySelectorAll('.donation-point title')].at(-1).textContent).toContain('Raised so far: $0.30');
     });
 });

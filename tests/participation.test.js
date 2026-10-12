@@ -53,7 +53,7 @@ test('voice reports escape channel identifiers and show definitions and coverage
     expect(html).not.toContain('<script>alert');
     expect(html).toContain('Periodic samples');
 });
-test('legacy metrics and HTML are byte-identical to the original analyzer', () => {
+test('preserves original legacy metrics and matches the deterministic HTML fixture', () => {
     const fs = require('fs');
     const path = require('path');
     const expectedJson = fs.readFileSync(path.join(__dirname, 'fixtures/participation/legacy.json'), 'utf8');
