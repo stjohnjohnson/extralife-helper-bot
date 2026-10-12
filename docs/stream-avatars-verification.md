@@ -1,6 +1,6 @@
 # Stream Avatars verification
 
-The [approved campaign design](plans/2026-10-11-campaign-progress-celebrations-design.md) supersedes the original broadcast-total and simultaneous-party requirements in issue #67. The [implementation plan](superpowers/plans/2026-10-11-campaign-progress-celebrations.md) covers the replacement. Bot and companion now use protocol v3; reimport the ZIP and restore private address/token together with the bot update.
+Campaign-progress celebrations supersede the original broadcast-total and simultaneous-party requirements in issue #67. Bot and companion now use protocol v3; reimport the ZIP and restore private address/token together with the bot update.
 
 ## Verified behavior
 

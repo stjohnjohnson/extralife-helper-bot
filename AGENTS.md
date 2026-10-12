@@ -17,6 +17,11 @@ This file applies to the entire repository. Create additional `AGENTS.md` files 
 - Reuse a suitable task worktree or create one from the latest `origin/main` before editing files. Prefer the native worktree tools when available.
 - Preserve unrelated changes in other checkouts and worktrees; never discard or include them in task commits.
 
+## Local planning artifacts
+- Keep design documents, implementation plans, and Superpowers artifacts local and untracked, in ignored `plans/`, `superpowers/`, or `.superpowers/` directories, or outside the repository.
+- Do not commit these artifacts, force-add ignored files, or relocate them to bypass `.gitignore`. This applies even when a skill requests saving or committing a plan.
+- Before committing, check the staged file list and exclude any planning or Superpowers artifacts.
+
 ## Development environment
 - Requires Node.js 24.x (24.15.0 or newer).
 - Install dependencies with `npm ci`.
