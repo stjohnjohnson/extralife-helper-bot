@@ -43,7 +43,8 @@ function bullets(text, pr, field) {
     const lines = text.split(/\r?\n/).filter(line => line.trim());
     const result = [];
     for (const line of lines) {
-        if (/^[-*] \S/.test(line)) result.push(line.slice(2));
+        const item = line.match(field === 'Upgrade actions' ? /^(?:[-*]|\d{1,9}[.)]) (\S.*)$/ : /^[-*] (\S.*)$/);
+        if (item) result.push(item[1]);
         else if (/^\s+\S/.test(line) && result.length) result[result.length - 1] += ' ' + line.trim();
         else throw new Error(`PR #${pr.number}: complete ${field} in the PR template.`);
     }
