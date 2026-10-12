@@ -45,6 +45,6 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y lua5.2
       - run: npm ci
       - name: Run shipped companion contracts and mutation checks
-        run: npm test -- --runInBand --coverage=false --runTestsByPath tests/streamAvatarsCompanion.test.js
+        run: npm test -- --runInBand --coverage=false --runTestsByPath tests/streamAvatarsCompanion.test.js tests/streamAvatarsSoundPlayback.test.js
         env:
           LUA_BIN: lua5.2

@@ -41,6 +41,28 @@ A bare address uses port 3000 and `/sa/socket`. For another port use `192.168.1.
 
 The package contains placeholder address/token values and never reads `.env`, private settings or installed application data. **Reimporting replaces the command, its script folder, images and settings.** Restore saved private address/token values afterwards. General application settings, Twitch login, selected platform, avatar capacity and OBS scenes are separate.
 
+### Celebration sounds
+
+The package bundles three original MIT-licensed Ogg Vorbis cues: `sa_donation` (0.8-second chime), `sa_milestone` (1.5-second flourish), and `sa_goal` (2.5-second fanfare). The packager also writes them to `dist/stream-avatars/sounds/` (or a `sounds/` folder beside a custom output ZIP).
+
+**One-time setup:** Open Stream Avatars' **Sounds → Import Sound** and import each Ogg with its exact name above. Leave chat/soundboard triggering disabled, and set a comfortable volume in the native sound settings. The content ZIP importer does not register sounds automatically; it only carries them in the companion script's `sounds/` subfolder. You can import from that extracted subfolder when transferring only the ZIP to another computer. Existing names should be edited/replaced through Sounds rather than imported again with an unintended suffix. Reimporting the companion replaces its folder, but keeps the independent native sound library and its volume settings.
+
+Sounds start with each visual phase: once per combined donation thank-you, then once when a milestone or goal party begins. Caption/amount updates, recognition extensions, repeated packets, snapshots, startup and reconnect do not replay cues. A goal wins a simultaneous milestone; a valid later milestone-to-goal upgrade plays the goal cue once and stops any companion milestone audio still playing. A new phase replaces only the companion's prior cue. Expiry, clear, disconnect, reload and campaign/generation changes stop only its owned audio. Missing sounds or host audio errors leave visuals and transport running; the Lua console reports sound unavailability once per run.
+
+The companion defaults to the bundled names even with older private settings. To replace or disable a cue, add this optional mapping to the script's private JSON and reload:
+
+```json
+"sounds": {
+  "donation": "My Chime",
+  "milestone": false,
+  "goal": "sa_goal"
+}
+```
+
+Custom names must already be imported, start with a letter or number, use only letters, numbers, spaces, underscores or hyphens, and fit in 64 characters. `false` disables a cue; omitted keys use the defaults. Invalid values disable only the affected cue and log a settings warning. Restore private sound choices along with address/token after reimport. Playback attempts, including unavailable or disabled cues, are remembered for two minutes across clears, reconnects and F5 reloads to prevent late updates replaying audio. This history is bounded to 256 recent cue identities; snapshots never recreate sound playback.
+
+The audio catalog is explicitly allowlisted, checksummed and bounded. Node-only packaging verifies Ogg/Vorbis container headers, page checksums, packet framing and catalog SHA-256 digests; no encoder is required. See [audio provenance and regeneration](../integrations/stream-avatars/sounds/README.md) for authoring instructions.
+
 ### Image catalog
 
 Add PNG spritesheets and matching JSON manifests under `integrations/stream-avatars/assets/`, following `heart.json`:

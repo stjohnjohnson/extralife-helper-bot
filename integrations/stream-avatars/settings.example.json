@@ -1,4 +1,9 @@
 {
   "address": "BOT_LAN_IP",
-  "token": "REPLACE_WITH_PRIVATE_TOKEN"
+  "token": "REPLACE_WITH_PRIVATE_TOKEN",
+  "sounds": {
+    "donation": "sa_donation",
+    "milestone": "sa_milestone",
+    "goal": "sa_goal"
+  }
 }

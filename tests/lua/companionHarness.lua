@@ -15,9 +15,13 @@ local function clone(value) if type(value) ~= "table" or value==codec.null then 
 local connectedCount, leaves, removals = 0, 0, 0
 local jumps, dances, exits = 0, 0, 0
 local hugs, commands = {}, {}
+local soundPlays, soundStops, playingSounds = {}, {}, {unrelated=true}
 local hostClock, cooldownWarnings = 0, 0
 local cooldownScenario = scenario:match("^cooldown%-") ~= nil
 local config = { url = "ws://127.0.0.1/sa/socket", token = "private-test-token", image = "sa_heart" }
+if scenario=="sound-custom" then config.sounds={donation="My Chime",milestone=false,goal="Victory"} end
+if scenario=="sound-disabled" then config.sounds={donation=false,milestone=false,goal=false} end
+if scenario=="sound-invalid-settings" then config.sounds={donation="../private.ogg",milestone=42,goal={}} end
 if scenario=="cooldown-custom" then config.danceCooldownSeconds=25 end
 if scenario=="cooldown-invalid" then config.hugCooldownSeconds="10" end
 local expectedUrl=config.url
@@ -27,6 +31,20 @@ if scenario=="address-wss" then config={address="wss://bridge.example/sa/socket"
 if scenario=="address-ipv6" then config={address="[::1]",token=config.token}; expectedUrl="ws://[::1]:3000/sa/socket" end
 if scenario=="invalid-address" then config={address=" ",token=config.token} end
 local app = {}
+app.playSound=function(name,loop)
+    assert(type(name)=="string" and loop==false,"must request a named non-looping cue")
+    soundPlays[#soundPlays+1]=name
+    if scenario=="sound-faults" then error("audio unavailable") end
+    if scenario=="sound-clr-fault" then error("CLR audio failure") end
+    local id="sound_"..#soundPlays
+    if scenario~="sound-missing" then playingSounds[id]=true end
+    return id
+end
+app.stopSound=function(id)
+    assert(id~="unrelated","must not stop unrelated sound")
+    soundStops[#soundStops+1]=id;playingSounds[id]=nil
+end
+app.soundIsPlaying=function(id) return playingSounds[id]==true end
 app.getResolution = function() return { x = 1920, y = 1080 } end
 app.convertPercentToPosition = function(x,y) return { x = x * 1000, y = y * 200 } end
 app.removeWebSocket = function(title) assert(title=="sa_helper_bridge"); removals=removals+1 end
@@ -86,7 +104,7 @@ setmetatable(app, { __index=function(_,key) error("Undocumented app API: "..tost
 -- addEvent must resolve only explicitly exported callbacks, never main-coroutine locals.
 env.addEvent = function(name, callback) callbacks[name] = function(...) return env[callback](...) end end
 env.async = function(name, ...)
-    assert(name=="sa_load_heart" and type(env[name])=="function")
+    assert((name=="sa_load_heart" or name=="sa_sound_operation") and type(env[name])=="function")
     loaderSequence=loaderSequence+1
     local worker=coroutine.create(env[name]); loaders[loaderSequence]=worker
     local ok=coroutine.resume(worker,...)
@@ -95,10 +113,10 @@ env.async = function(name, ...)
     return loaderSequence
 end
 env.stopAsync = function(id) loaders[id]=nil end
-if (scenario=="missing-image-host" or scenario=="image-pending-cap") then
+if (scenario=="missing-image-host" or scenario=="image-pending-cap" or scenario=="sound-clr-fault") then
     env.pcall=function(fn,...)
         local result={pcall(fn,...)}
-        if not result[1] and tostring(result[2]):find("CLR missing image",1,true) then error(result[2]) end
+        if not result[1] and (tostring(result[2]):find("CLR missing image",1,true) or tostring(result[2]):find("CLR audio failure",1,true)) then error(result[2]) end
         return table.unpack(result)
     end
 end
@@ -197,7 +215,65 @@ local function phasePacket(phase,seq,id)
     local party=phase=="party"
     return {version=3,type="celebration",mode="integration",generation=1,campaignId="12",id=id or phase,sequenceId=seq or "sequence",issuedAtMs=1000,expiresAtMs=11000,phase=phase,kind=party and "milestone" or "donation",campaignTotalCents=252500,milestoneCents=party and 250000 or codec.null,donationCount=party and 0 or 1,donationTotalCents=party and 0 or 5000,recognitionStartedAtMs=party and codec.null or 1000,recognitionAction=party and codec.null or "jump",heartsUntilMs=party and 0 or 6000,partyStartedAtMs=party and 1000 or codec.null,partyUntilMs=party and 19000 or 0}
 end
-if scenario=="phase-ordered" then
+if scenario:match("^sound%-") then
+    addUser(1);send(phaseSnapshot());assert(#soundPlays==0,"snapshots must be silent")
+    local gift=phasePacket("recognition");send(gift)
+    local enabled=scenario~="sound-disabled" and scenario~="sound-invalid-settings"
+    assert(#soundPlays==(enabled and 1 or 0),"donation must play exactly one configured cue")
+    assert(captionText()=="$50 - THANK YOU!","audio must preserve visuals")
+    local update=clone(gift);update.id="extended";update.issuedAtMs=1001;update.donationCount=2;update.donationTotalCents=7500;update.heartsUntilMs=10000;send(update)
+    assert(#soundPlays==(enabled and 1 or 0),"amount updates must not repeat audio")
+    if scenario=="sound-reload" then
+        start=assert(loadfile(script,"t",env))();runner=coroutine.create(start);tick();send(phaseSnapshot());update.id="after-reload";send(update)
+        assert(#soundPlays==1 and #soundStops>=1,"reload must clean up without replay")
+    elseif scenario=="sound-reconnect" then
+        callbacks.websocket("sa_helper_bridge","OnClose","","");tick();callbacks.websocket("sa_helper_bridge","OnOpen","","");send(phaseSnapshot());update.id="after-reconnect";send(update)
+        assert(#soundPlays==1 and #soundStops>=1,"reconnect must not replay old cues")
+    elseif scenario=="sound-clear" then
+        send({version=3,type="clear",mode="integration",generation=1});assert(not playingSounds.sound_1,"clear must stop owned audio")
+        send(phaseSnapshot());update.id="after-clear";send(update);assert(#soundPlays==1,"clear must preserve deduplication")
+    elseif scenario=="sound-expired" then
+        local expired=phasePacket("party",nil,"expired");expired.expiresAtMs=999;send(expired)
+        assert(#soundPlays==1,"expired packets must be silent")
+        local inactive=phasePacket("recognition",nil,"inactive-valid");inactive.issuedAtMs=5000;inactive.heartsUntilMs=10000;inactive.expiresAtMs=15000
+        raw(codec.encode(inactive));tick(10)
+        assert(captionText()=="" and #soundPlays==1,"valid inactive phases must be silent")
+        assert(not playingSounds.sound_1,"accepted inactive phase must stop owned sound")
+    elseif scenario=="sound-expired-party" then
+        local party=phasePacket("party");party.issuedAtMs=1002;send(party)
+        assert(#soundPlays==2 and playingSounds.sound_2,"party cue must start")
+        local inactive=clone(party);inactive.id="inactive-party";inactive.issuedAtMs=15000;inactive.expiresAtMs=25000
+        raw(codec.encode(inactive));tick(18)
+        assert(captionText()=="" and #soundPlays==2,"inactive party updates must not replay")
+        assert(not playingSounds.sound_2,"accepted inactive party must stop owned sound")
+    elseif scenario=="sound-generation" then
+        local s=phaseSnapshot();s.generation=2;send(s);assert(not playingSounds.sound_1,"generation change must clean owned sound")
+        update.generation=2;update.id="new-generation";send(update);assert(#soundPlays==2,"new generation has independent cue identity")
+    elseif scenario=="sound-campaign" then
+        local s=phaseSnapshot();s.campaign.campaignId="new-campaign";send(s)
+        assert(not playingSounds.sound_1,"campaign change must clean audio")
+        update.campaignId="new-campaign";update.id="new-campaign";send(update);assert(#soundPlays==2,"new campaign may play its first cue")
+    elseif scenario=="sound-faults" or scenario=="sound-clr-fault" or scenario=="sound-missing" then
+        tick();assert(captionText()=="$75 FROM 2 DONATIONS - THANK YOU!","host audio failure must leave render loop healthy")
+        send({version=3,type="heartbeat",serverNowMs=2000});assert(packets[#packets].type=="heartbeat","audio failures must preserve transport")
+    else
+        local party=phasePacket("party");party.issuedAtMs=1002;send(party)
+        local milestoneEnabled=enabled and scenario~="sound-custom"
+        assert(#soundPlays==(enabled and (milestoneEnabled and 2 or 1) or 0),"party must play its milestone cue once")
+        local repeated=clone(party);repeated.id="party-update";repeated.issuedAtMs=1003;send(repeated)
+        local goal=clone(party);goal.kind="goal";goal.id="goal-upgrade";goal.issuedAtMs=1004;goal.partyUntilMs=21000;send(goal)
+        local want=enabled and (milestoneEnabled and 3 or 2) or 0
+        assert(#soundPlays==want,"upgrade must play goal exactly once")
+        local second=clone(goal);second.id="goal-update";second.issuedAtMs=1005;send(second);assert(#soundPlays==want,"goal updates must not replay")
+        if enabled then
+            assert(soundPlays[1]==(scenario=="sound-custom" and "My Chime" or "sa_donation"))
+            assert(soundPlays[want]==(scenario=="sound-custom" and "Victory" or "sa_goal"))
+        end
+        send({version=3,type="clear",mode="integration",generation=1})
+        assert(not playingSounds["sound_"..want],"clear must stop the companion cue")
+    end
+    assert(playingSounds.unrelated,"unrelated audio must survive all cleanup")
+elseif scenario=="phase-ordered" then
     addUser(1);send(phaseSnapshot());send(phasePacket("recognition"));tick()
     assert(captionText()=="$50 - THANK YOU!" and dances==0 and jumps==1 and assetCount("sa_heart")==1,"recognition must precede party actions")
     tick(5);local p=phasePacket("party");p.issuedAtMs=6000;p.expiresAtMs=16000;p.partyStartedAtMs=6000;p.partyUntilMs=24000;send(p);tick()

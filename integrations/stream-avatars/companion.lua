@@ -29,6 +29,27 @@ function sa_load_heart(object, key, asset)
     set(key,"loaded")
 end
 
+-- Native CLR failures can escape pcall. Audio runs in a non-yielding child
+-- coroutine so a missing/broken host sound never terminates the render loop.
+function sa_sound_operation(name, sequence)
+    if get("sa_sound_sequence")~=sequence then return end
+    set("sa_sound_failed",true)
+    local ok=pcall(function()
+        local app=getApp()
+        local previous=get("sa_owned_sound")
+        if type(previous)=="string" then app.stopSound(previous); set("sa_owned_sound",nil) end
+        if type(name)=="string" then
+            local id=app.playSound(name,false)
+            if type(id)~="string" or #id==0 then return end
+            set("sa_owned_sound",id)
+            -- The native API returns a GUID even when the name is missing.
+            if not app.soundIsPlaying(id) then app.stopSound(id); set("sa_owned_sound",nil); return end
+        end
+        set("sa_sound_failed",false)
+    end)
+    if not ok then set("sa_sound_failed",true) end
+end
+
 function sa_on_socket(title, event, message, code)
     if title ~= "sa_helper_bridge" then return end
     local app = getApp()
@@ -78,6 +99,48 @@ return function()
         return true
     end
     local app = getApp()
+    local soundNames={donation="sa_donation",milestone="sa_milestone",goal="sa_goal"}
+    local invalidSounds=false
+    for kind,default in pairs(soundNames) do
+        local name=default
+        if settings.sounds~=nil then
+            if type(settings.sounds)~="table" then name=false; invalidSounds=true
+            elseif settings.sounds[kind]~=nil then name=settings.sounds[kind] end
+        end
+        if name~=false and (type(name)~="string" or #name==0 or #name>64 or not name:match("^[A-Za-z0-9][A-Za-z0-9_ %-]*$")) then name=false; invalidSounds=true end
+        soundNames[kind]=name
+    end
+    if invalidSounds then log("SA bridge: invalid sound setting; affected cues disabled") end
+    local soundHistory=get("sa_sound_history") or {}
+    local soundReported=false
+    local function soundOperation(name)
+        local sequence=(get("sa_sound_sequence") or 0)+1
+        set("sa_sound_sequence",sequence)
+        if name~=false or type(get("sa_owned_sound"))=="string" then
+            local ok=pcall(function() async("sa_sound_operation",name,sequence) end)
+            if not ok then set("sa_sound_failed",true) end
+        end
+    end
+    local function claimSound(value)
+        local now=os.time();local retained={};local duplicate=false
+        for _,record in ipairs(soundHistory) do
+            if now<record.untilTime then
+                retained[#retained+1]=record
+                if record.mode==value.mode and record.generation==value.generation and record.campaignId==value.campaignId and record.sequenceId==value.sequenceId and record.kind==value.kind then duplicate=true end
+            end
+        end
+        if not duplicate then
+            if #retained>=256 then table.remove(retained,1) end
+            retained[#retained+1]={mode=value.mode,generation=value.generation,campaignId=value.campaignId,sequenceId=value.sequenceId,kind=value.kind,untilTime=now+120}
+        end
+        soundHistory=retained;set("sa_sound_history",retained)
+        return not duplicate
+    end
+    local function cue(value)
+        -- Claim even disabled/unavailable cues; reloads never retry old effects.
+        if claimSound(value) then soundOperation(soundNames[value.kind]) end
+    end
+    soundOperation(false) -- reload cleanup retains history, stops only our GUID
     local socket = "sa_helper_bridge"
     local objects, owned, seen, seenOrder = {}, {}, {}, {}
     local snapshot, effect = nil, nil
@@ -206,6 +269,7 @@ return function()
         dancing={}; saveDances()
     end
     clearCelebration=function()
+        soundOperation(false)
         clearLayer(heartLayer); clearLayer(particleLayer); clearLayer(captionLayer); stopDances()
         heartLayer={}; particleLayer={}; captionLayer={}; handled={}; actionAttempts={}; recognition=nil; celebration=nil; recognitionWindowStartedAt=nil; recognitionSequenceId=nil; partyWindowStartedAt=nil; partySequenceId=nil; partySequences={}; partySequenceOrder={}; reported={}; lastCelebrationIssuedAt=-1
     end
@@ -295,6 +359,8 @@ return function()
             recognitionWindowStartedAt=value.recognitionStartedAtMs; recognitionSequenceId=value.sequenceId
             recognition=value.heartsUntilMs>serverNow and {ends=elapsed+(value.heartsUntilMs-serverNow)/1000,untilMs=value.heartsUntilMs,
                 startedAtMs=value.recognitionStartedAtMs,count=value.donationCount,amount=value.donationTotalCents,amountKnown=not jsonNull(value.donationTotalCents),action=value.recognitionAction} or nil
+            if recognition then cue(value)
+            else clearLayer(heartLayer); clearLayer(captionLayer); heartLayer={}; captionLayer={}; soundOperation(false) end
         else
             clearLayer(heartLayer); heartLayer={}; recognition=nil
             if not partySequences[value.sequenceId] then
@@ -307,6 +373,8 @@ return function()
             if not celebration or celebration.kind~=value.kind or celebration.campaignTotalCents~=value.campaignTotalCents then clearLayer(captionLayer); captionLayer={} end
             celebration=value.partyUntilMs>serverNow and {ends=elapsed+(value.partyUntilMs-serverNow)/1000,untilMs=value.partyUntilMs,kind=value.kind,
                 campaignTotalCents=value.campaignTotalCents,sequenceId=value.sequenceId,startedAtMs=value.partyStartedAtMs} or nil
+            if celebration then cue(value)
+            else clearLayer(particleLayer); clearLayer(captionLayer); particleLayer={}; captionLayer={}; stopDances(); soundOperation(false) end
         end
     end
     local function eligible(user)
@@ -351,8 +419,8 @@ return function()
         reconcileDances()
         if not recognition and not celebration then return end
         local serverNow=elapsed*1000+serverOffset
-        if recognition and (elapsed>=recognition.ends or serverNow>=recognition.untilMs) then clearLayer(heartLayer); heartLayer={}; recognition=nil end
-        if celebration and (elapsed>=celebration.ends or serverNow>=celebration.untilMs) then clearLayer(particleLayer); clearLayer(captionLayer); particleLayer={}; captionLayer={}; stopDances(); celebration=nil end
+        if recognition and (elapsed>=recognition.ends or serverNow>=recognition.untilMs) then clearLayer(heartLayer); heartLayer={}; recognition=nil; soundOperation(false) end
+        if celebration and (elapsed>=celebration.ends or serverNow>=celebration.untilMs) then clearLayer(particleLayer); clearLayer(captionLayer); particleLayer={}; captionLayer={}; stopDances(); celebration=nil; soundOperation(false) end
         if not recognition and not celebration then clearLayer(captionLayer); captionLayer={}; return end
         local bounds=gameBounds(); if not bounds then report("render-error"); return end
         -- Numeric glyphs and fixed captions remain inside the current canvas.
@@ -508,6 +576,9 @@ return function()
             local ok,value=pcall(json.parse,raw)
             if ok then local handled=pcall(handleMessage,value); if not handled then clearObjects(); diagnostic("render-error") end
             else diagnostic("unsupported-message") end
+        end
+        if get("sa_sound_failed") and not soundReported then
+            soundReported=true;log("SA bridge: sound unavailable; import the bundled Oggs through Sounds or check custom cue names")
         end
         if updateElapsed>=0.05 then local ok=pcall(renderTick); if not ok then clearObjects(); diagnostic("render-error") end; updateElapsed=0 end
         local delta=yield()

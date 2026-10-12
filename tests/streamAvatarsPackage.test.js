@@ -31,7 +31,7 @@ describe('portable Stream Avatars packages', () => {
         const entries = decode(result.archive);
         expect(result.imageCount).toBe(22);
         expect(Object.keys(entries).sort()).toEqual([
-            'data.txt', ...fs.readdirSync(path.join(shipped, 'assets')).filter(name => name.endsWith('.json')).map(name => `${commandPath}${JSON.parse(fs.readFileSync(path.join(shipped, 'assets', name))).name}.png`), `${commandPath}sa_helper_bridge.lua`, `${commandPath}sa_helper_bridge_settings.json`
+            'data.txt', ...['sa_donation', 'sa_milestone', 'sa_goal'].map(name => `${commandPath}sounds/${name}.ogg`), ...fs.readdirSync(path.join(shipped, 'assets')).filter(name => name.endsWith('.json')).map(name => `${commandPath}${JSON.parse(fs.readFileSync(path.join(shipped, 'assets', name))).name}.png`), `${commandPath}sa_helper_bridge.lua`, `${commandPath}sa_helper_bridge_settings.json`
         ].sort());
         expect(Buffer.from(entries[`${commandPath}sa_helper_bridge.lua`])).toEqual(fs.readFileSync(path.join(shipped, 'companion.lua')));
         expect(Buffer.from(entries[`${commandPath}sa_heart.png`])).toEqual(fs.readFileSync(path.join(shipped, 'assets/heart.png')));
@@ -47,7 +47,7 @@ describe('portable Stream Avatars packages', () => {
             } }
         });
         expect(json(entries, `${commandPath}sa_helper_bridge_settings.json`)).toEqual({
-            address: 'BOT_LAN_IP', token: 'REPLACE_WITH_PRIVATE_TOKEN'
+            address: 'BOT_LAN_IP', token: 'REPLACE_WITH_PRIVATE_TOKEN', sounds: { donation: 'sa_donation', milestone: 'sa_milestone', goal: 'sa_goal' }
         });
     });
 
@@ -172,7 +172,7 @@ describe('portable Stream Avatars packages', () => {
         changeManifest({ frameWidth: 64, frameHeight: 64 });
         const entries = decode(buildPackage({ integrationDir }).archive);
         expect(strFromU8(entries[`${commandPath}sa_helper_bridge.lua`])).toContain('local HEART_WIDTH, HEART_HEIGHT = 64, 64');
-        expect(Object.keys(json(entries, `${commandPath}sa_helper_bridge_settings.json`)).sort()).toEqual(['address', 'token']);
+        expect(Object.keys(json(entries, `${commandPath}sa_helper_bridge_settings.json`)).sort()).toEqual(['address', 'sounds', 'token']);
     });
 
     test('derives campaign caption width from its manifest', () => {
