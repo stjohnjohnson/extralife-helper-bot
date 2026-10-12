@@ -3,6 +3,7 @@ script_trigger_type = "On Connect"
 
 -- The package generator updates these dimensions from the sa_heart manifest.
 local HEART_WIDTH, HEART_HEIGHT = 32, 32
+local RAISED_WIDTH = 143
 local MAX_HEARTS, AVATAR_TOP = 50, 40
 
 -- Some bundled MoonSharp versions serialize / as \/ but cannot parse it.
@@ -34,7 +35,7 @@ function sa_on_socket(title, event, message, code)
     if event == "OnOpen" then
         local settings = get("sa_settings")
         set("sa_connected", true)
-        app.sendWebsocketMessage(title, json.serialize({ version=2, type="auth", token=settings.token }))
+        app.sendWebsocketMessage(title, json.serialize({ version=3, type="auth", token=settings.token }))
     elseif event == "OnMessage" then
         if not get("sa_connected") then return end
         local queue = get("sa_mailbox") or {}
@@ -96,7 +97,7 @@ return function()
         return {x=bottom.x,y=bottom.y,width=width,height=height}
     end
     local function send(value) app.sendWebsocketMessage(socket, json.serialize(value)) end
-    local function diagnostic(code) send({version=2,type="diagnostic",code=code}) end
+    local function diagnostic(code) send({version=3,type="diagnostic",code=code}) end
     local function release(entry)
         local status=get(entry.key)
         if not entry.loaded and status~="failed" and status~="loaded" then
@@ -133,13 +134,34 @@ return function()
         end
         return true
     end
+    local function jsonNull(value)
+        if value==nil then return true end
+        -- Native MoonSharp represents null as userdata and exposes null() / isnull().
+        if type(json.isnull)=="function" then return json.isnull(value) end
+        return type(json.null)~="function" and value==json.null
+    end
+    local function exact(value,allowed)
+        if type(value)~="table" then return false end
+        for key,_ in pairs(value) do if not allowed[key] then return false end end
+        for key,_ in pairs(allowed) do if value[key]==nil then return false end end
+        return true
+    end
     local function validSnapshot(value)
-        return type(value.session)=="table" and number(value.serverNowMs) and type(value.integration)=="table" and
+        local c=value.campaign
+        if not exact(value,{version=true,type=true,mode=true,generation=true,serverNowMs=true,campaign=true,integration=true,features=true}) or
+            not exact(c,{campaignId=true,initialized=true,totalCents=true,goalCents=true,nextMilestoneCents=true,goalHandled=true}) or
+            type(c.campaignId)~="string" or #c.campaignId==0 or #c.campaignId>128 or type(c.initialized)~="boolean" or type(c.goalHandled)~="boolean" then return false end
+        if c.initialized then
+            if not integer(c.totalCents) or c.totalCents<0 or c.totalCents>9007199254740991 or not integer(c.goalCents) or c.goalCents<=0 or c.goalCents>9007199254740991 or
+                not (jsonNull(c.nextMilestoneCents) or (integer(c.nextMilestoneCents) and c.nextMilestoneCents>c.totalCents and c.nextMilestoneCents<=9007199254740991)) then return false end
+        elseif not jsonNull(c.totalCents) or not jsonNull(c.goalCents) or not jsonNull(c.nextMilestoneCents) then return false end
+        return number(value.serverNowMs) and type(value.features)=="table" and #value.features<=5 and type(value.integration)=="table" and
             type(value.integration.active)=="boolean" and validCrowd(value.integration.crowdIds)
     end
     -- Separate registries contain only objects created by this companion.
     local recognition, celebration = nil, nil
-    local recognitionWindowStartedAt, recognitionWindowSuppressed = nil, false
+    local recognitionWindowStartedAt, recognitionSequenceId = nil, nil
+    local partySequences, partySequenceOrder = {}, {}
     local heartLayer, particleLayer, captionLayer, dancing, handled, actionAttempts = {}, {}, {}, {}, {}, {}
     local pendingDances = {}
     local reported = {}; local lastCelebrationIssuedAt=-1
@@ -184,7 +206,7 @@ return function()
     end
     clearCelebration=function()
         clearLayer(heartLayer); clearLayer(particleLayer); clearLayer(captionLayer); stopDances()
-        heartLayer={}; particleLayer={}; captionLayer={}; handled={}; actionAttempts={}; recognition=nil; celebration=nil; recognitionWindowStartedAt=nil; recognitionWindowSuppressed=false; reported={}; lastCelebrationIssuedAt=-1
+        heartLayer={}; particleLayer={}; captionLayer={}; handled={}; actionAttempts={}; recognition=nil; celebration=nil; recognitionWindowStartedAt=nil; recognitionSequenceId=nil; partySequences={}; partySequenceOrder={}; reported={}; lastCelebrationIssuedAt=-1
     end
     local function imageEntry(layer,id,asset)
         local entry=layer[id]
@@ -221,10 +243,10 @@ return function()
     local function captionItems()
         if celebration and celebration.kind=="goal" then return {{asset="sa_goal_accent",width=32,height=32},{asset="sa_goal",width=431,height=23}} end
         if celebration then
-            local result=numericItems(moneyGlyphs(celebration.liveTotalCents))
-            result[#result+1]={asset="sa_raised",width=341,height=23}; return result
+            local result=numericItems(moneyGlyphs(celebration.campaignTotalCents))
+            result[#result+1]={asset="sa_raised",width=RAISED_WIDTH,height=23}; return result
         end
-        if not recognition or recognition.suppressed then return {} end
+        if not recognition then return {} end
         if not recognition.amountKnown then return {{asset="sa_thanks",width=179,height=23}} end
         local result=numericItems(moneyGlyphs(recognition.amount))
         if recognition.count>1 then
@@ -234,56 +256,56 @@ return function()
         else result[#result+1]={asset="sa_separator",width=53,height=23} end
         result[#result+1]={asset="sa_thanks",width=179,height=23}; return result
     end
-    local function jsonNull(value)
-        if value==nil then return true end
-        -- Native MoonSharp represents null as userdata and exposes null() / isnull().
-        if type(json.isnull)=="function" then return json.isnull(value) end
-        return type(json.null)~="function" and value==json.null
-    end
     local function validCelebration(value)
-        local allowed={version=true,type=true,mode=true,generation=true,sessionId=true,id=true,issuedAtMs=true,expiresAtMs=true,heartsUntilMs=true,partyUntilMs=true,kind=true,liveTotalCents=true,milestoneCents=true,donationCount=true,donationTotalCents=true,recognitionStartedAtMs=true,recognitionAction=true}
-        for key,_ in pairs(value) do if not allowed[key] then return false end end
-        if value.donationTotalCents==nil or value.recognitionStartedAtMs==nil or value.recognitionAction==nil then return false end
-        local count=value.donationCount
-        local amount=value.donationTotalCents
-        local start=value.recognitionStartedAtMs
-        if not integer(count) or count<0 or count>9007199254740991 or not (jsonNull(amount) or (integer(amount) and amount>=0 and amount<=9007199254740991)) then return false end
-        if count==0 then
-            if amount~=0 or not jsonNull(start) or not jsonNull(value.recognitionAction) or value.heartsUntilMs~=0 then return false end
-        elseif not integer(start) or start<0 or not integer(value.issuedAtMs) or start>value.issuedAtMs or not integer(value.heartsUntilMs) or value.heartsUntilMs<start or value.heartsUntilMs>start+10000 or (value.recognitionAction~="jump" and value.recognitionAction~="hug") then return false end
-        return (value.kind=="donation" or value.kind=="milestone" or value.kind=="goal") and type(value.id)=="string" and #value.id>0 and #value.id<=128 and
-            integer(value.issuedAtMs) and integer(value.expiresAtMs) and value.expiresAtMs>value.issuedAtMs and value.expiresAtMs<=value.issuedAtMs+10000 and
-            integer(value.heartsUntilMs) and value.heartsUntilMs>=0 and value.heartsUntilMs<=value.issuedAtMs+10000 and
-            integer(value.partyUntilMs) and value.partyUntilMs>=0 and value.partyUntilMs<=value.issuedAtMs+38000 and
-            integer(value.liveTotalCents) and value.liveTotalCents>=0 and value.liveTotalCents<=9007199254740991 and
-            (jsonNull(value.milestoneCents) or (integer(value.milestoneCents) and value.milestoneCents>0 and value.milestoneCents<=value.liveTotalCents))
+        local allowed={version=true,type=true,mode=true,generation=true,campaignId=true,id=true,sequenceId=true,issuedAtMs=true,expiresAtMs=true,phase=true,kind=true,campaignTotalCents=true,milestoneCents=true,donationCount=true,donationTotalCents=true,recognitionStartedAtMs=true,recognitionAction=true,heartsUntilMs=true,partyStartedAtMs=true,partyUntilMs=true}
+        if not exact(value,allowed) or type(value.sequenceId)~="string" or #value.sequenceId==0 or #value.sequenceId>128 or type(value.id)~="string" or #value.id==0 or #value.id>128 or
+            not integer(value.issuedAtMs) or value.issuedAtMs<0 or not integer(value.expiresAtMs) or value.expiresAtMs<=value.issuedAtMs or value.expiresAtMs>value.issuedAtMs+10000 or
+            not integer(value.heartsUntilMs) or value.heartsUntilMs<0 or not integer(value.partyUntilMs) or value.partyUntilMs<0 or
+            not (jsonNull(value.campaignTotalCents) or (integer(value.campaignTotalCents) and value.campaignTotalCents>=0 and value.campaignTotalCents<=9007199254740991)) or
+            not (jsonNull(value.milestoneCents) or (integer(value.milestoneCents) and value.milestoneCents>0 and not jsonNull(value.campaignTotalCents) and value.milestoneCents<=value.campaignTotalCents)) then return false end
+        if value.phase=="recognition" then
+            return value.kind=="donation" and jsonNull(value.milestoneCents) and jsonNull(value.partyStartedAtMs) and value.partyUntilMs==0 and
+                integer(value.donationCount) and value.donationCount>0 and value.donationCount<=9007199254740991 and
+                (jsonNull(value.donationTotalCents) or (integer(value.donationTotalCents) and value.donationTotalCents>=0 and value.donationTotalCents<=9007199254740991)) and
+                integer(value.recognitionStartedAtMs) and value.recognitionStartedAtMs>=0 and value.recognitionStartedAtMs<=value.issuedAtMs and
+                value.heartsUntilMs>value.issuedAtMs and value.heartsUntilMs<=value.recognitionStartedAtMs+10000 and
+                (value.recognitionAction=="jump" or value.recognitionAction=="hug")
+        elseif value.phase=="party" then
+            return (value.kind=="goal" or (value.kind=="milestone" and not jsonNull(value.milestoneCents))) and not jsonNull(value.campaignTotalCents) and
+                value.donationCount==0 and value.donationTotalCents==0 and jsonNull(value.recognitionStartedAtMs) and jsonNull(value.recognitionAction) and value.heartsUntilMs==0 and
+                integer(value.partyStartedAtMs) and value.partyStartedAtMs>=0 and value.partyStartedAtMs<=value.issuedAtMs and
+                value.partyUntilMs>value.issuedAtMs and value.partyUntilMs<=value.partyStartedAtMs+38000
+        end
+        return false
     end
     local function acceptCelebration(value)
         local serverNow=elapsed*1000+serverOffset
         if not validCelebration(value) or value.expiresAtMs<=serverNow or value.issuedAtMs<lastCelebrationIssuedAt or seen[value.id] then return end
+        -- A late/reordered recognition update may not undo its party phase.
+        if value.phase=="recognition" and partySequences[value.sequenceId] then return end
         if effect then for _,entry in pairs(objects) do release(entry) end; objects={}; effect=nil end
         lastCelebrationIssuedAt=value.issuedAtMs
         seen[value.id]=true; seenOrder[#seenOrder+1]=value.id; if #seenOrder>256 then seen[table.remove(seenOrder,1)]=nil end
-        local partyActive=celebration and celebration.ends>elapsed and celebration.untilMs>serverNow
-        -- A valid extension can arrive after the previous visible hearts expired.
-        -- Keep window history independently until a fresh start or explicit clear.
-        local sameWindow=value.donationCount>0 and recognitionWindowStartedAt==value.recognitionStartedAtMs
-        local suppressed=(sameWindow and recognitionWindowSuppressed) or partyActive or value.partyUntilMs>serverNow
-        if value.donationCount>0 then
-            if not sameWindow then handled={} end
-            recognitionWindowStartedAt=value.recognitionStartedAtMs; recognitionWindowSuppressed=suppressed
+        if value.phase=="recognition" then
+            if celebration then clearLayer(particleLayer); particleLayer={}; stopDances(); celebration=nil end
+            local sameWindow=recognitionSequenceId==value.sequenceId and recognitionWindowStartedAt==value.recognitionStartedAtMs
+            if not sameWindow then clearLayer(heartLayer); heartLayer={}; handled={} end
+            if not recognition or not sameWindow or recognition.amount~=value.donationTotalCents or recognition.count~=value.donationCount then clearLayer(captionLayer); captionLayer={} end
+            recognitionWindowStartedAt=value.recognitionStartedAtMs; recognitionSequenceId=value.sequenceId
+            recognition=value.heartsUntilMs>serverNow and {ends=elapsed+(value.heartsUntilMs-serverNow)/1000,untilMs=value.heartsUntilMs,
+                startedAtMs=value.recognitionStartedAtMs,count=value.donationCount,amount=value.donationTotalCents,amountKnown=not jsonNull(value.donationTotalCents),action=value.recognitionAction} or nil
+        else
+            clearLayer(heartLayer); heartLayer={}; recognition=nil
+            if not partySequences[value.sequenceId] then
+                partySequences[value.sequenceId]=true; partySequenceOrder[#partySequenceOrder+1]=value.sequenceId
+                if #partySequenceOrder>256 then partySequences[table.remove(partySequenceOrder,1)]=nil end
+            end
+            local sameParty=celebration and celebration.sequenceId==value.sequenceId and celebration.startedAtMs==value.partyStartedAtMs
+            if not sameParty then clearLayer(particleLayer); particleLayer={}; stopDances(); actionAttempts={} end
+            if not celebration or celebration.kind~=value.kind or celebration.campaignTotalCents~=value.campaignTotalCents then clearLayer(captionLayer); captionLayer={} end
+            celebration=value.partyUntilMs>serverNow and {ends=elapsed+(value.partyUntilMs-serverNow)/1000,untilMs=value.partyUntilMs,kind=value.kind,
+                campaignTotalCents=value.campaignTotalCents,sequenceId=value.sequenceId,startedAtMs=value.partyStartedAtMs} or nil
         end
-        if not recognition or not sameWindow or recognition.amount~=value.donationTotalCents or recognition.count~=value.donationCount or recognition.suppressed~=suppressed then clearLayer(captionLayer); captionLayer={} end
-        recognition=value.donationCount>0 and value.heartsUntilMs>serverNow and {
-            ends=elapsed+(value.heartsUntilMs-serverNow)/1000,untilMs=value.heartsUntilMs,
-            startedAtMs=value.recognitionStartedAtMs,count=value.donationCount,amount=value.donationTotalCents,
-            amountKnown=not jsonNull(value.donationTotalCents),action=value.recognitionAction,suppressed=suppressed
-        } or nil
-        if value.partyUntilMs>serverNow then
-            if not partyActive then clearLayer(particleLayer); particleLayer={}; stopDances(); actionAttempts={} end
-            if not celebration or celebration.kind~=value.kind or celebration.liveTotalCents~=value.liveTotalCents then clearLayer(captionLayer); captionLayer={} end
-            celebration={ends=elapsed+(value.partyUntilMs-serverNow)/1000,untilMs=value.partyUntilMs,kind=value.kind,liveTotalCents=value.liveTotalCents}
-        elseif not partyActive then clearLayer(captionLayer); captionLayer={}; celebration=nil end
     end
     local function eligible(user)
         local ok,result=pcall(function() return user.isActive and ordinaryState(user.getState()) end)
@@ -297,7 +319,7 @@ return function()
         if not ok then report("action-error") end
     end
     local function recognize(users)
-        if not recognition or recognition.suppressed or celebration then return end
+        if not recognition or celebration then return end
         local candidates={}
         for i=1,math.min(101,#users) do local user=users[i]
             if not handled[tostring(user.id)] and eligible(user) then candidates[#candidates+1]=user end
@@ -384,27 +406,27 @@ return function()
         for id,entry in pairs(heartLayer) do if not liveIds[id] then if entry.object then release(entry) end; heartLayer[id]=nil end end
     end
     local function handleMessage(value)
-        if type(value)~="table" or value.version~=2 then diagnostic("unsupported-message"); return end
+        if type(value)~="table" or value.version~=3 then diagnostic("unsupported-message"); return end
         if value.type=="heartbeat" and number(value.serverNowMs) then
             serverOffset=value.serverNowMs-elapsed*1000
-            send({version=2,type="heartbeat"}); return
+            send({version=3,type="heartbeat"}); return
         end
         if (value.mode~="production" and value.mode~="integration") or not integer(value.generation) or value.generation<generationFloor or value.generation<0 then return end
         if value.type=="clear" then
             generationFloor=value.generation; clearObjects(); reconcileCrowd({}); snapshot=nil
         elseif value.type=="snapshot" and validSnapshot(value) then
-            if not snapshot or snapshot.generation~=value.generation or snapshot.mode~=value.mode or snapshot.session.sessionId~=value.session.sessionId then clearObjects() end
+            if not snapshot or snapshot.generation~=value.generation or snapshot.mode~=value.mode or snapshot.campaign.campaignId~=value.campaign.campaignId then clearObjects() end
             generationFloor=value.generation; snapshot=value; serverOffset=value.serverNowMs-elapsed*1000; retryDelay=1
             if value.mode=="integration" and not previewHostSet then app.platformServiceSettings.SetStreamer(900000,"sa_integration_host"); previewHostSet=true end
             if value.mode=="production" then previewHostSet=false end
             reconcileCrowd(value.mode=="integration" and value.integration.crowdIds or {})
             local resolution=app.getResolution()
-            send({version=2,type="ready",capabilities={"hearts","crowd","session","celebrations","donation-recognition"},resolution={width=resolution.x,height=resolution.y}})
+            send({version=3,type="ready",capabilities={"hearts","crowd","campaign","celebrations","donation-recognition"},resolution={width=resolution.x,height=resolution.y}})
         elseif value.type=="crowd" and snapshot and snapshot.mode=="integration" and value.mode==snapshot.mode and value.generation==snapshot.generation and validCrowd(value.crowdIds) then
             reconcileCrowd(value.crowdIds)
-        elseif value.type=="celebration" and snapshot and value.mode==snapshot.mode and value.generation==snapshot.generation and value.sessionId==snapshot.session.sessionId then
+        elseif value.type=="celebration" and snapshot and value.mode==snapshot.mode and value.generation==snapshot.generation and value.campaignId==snapshot.campaign.campaignId then
             acceptCelebration(value)
-        elseif value.type=="hearts" and snapshot and value.mode==snapshot.mode and value.generation==snapshot.generation and value.sessionId==snapshot.session.sessionId and
+        elseif value.type=="hearts" and snapshot and value.mode==snapshot.mode and value.generation==snapshot.generation and value.campaignId==snapshot.campaign.campaignId and
             type(value.id)=="string" and #value.id>0 and #value.id<=128 and number(value.expiresAtMs) and number(value.issuedAtMs) and value.expiresAtMs>value.issuedAtMs and
             value.expiresAtMs-value.issuedAtMs<=10000 and value.expiresAtMs>elapsed*1000+serverOffset and value.durationMs==5000 and not seen[value.id] then
             clearObjects()

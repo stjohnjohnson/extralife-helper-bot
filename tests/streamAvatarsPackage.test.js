@@ -175,6 +175,14 @@ describe('portable Stream Avatars packages', () => {
         expect(Object.keys(json(entries, `${commandPath}sa_helper_bridge_settings.json`)).sort()).toEqual(['address', 'token']);
     });
 
+    test('derives campaign caption width from its manifest', () => {
+        const raised = { ...manifest, name: 'sa_raised', file: 'raised.png', frameWidth: 200, frameHeight: 23, frames: 1, rows: 1 };
+        fs.writeFileSync(path.join(integrationDir, 'assets/sa_raised.json'), JSON.stringify(raised));
+        fs.writeFileSync(path.join(integrationDir, 'assets/raised.png'), PNG.sync.write({ width: 200, height: 23, data: Buffer.alloc(200 * 23 * 4) }));
+        const entries = decode(buildPackage({ integrationDir }).archive);
+        expect(strFromU8(entries[`${commandPath}sa_helper_bridge.lua`])).toContain('local RAISED_WIDTH = 200');
+    });
+
     test('rejects an empty catalog and missing or invalid PNGs', () => {
         fs.unlinkSync(path.join(integrationDir, 'assets/heart.png'));
         expect(() => buildPackage({ integrationDir })).toThrow(/heart.png/);

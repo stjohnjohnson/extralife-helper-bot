@@ -126,10 +126,10 @@ end
 local function raw(message) callbacks.websocket("sa_helper_bridge","OnMessage",message,"") end
 local function send(message) raw(codec.encode(message)); tick() end
 local function snapshot(mode,generation,ids)
-    return {version=2,type="snapshot",mode=mode or "integration",generation=generation or 1,serverNowMs=1000,session={sessionId="session"},elapsedMs=0,integration={active=mode~="production",crowdIds=ids or {}},features={"hearts","crowd","session"}}
+    return {version=3,type="snapshot",mode=mode or "integration",generation=generation or 1,serverNowMs=1000,campaign={campaignId="session",initialized=true,totalCents=154350,goalCents=1000000,nextMilestoneCents=200000,goalHandled=false},integration={active=mode~="production",crowdIds=ids or {}},features={"hearts","crowd","campaign"}}
 end
 local function hearts(id,generation)
-    return {version=2,type="hearts",mode="integration",generation=generation or 1,sessionId="session",id=id or "effect",issuedAtMs=1000,expiresAtMs=11000,durationMs=5000}
+    return {version=3,type="hearts",mode="integration",generation=generation or 1,campaignId="session",id=id or "effect",issuedAtMs=1000,expiresAtMs=11000,durationMs=5000}
 end
 local function addUser(id,x,y)
     local user={id=id,isActive=true,x=x or 50,y=y or 20,gear="sentinel",state="Idle",animation="idle"}
@@ -160,7 +160,8 @@ end
 local function count() local n=0 for _,ob in ipairs(objects) do if not ob.removed and ob.imageLoaded and ob.scale>0 then n=n+1 end end return n end
 local function assetCount(prefix) local n=0 for _,ob in ipairs(objects) do if not ob.removed and ob.imageLoaded and ob.scale>0 and ob.asset and (ob.asset==prefix or (prefix=="sa_digit" and ob.asset:find("sa_digit_",1,true))) then n=n+1 end end return n end
 local function celebration(kind,id)
-    return {version=2,type="celebration",mode="integration",generation=1,sessionId="session",id=id or "celebration",issuedAtMs=1000,expiresAtMs=11000,donationCount=1,donationTotalCents=2500,recognitionStartedAtMs=1000,recognitionAction="jump",heartsUntilMs=6000,partyUntilMs=kind=="goal" and 21000 or (kind=="milestone" and 19000 or 0),kind=kind or "donation",liveTotalCents=154350,milestoneCents=kind=="milestone" and 150000 or codec.null}
+    local party=kind=="goal" or kind=="milestone"
+    return {version=3,type="celebration",mode="integration",generation=1,campaignId="session",sequenceId=party and "party_1000" or "window_1000",phase=party and "party" or "recognition",id=id or "celebration",issuedAtMs=1000,expiresAtMs=11000,donationCount=party and 0 or 1,donationTotalCents=party and 0 or 2500,recognitionStartedAtMs=party and codec.null or 1000,recognitionAction=party and codec.null or "jump",heartsUntilMs=party and 0 or 6000,partyStartedAtMs=party and 1000 or codec.null,partyUntilMs=kind=="goal" and 21000 or (kind=="milestone" and 19000 or 0),kind=kind or "donation",campaignTotalCents=154350,milestoneCents=kind=="milestone" and 150000 or codec.null}
 end
 local function active() for _,ob in ipairs(objects) do if not ob.removed and ob.imageLoaded and ob.scale>0 then return ob end end end
 if scenario=="host-json-escapes" then
@@ -176,34 +177,59 @@ end
 tick()
 local function captionText()
     local text=""
-    local phrases={sa_dollar="$",sa_comma=",",sa_dot=".",sa_separator=" - ",sa_from=" FROM ",sa_donations=" DONATIONS - ",sa_thanks="THANK YOU!",sa_raised=" RAISED THIS STREAM!",sa_goal="EXTRA LIFE GOAL REACHED!"}
+    local phrases={sa_dollar="$",sa_comma=",",sa_dot=".",sa_separator=" - ",sa_from=" FROM ",sa_donations=" DONATIONS - ",sa_thanks="THANK YOU!",sa_raised=" RAISED!",sa_goal="EXTRA LIFE GOAL REACHED!"}
     for _,ob in ipairs(objects) do if not ob.removed and ob.imageLoaded and ob.scale>0 and ob.asset then
         text=text..(phrases[ob.asset] or ob.asset:match("^sa_digit_(%d)$") or "")
     end end
     return text
 end
 local function timedGift(now,id,kind)
-    send({version=2,type="heartbeat",serverNowMs=now})
-    local v=celebration(kind,id);v.issuedAtMs=now;v.recognitionStartedAtMs=now;v.heartsUntilMs=now+5000;v.expiresAtMs=now+10000
+    send({version=3,type="heartbeat",serverNowMs=now})
+    local v=celebration(kind,id);v.issuedAtMs=now;v.expiresAtMs=now+10000
+    if v.phase=="recognition" then v.sequenceId="window_"..now;v.recognitionStartedAtMs=now;v.heartsUntilMs=now+5000 else v.partyStartedAtMs=now end
     if kind=="goal" then v.partyUntilMs=now+20000 elseif kind=="milestone" then v.partyUntilMs=now+18000 end
     return v
 end
-if scenario=="recognition-delayed-extension" or scenario=="recognition-delayed-hug" then
+local function phaseSnapshot()
+    return {version=3,type="snapshot",mode="integration",generation=1,serverNowMs=1000,campaign={campaignId="12",initialized=true,totalCents=247500,goalCents=1000000,nextMilestoneCents=250000,goalHandled=false},integration={active=true,crowdIds={}},features={"campaign","celebrations","donation-recognition"}}
+end
+local function phasePacket(phase,seq,id)
+    local party=phase=="party"
+    return {version=3,type="celebration",mode="integration",generation=1,campaignId="12",id=id or phase,sequenceId=seq or "sequence",issuedAtMs=1000,expiresAtMs=11000,phase=phase,kind=party and "milestone" or "donation",campaignTotalCents=252500,milestoneCents=party and 250000 or codec.null,donationCount=party and 0 or 1,donationTotalCents=party and 0 or 5000,recognitionStartedAtMs=party and codec.null or 1000,recognitionAction=party and codec.null or "jump",heartsUntilMs=party and 0 or 6000,partyStartedAtMs=party and 1000 or codec.null,partyUntilMs=party and 19000 or 0}
+end
+if scenario=="phase-ordered" then
+    addUser(1);send(phaseSnapshot());send(phasePacket("recognition"));tick()
+    assert(captionText()=="$50 - THANK YOU!" and dances==0 and jumps==1 and assetCount("sa_heart")==1,"recognition must precede party actions")
+    tick(5);local p=phasePacket("party");p.issuedAtMs=6000;p.expiresAtMs=16000;p.partyStartedAtMs=6000;p.partyUntilMs=24000;send(p);tick()
+    assert(captionText()=="$2,525 RAISED!" and dances==1 and jumps==1 and assetCount("sa_heart")==0,"party must replace only completed recognition visuals")
+elseif scenario=="phase-regression" then
+    addUser(1);send(phaseSnapshot());send(phasePacket("party"));local stale=phasePacket("recognition");stale.issuedAtMs=1001;send(stale);tick()
+    assert(dances==1 and jumps==0 and assetCount("sa_thanks")==0,"party sequences must never regress to old thanks")
+elseif scenario=="phase-schema" then
+    addUser(1);send(phaseSnapshot())
+    for i,patch in ipairs({{phase="party"},{partyStartedAtMs=1000},{campaignTotalCents=-1},{phase="future"},{sequenceId=""},{command="!dance"},{kind="goal"}}) do local p=phasePacket("recognition",nil,"bad"..i);for k,v in pairs(patch) do p[k]=v end;send(p);assert(jumps==0 and count()==0,"invalid phase metadata must be rejected") end
+    local legacy=phasePacket("recognition");legacy.version=2;send(legacy);assert(jumps==0,"v2 must be rejected")
+elseif scenario=="phase-party-update" then
+    local user=addUser(1);send(phaseSnapshot());send(phasePacket("party"));user.state="Idle"
+    local p=phasePacket("party",nil,"update");p.issuedAtMs=1001;p.kind="goal";p.partyUntilMs=21000;send(p);tick()
+    assert(dances==1 and assetCount("sa_goal")==1,"party upgrades must retain attempted sequence IDs")
+    tick(11);tick();assert(dances==1,"party updates must not readmit users when their native cooldown expires")
+elseif scenario=="recognition-delayed-extension" or scenario=="recognition-delayed-hug" then
     local hug=scenario=="recognition-delayed-hug"
     addUser(1);if hug then addUser(2) end;send(snapshot());local original=celebration();original.recognitionAction=hug and "hug" or "jump";send(original);tick()
     for i=1,35 do tick() end
     assert((hug and #hugs==1 and jumps==0) or (not hug and jumps==1))
-    send({version=2,type="heartbeat",serverNowMs=6100});tick();assert(count()==0)
+    send({version=3,type="heartbeat",serverNowMs=6100});tick();assert(count()==0)
     local extension=celebration("donation","delayed");extension.issuedAtMs=5900;extension.expiresAtMs=15900;extension.heartsUntilMs=10900;extension.donationCount=2;extension.donationTotalCents=5000
     extension.recognitionAction=hug and "hug" or "jump"
     send(extension);tick();assert((hug and #hugs==1 and jumps==0) or (not hug and jumps==1),"delayed extension must retain handled avatars")
     assert(captionText()=="$50 FROM 2 DONATIONS - THANK YOU!" and assetCount("sa_heart")== (hug and 2 or 1))
 elseif scenario=="recognition-delayed-suppression" then
     addUser(1);send(snapshot());send(celebration("goal"))
-    send(timedGift(17000,"party-gift"));tick();assert(jumps==0)
-    send({version=2,type="heartbeat",serverNowMs=22100});tick();assert(count()==0)
-    local extension=celebration("donation","delayed-party-gift");extension.issuedAtMs=21900;extension.expiresAtMs=31900;extension.recognitionStartedAtMs=17000;extension.heartsUntilMs=26900;extension.donationCount=2;extension.donationTotalCents=5000
-    send(extension);tick();assert(jumps==0 and captionText()=="" and assetCount("sa_heart")==1,"delayed extension must retain party suppression")
+    local gift=timedGift(17000,"party-gift");gift.sequenceId="party_1000";send(gift);tick();assert(jumps==0)
+    send({version=3,type="heartbeat",serverNowMs=22100});tick();assert(count()==0)
+    local extension=celebration("donation","delayed-party-gift");extension.issuedAtMs=21900;extension.expiresAtMs=31900;extension.recognitionStartedAtMs=17000;extension.heartsUntilMs=26900;extension.donationCount=2;extension.donationTotalCents=5000;extension.sequenceId="party_1000"
+    send(extension);tick();assert(jumps==0 and captionText()=="" and assetCount("sa_heart")==0,"a delayed recognition update must not revive a completed party sequence")
     send(timedGift(30000,"actually-fresh"));tick();assert(jumps==1 and captionText()=="$25 - THANK YOU!")
 elseif scenario=="native-null-hidden" or scenario=="native-null-goal-only" then
     addUser(1);send(snapshot());local v=celebration(scenario=="native-null-goal-only" and "goal" or "donation")
@@ -243,15 +269,15 @@ elseif scenario=="hug-unsafe" or scenario=="hug-exception" then
     if scenario=="hug-unsafe" then for _,cmd in ipairs(commands) do assert(not cmd.command:find("hug",1,true),"must not dispatch unsafe ID") end end
     if scenario=="hug-exception" then local found=false;for _,p in ipairs(packets) do if p.code=="action-error" then found=true end end;assert(found) end
 elseif scenario=="hug-party" then
-    addUser(1);addUser(2);send(snapshot());local v=celebration("goal");v.recognitionAction="hug";send(v);assert(#hugs==0 and dances==2)
-    v=timedGift(20000,"party-gift");v.recognitionAction="hug";send(v);send({version=2,type="heartbeat",serverNowMs=22000});tick()
-    assert(#hugs==0 and jumps==0 and assetCount("sa_heart")==2 and captionText()=="","suppressed actions must not replay")
+    addUser(1);addUser(2);send(snapshot());local v=celebration("goal");send(v);assert(#hugs==0 and dances==2)
+    v=timedGift(20000,"party-gift");v.recognitionAction="hug";v.sequenceId="party_1000";send(v);send({version=3,type="heartbeat",serverNowMs=22000});tick()
+    assert(#hugs==0 and jumps==0 and assetCount("sa_heart")==0 and captionText()=="","a party sequence must not replay old actions")
 elseif scenario=="hug-reload" or scenario=="hug-clear" or scenario=="hug-disconnect" or scenario=="hug-target-leaves" or scenario=="hug-takeover" then
     local a,b=addUser(1),addUser(2);send(snapshot());local v=celebration();v.recognitionAction="hug";send(v);tick();tick();assert(#hugs==1)
     if scenario=="hug-reload" then runner=coroutine.create(start);tick()
     elseif scenario=="hug-target-leaves" then users["2"]=nil
     elseif scenario=="hug-takeover" then b.state="MiniGame"
-    elseif scenario=="hug-clear" then send({version=2,type="clear",mode="integration",generation=2})
+    elseif scenario=="hug-clear" then send({version=3,type="clear",mode="integration",generation=2})
     else callbacks.websocket("sa_helper_bridge","OnClose","","");tick() end
     tick(12);tick();assert(#hugs==1 and exits==0,"never force-exit/retry native hugs")
     if scenario=="hug-takeover" then assert(b.state=="MiniGame") end
@@ -261,7 +287,7 @@ elseif scenario=="hug-reload" or scenario=="hug-clear" or scenario=="hug-disconn
         send(snapshot("integration",2));local fresh=celebration("donation","after-reset");fresh.generation=2;fresh.recognitionAction="hug";send(fresh);assert(#hugs==2,"clear/reconnect/reload must reset bookkeeping")
     end
 elseif scenario=="caption-single" or scenario=="caption-batch" or scenario=="caption-cents" or scenario=="caption-hidden" then
-    addUser(1);send(snapshot());local v=celebration();v.liveTotalCents=50000
+    addUser(1);send(snapshot());local v=celebration();v.campaignTotalCents=50000
     local expected="$25 - THANK YOU!"
     if scenario=="caption-batch" then v.donationCount=2;expected="$25 FROM 2 DONATIONS - THANK YOU!"
     elseif scenario=="caption-cents" then v.donationTotalCents=2550;expected="$25.50 - THANK YOU!"
@@ -274,10 +300,10 @@ elseif scenario=="caption-shortening" then
     assert(count()==2,"must release unused caption objects")
 elseif scenario=="caption-party" then
     addUser(1);send(snapshot());send(celebration());tick();assert(captionText()=="$25 - THANK YOU!")
-    local v=celebration("milestone","party");v.liveTotalCents=50000;v.milestoneCents=50000;send(v);tick();assert(captionText()=="$500 RAISED THIS STREAM!")
+    local v=celebration("milestone","party");v.campaignTotalCents=50000;v.milestoneCents=50000;send(v);tick();assert(captionText()=="$500 RAISED!")
     local upgrade=celebration("goal","upgrade");send(upgrade);tick();assert(captionText()=="EXTRA LIFE GOAL REACHED!")
-    local gift=timedGift(20000,"during-party");send(gift);tick();assert(captionText()=="EXTRA LIFE GOAL REACHED!")
-    send({version=2,type="heartbeat",serverNowMs=22000});tick();assert(captionText()=="" and assetCount("sa_heart")==1 and jumps==1,"suppressed gifts must not replay")
+    local gift=timedGift(20000,"during-party");gift.sequenceId="party_1000";send(gift);tick();assert(captionText()=="EXTRA LIFE GOAL REACHED!")
+    send({version=3,type="heartbeat",serverNowMs=22000});tick();assert(captionText()=="" and assetCount("sa_heart")==0 and jumps==1,"old party sequences must not replay donation captions")
     send(timedGift(27000,"fresh"));tick();assert(captionText()=="$25 - THANK YOU!" and jumps==2)
 elseif scenario=="caption-bounds" then
     addUser(1);send(snapshot());local v=celebration();v.donationCount=9007199254740991;v.donationTotalCents=9007199254740991;send(v);tick()
@@ -318,18 +344,18 @@ elseif scenario=="cooldown-clear" or scenario=="cooldown-reload" or scenario=="c
     local user=addUser(1);send(snapshot());send(celebration("milestone"));tick(3)
     if scenario=="cooldown-reload" then runner=coroutine.create(assert(loadfile(script,"t",env))());tick()
     elseif scenario=="cooldown-disconnect" then callbacks.websocket("sa_helper_bridge","OnClose","","");tick();callbacks.websocket("sa_helper_bridge","OnOpen","","")
-    else send({version=2,type="clear",mode="integration",generation=2}) end
+    else send({version=3,type="clear",mode="integration",generation=2}) end
     send(snapshot("integration",2));local fresh=celebration("goal","new-party");fresh.generation=2;send(fresh)
     assert(dances==1 and #commands==1 and cooldownWarnings==0,"a reset must retain the native action budget")
     tick(8);tick();assert(dances==(scenario=="cooldown-custom" and 1 or 2) and cooldownWarnings==0,"admit once when the native timer expires")
     if scenario=="cooldown-custom" then tick(12);tick();assert(#commands==1,"a custom cooldown can outlast the whole party") end
 elseif scenario=="cooldown-boundary" then
-    local user=addUser(1);send(snapshot());send(celebration("milestone"));send({version=2,type="clear",mode="integration",generation=2})
+    local user=addUser(1);send(snapshot());send(celebration("milestone"));send({version=3,type="clear",mode="integration",generation=2})
     send(snapshot("integration",2));local fresh=celebration("goal","boundary");fresh.generation=2;send(fresh)
     tick(9.75);tick();assert(#commands==1 and cooldownWarnings==0,"whole-second truncation must not issue an early request")
     tick(1.1);tick();assert(#commands==2 and cooldownWarnings==0,"request becomes eligible after the full native timer")
 elseif scenario=="cooldown-game-clock" then
-    local user=addUser(1);send(snapshot());send(celebration("milestone"));send({version=2,type="clear",mode="integration",generation=2})
+    local user=addUser(1);send(snapshot());send(celebration("milestone"));send({version=3,type="clear",mode="integration",generation=2})
     send(snapshot("integration",2));local fresh=celebration("goal","fast-clock");fresh.generation=2;send(fresh)
     tick(11,0.2);tick()
     assert(#commands==1 and cooldownWarnings==0,"game time must not expire a real-time native cooldown")
@@ -372,7 +398,7 @@ elseif scenario=="async-dance-reload" then
     runner=coroutine.create(assert(loadfile(script,"t",env))());tick();tick();tick();tick()
     assert(user.state=="Idle" and exits==1,"must drain a queued dance across companion reload")
 elseif scenario=="async-dance-cancel" then
-    local user=addUser(1);send(snapshot());send(celebration("milestone"));send({version=2,type="clear",mode="integration",generation=2})
+    local user=addUser(1);send(snapshot());send(celebration("milestone"));send({version=3,type="clear",mode="integration",generation=2})
     tick();tick();tick();assert(user.state=="Idle" and exits==1,"must stop a queued dance that starts after cancellation")
 elseif scenario=="async-dance-interrupted" then
     local user=addUser(1);send(snapshot());send(celebration("milestone"));user.pendingDance=nil;user.state="MiniGame";user.animation="attack"
@@ -385,7 +411,7 @@ elseif scenario=="async-dance-existing" then
     local user=addUser(1);user.state="CustomAnimation";user.animation="dance";send(snapshot());send(celebration("milestone"));tick(18);tick()
     assert(user.animation=="dance" and exits==0 and dances==0,"must leave a pre-existing dance alone")
 elseif scenario=="milestone-whole-dollars" then
-    addUser(1); send(snapshot()); local packet=celebration("milestone"); packet.liveTotalCents=50000; packet.milestoneCents=50000
+    addUser(1); send(snapshot()); local packet=celebration("milestone"); packet.campaignTotalCents=50000; packet.milestoneCents=50000
     send(packet); tick(); assert(assetCount("sa_digit")==3 and assetCount("sa_dot")==0 and assetCount("sa_raised")==1,"whole-dollar milestone must omit .00")
 elseif scenario=="confetti-scatter" then
     app.convertPercentToPosition=function(x,y) return {x=x*1000,y=y*1000} end
@@ -401,7 +427,7 @@ elseif scenario=="confetti-scatter" then
     for _,entry in ipairs(particles) do local fall=(entry.y-entry.ob.y)%1000;slow=math.min(slow,fall);fast=math.max(fast,fall) end
     assert(fast-slow>3,"confetti pieces need varied fall speeds")
 elseif scenario=="celebration-pending-cap" then
-    for i=1,101 do addUser(i) end; send(snapshot()); send(celebration("goal")); tick(); assert(#objects==128 and shared.sa_pending_images==128)
+    for i=1,101 do addUser(i) end; send(snapshot()); local v=celebration();v.donationCount=9007199254740991;v.donationTotalCents=9007199254740991;send(v);tick();assert(#objects==128 and shared.sa_pending_images==128)
     tick(2.1); tick(); assert(#objects==128 and count()==0)
 elseif scenario=="wire-celebration" then
     local file=assert(io.open(arg[3],"rb")); local value=codec.decode(file:read("*a")); file:close()
@@ -410,16 +436,18 @@ elseif scenario=="celebration-stale" then
     addUser(1); send(snapshot()); local goal=celebration("goal"); goal.issuedAtMs=1100; send(goal); tick();
     local old=celebration("milestone","old"); send(old); tick(); assert(assetCount("sa_goal")==1 and assetCount("sa_raised")==0)
 elseif scenario=="celebration-density" then
-    for i=1,105 do addUser(i) end; send(snapshot()); send(celebration("goal")); tick(); assert(assetCount("sa_heart")==101 and assetCount("sa_confetti")==32)
+    for i=1,105 do addUser(i) end; send(snapshot()); send(celebration("goal")); tick(); assert(assetCount("sa_heart")==0 and assetCount("sa_confetti")==32 and dances==101)
     local found=false; for _,packet in ipairs(packets) do if packet.code=="density-limit" then found=true end end; assert(found)
     assert((shared.sa_pending_images or 0)<=128)
     for _,ob in ipairs(objects) do if not ob.removed and ob.scale>0 then assert(ob.x>=0 and ob.x<=1000 and ob.y>=0 and ob.y<=200) end end
 elseif scenario=="celebration-missing-confetti" or scenario=="celebration-missing-heart" then
-    addUser(1); send(snapshot()); send(celebration("milestone")); tick();
-    assert(assetCount("sa_raised")==1); if scenario=="celebration-missing-confetti" then assert(assetCount("sa_heart")==1 and assetCount("sa_confetti")==0) else assert(assetCount("sa_confetti")==32 and assetCount("sa_heart")==0) end
-    send({version=2,type="heartbeat",serverNowMs=1200}); assert(packets[#packets].type=="heartbeat")
+    addUser(1);send(snapshot())
+    if scenario=="celebration-missing-heart" then send(celebration());tick();assert(assetCount("sa_thanks")==1 and assetCount("sa_heart")==0) end
+    send(celebration("milestone","party"));tick();assert(assetCount("sa_raised")==1)
+    assert(assetCount("sa_heart")==0 and assetCount("sa_confetti")== (scenario=="celebration-missing-confetti" and 0 or 32))
+    send({version=3,type="heartbeat",serverNowMs=1200});assert(packets[#packets].type=="heartbeat")
 elseif scenario=="celebration-delay-cancel" then
-    addUser(1); send(snapshot()); send(celebration("goal")); send({version=2,type="clear",mode="integration",generation=2}); tick(); assert(count()==0)
+    addUser(1); send(snapshot()); send(celebration("goal")); send({version=3,type="clear",mode="integration",generation=2}); tick(); assert(count()==0)
 elseif scenario=="ordinary-101" or scenario=="native-null-donation" then
     for i=1,101 do addUser(i) end; send(snapshot()); send(celebration()); tick();
     assert(assetCount("sa_heart")==101 and jumps==101 and assetCount("sa_thanks")==1)
@@ -430,35 +458,35 @@ elseif scenario=="milestone-banner" or scenario=="goal-banner" or scenario=="nat
     if kind=="milestone" then assert(assetCount("sa_digit")==6 and assetCount("sa_comma")==1 and assetCount("sa_dot")==1 and assetCount("sa_dollar")==1) end
     assert(user.gear=="sentinel"); tick(kind=="goal" and 20 or 18); tick(); assert(count()==0 and exits==1 and user.gear=="sentinel")
 elseif scenario=="celebration-faults" then
-    addUser(1); send(snapshot()); send(celebration("milestone")); tick(); assert(assetCount("sa_heart")==1 and assetCount("sa_raised")==1)
-    send({version=2,type="heartbeat",serverNowMs=1200}); assert(packets[#packets].type=="heartbeat")
+    addUser(1); send(snapshot()); send(celebration("milestone")); tick(); assert(assetCount("sa_heart")==0 and assetCount("sa_raised")==1)
+    send({version=3,type="heartbeat",serverNowMs=1200}); assert(packets[#packets].type=="heartbeat")
 elseif scenario=="celebration-expiry" then
-    addUser(1); send(snapshot()); send({version=2,type="heartbeat",serverNowMs=12000}); send(celebration()); assert(count()==0 and jumps==0)
-    local v=celebration(); v.id="wrong"; v.sessionId="wrong"; v.expiresAtMs=22000; v.issuedAtMs=12000; send(v); assert(count()==0 and jumps==0)
+    addUser(1); send(snapshot()); send({version=3,type="heartbeat",serverNowMs=12000}); send(celebration()); assert(count()==0 and jumps==0)
+    local v=celebration(); v.id="wrong"; v.campaignId="wrong"; v.expiresAtMs=22000; v.issuedAtMs=12000; send(v); assert(count()==0 and jumps==0)
 elseif scenario=="celebration-merge" then
     addUser(1); send(snapshot()); send(celebration()); tick(); send(celebration()); assert(jumps==1)
     send(celebration("donation","next")); assert(jumps==1)
     send(celebration("milestone","party")); tick(); send(celebration("goal","upgrade")); tick(); assert(dances==1 and assetCount("sa_goal")==1)
 elseif scenario=="celebration-late-join" then
-    local user=addUser(1); send(snapshot()); send(celebration("milestone")); tick(); local late=addUser(2); tick(); tick(); assert(assetCount("sa_heart")==2 and dances==2)
-    users["1"]=nil; tick(); assert(assetCount("sa_heart")==1); late.state="MiniGame"; late.animation="attack"; tick(20); tick(); assert(late.state=="MiniGame")
+    local user=addUser(1); send(snapshot()); send(celebration("milestone")); tick(); local late=addUser(2); tick(); tick(); assert(assetCount("sa_heart")==0 and dances==2)
+    users["1"]=nil; tick(); assert(assetCount("sa_heart")==0); late.state="MiniGame"; late.animation="attack"; tick(20); tick(); assert(late.state=="MiniGame")
 elseif scenario=="celebration-cancel" then
-    addUser(1); send(snapshot()); send(celebration("goal")); send({version=2,type="clear",mode="integration",generation=2}); tick(); assert(count()==0 and exits==1)
+    addUser(1); send(snapshot()); send(celebration("goal")); send({version=3,type="clear",mode="integration",generation=2}); tick(); assert(count()==0 and exits==1)
 elseif scenario=="image-pending-cap" then
     addUser(1)
     for i=1,105 do send(snapshot()); send(hearts("failed-"..i)); tick(2.1); tick() end
     assert(#objects==100 and shared.sa_pending_images==100, "must bound failed host loads")
-    send({version=2,type="heartbeat",serverNowMs=1000}); assert(packets[#packets].type=="heartbeat")
+    send({version=3,type="heartbeat",serverNowMs=1000}); assert(packets[#packets].type=="heartbeat")
 elseif scenario=="missing-image-host" or scenario=="image-load-timeout" then
     addUser(1); send(snapshot()); send(hearts()); assert(count()==0)
-    send({version=2,type="heartbeat",serverNowMs=1100}); assert(packets[#packets].type=="heartbeat")
+    send({version=3,type="heartbeat",serverNowMs=1100}); assert(packets[#packets].type=="heartbeat")
     tick(2.1); tick(); assert(count()==0)
     assert(shared.sa_pending_images==1, "failed host callbacks retain one bounded pending load")
     assert(packets[#packets].code=="missing-heart-image")
-    send({version=2,type="heartbeat",serverNowMs=4000}); assert(packets[#packets].type=="heartbeat")
+    send({version=3,type="heartbeat",serverNowMs=4000}); assert(packets[#packets].type=="heartbeat")
 elseif scenario=="image-loaded-before-clear" then
     addUser(1); send(snapshot()); send(hearts()); assert(count()==0)
-    raw(codec.encode({version=2,type="clear",mode="integration",generation=1}))
+    raw(codec.encode({version=3,type="clear",mode="integration",generation=1}))
     tick() -- worker finishes immediately before the parent processes clear.
     assert(shared.sa_pending_images==0 and next(loaders)==nil)
     for _,ob in ipairs(objects) do assert(ob.removed, "completed image must be destroyed before render acknowledgement") end
@@ -477,9 +505,9 @@ elseif scenario=="pending-image-stop" then
     for key,_ in pairs(shared) do assert(not key:match("^sa_image_"), "late callback leaked completion key") end
 elseif scenario=="host-json-escapes" then
     assert(packets[1].type=="auth" and packets[1].token==config.token)
-    local message=snapshot(); message.session.channel="viewer/path\\name"
+    local message=snapshot(); message.campaign.campaignId="viewer/path\\name"
     send(message); assert(packets[#packets].type=="ready")
-    addUser("real"); send(hearts()); assert(count()==1)
+    addUser("real");local event=hearts();event.campaignId=message.campaign.campaignId;send(event);assert(count()==1)
     -- Even backslashes represent a literal backslash followed by slash, not \/.
     local values={path="literal\\/slash",url="ws://host/path",backslashes="\\\\/",quote='"/'}
     local decoded=env.json.parse(hostSerialize(values))
@@ -516,7 +544,7 @@ elseif scenario=="crowd" then
     send(snapshot("integration",1,{"sa_integration_2"})); assert(not users["900001"] and leaves==1)
     send(snapshot("production",2)); assert(not users["900002"] and leaves==2)
 elseif scenario=="invalid" then
-    addUser(1); send(snapshot()); send({version=2,type="command",text="error()"}); assert(count()==0)
+    addUser(1); send(snapshot()); send({version=3,type="command",text="error()"}); assert(count()==0)
     send(hearts()); local ob=active(); send(hearts()); assert(count()==1 and active()==ob, "duplicate must not recreate or extend effects")
     callbacks.websocket("other_socket","OnClose","",""); tick(); assert(count()==1)
 elseif scenario=="missing-image" then
@@ -543,15 +571,15 @@ elseif scenario=="density-rotation" then
     for _,ob in ipairs(objects) do if not ob.removed then assert(not first[ob.x],"density must rotate across all eligible users") end end
 elseif scenario=="same-snapshot" then
     addUser(1); send(snapshot()); send(hearts()); local ob=active(); send(snapshot()); assert(active()==ob and not ob.removed)
-elseif scenario=="new-session" then
-    addUser(1); send(snapshot()); send(hearts()); local value=snapshot(); value.session.sessionId="next"; send(value); assert(count()==0)
+elseif scenario=="new-campaign" then
+    addUser(1); send(snapshot()); send(hearts()); local value=snapshot(); value.campaign.campaignId="next"; send(value); assert(count()==0)
 elseif scenario=="stale-control" then
     addUser(1); send(snapshot("integration",2)); send(hearts("current",2)); local ob=active()
-    send({version=2,type="clear",mode="integration",generation=1}); assert(active()==ob and not ob.removed)
+    send({version=3,type="clear",mode="integration",generation=1}); assert(active()==ob and not ob.removed)
     send(snapshot("integration",1)); assert(active()==ob and not ob.removed)
 elseif scenario=="stop" then
     send(snapshot("integration",1,{"sa_integration_1"})); send(hearts()); assert(count()==1)
-    send({version=2,type="clear",mode="production",generation=2}); assert(count()==0 and not users["900001"])
+    send({version=3,type="clear",mode="production",generation=2}); assert(count()==0 and not users["900001"])
 elseif scenario=="close-open-race" then
     addUser(1); send(snapshot()); send(hearts()); assert(count()==1)
     callbacks.websocket("sa_helper_bridge","OnClose","",""); callbacks.websocket("sa_helper_bridge","OnOpen","","")
@@ -568,10 +596,10 @@ elseif scenario=="backoff" then
     tick(29.99); assert(connectedCount==6); tick(0.02); assert(connectedCount==7)
     tick(29.99); assert(connectedCount==7); tick(0.02); assert(connectedCount==8)
 elseif scenario=="mailbox-burst" then
-    addUser(1); raw(codec.encode(snapshot())); raw(codec.encode(hearts())); raw(codec.encode({version=2,type="clear",mode="production",generation=2})); tick(); assert(count()==0)
+    addUser(1); raw(codec.encode(snapshot())); raw(codec.encode(hearts())); raw(codec.encode({version=3,type="clear",mode="production",generation=2})); tick(); assert(count()==0)
     raw(codec.encode(snapshot("integration",3))); raw(codec.encode(hearts("later",3))); tick(); assert(count()==1)
 elseif scenario=="mailbox-overflow" then
-    addUser(1); send(snapshot()); send(hearts()); for i=1,33 do raw(codec.encode({version=2,type="heartbeat",serverNowMs=1000})) end
+    addUser(1); send(snapshot()); send(hearts()); for i=1,33 do raw(codec.encode({version=3,type="heartbeat",serverNowMs=1000})) end
     tick(); assert(count()==0 and shared.sa_connected==false and removals>=2)
 elseif scenario=="malformed-json" then
     addUser(1); send(snapshot()); raw('{broken'); raw('null'); raw('42'); raw('["command"]'); tick(); assert(count()==0)
@@ -580,13 +608,13 @@ elseif scenario=="invalid-snapshot" then
     addUser(1); local bad=snapshot(); bad.serverNowMs="invalid"; send(bad); send(hearts()); assert(count()==0)
     bad=snapshot(); bad.integration.crowdIds={"arbitrary-user"}; send(bad); send(hearts("fractional")); assert(count()==0)
     send(snapshot()); send(hearts("good")); assert(count()==1)
-elseif scenario=="wrong-session" then
-    addUser(1); send(snapshot()); local value=hearts(); value.sessionId="wrong"; send(value); assert(count()==0)
+elseif scenario=="wrong-campaign" then
+    addUser(1); send(snapshot()); local value=hearts(); value.campaignId="wrong"; send(value); assert(count()==0)
 elseif scenario=="heartbeat-expiry" then
-    addUser(1); send(snapshot()); send({version=2,type="heartbeat",serverNowMs=20000}); send(hearts()); assert(count()==0)
-elseif scenario=="elapsed-state" then
-    addUser(1); local value=snapshot(); value.elapsedMs=25200000; send(value); send(hearts()); assert(count()==1)
-    value.elapsedMs=300000; send(value); tick(5); assert(count()==0)
+    addUser(1); send(snapshot()); send({version=3,type="heartbeat",serverNowMs=20000}); send(hearts()); assert(count()==0)
+elseif scenario=="campaign-state" then
+    addUser(1); local value=snapshot(); value.campaign.totalCents=25200000;value.campaign.nextMilestoneCents=25250000; send(value); send(hearts()); assert(count()==1)
+    value.campaign.totalCents=300000;value.campaign.nextMilestoneCents=350000; send(value); tick(5); assert(count()==0)
 elseif scenario=="crowd-no-extra-config" then
     addUser(42); send(snapshot("integration",1,{"sa_integration_1"})); assert(users["900001"] and users["42"] and leaves==0)
 elseif scenario=="resized-bounds" then
@@ -602,6 +630,6 @@ elseif scenario=="reload" then
     send(snapshot("integration",1,{"sa_integration_3"})); assert(users["900003"] and #shared.sa_owned_ids==1)
 elseif scenario=="wire-contract" then
     local file=assert(io.open(arg[3],"rb")); local message=file:read("*a"); file:close(); raw(message); tick(); assert(packets[#packets].type=="ready")
-    addUser(1); local event=hearts(); event.sessionId="session_é"; send(event); assert(count()==1)
+    addUser(1); local event=hearts(); event.campaignId="session_é"; send(event); assert(count()==1)
 else error("unknown scenario") end
 if nativeNull then nativeNull:close() end;print("OK "..scenario)

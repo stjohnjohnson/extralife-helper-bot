@@ -116,7 +116,13 @@ function buildPackage({ integrationDir = DEFAULT_INTEGRATION_DIR } = {}) {
     const marker = 'local HEART_WIDTH, HEART_HEIGHT = 32, 32';
     if (!source.includes(marker)) throw new Error('Companion image-dimension marker is missing');
     const heart = scriptImages.sa_heart;
-    add(`${scriptPath}${SCRIPT_NAME}.lua`, Buffer.from(source.replace(marker, `local HEART_WIDTH, HEART_HEIGHT = ${heart.width}, ${heart.height}`)));
+    let lua = source.replace(marker, `local HEART_WIDTH, HEART_HEIGHT = ${heart.width}, ${heart.height}`);
+    if (scriptImages.sa_raised) {
+        const captionMarker = 'local RAISED_WIDTH = 143';
+        if (!source.includes(captionMarker)) throw new Error('Companion caption-dimension marker is missing');
+        lua = lua.replace(captionMarker, `local RAISED_WIDTH = ${scriptImages.sa_raised.width}`);
+    }
+    add(`${scriptPath}${SCRIPT_NAME}.lua`, Buffer.from(lua));
 
     const command = {
         name: SCRIPT_NAME, scriptName: SCRIPT_NAME, enabled: true, showInEditor: true,

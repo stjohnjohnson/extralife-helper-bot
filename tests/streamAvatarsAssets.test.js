@@ -31,7 +31,7 @@ test('gold confetti keeps a visible paper face throughout its tumble',()=>{
     }
 });
 
-test.each([['sa_separator', ' - '], ['sa_from', ' FROM '], ['sa_donations', ' DONATIONS - ']])('fixed recognition phrase %s has the expected dimensions', (name, text) => {
+test.each([['sa_separator', ' - '], ['sa_from', ' FROM '], ['sa_donations', ' DONATIONS - '], ['sa_raised', ' RAISED!']])('fixed recognition phrase %s has the expected dimensions', (name, text) => {
     const manifest = JSON.parse(fs.readFileSync(`integrations/stream-avatars/assets/${name}.json`));
     expect(manifest).toMatchObject({ name, frameWidth: text.length * 18 - 1, frameHeight: 23, frames: 1, transparent: true });
 });

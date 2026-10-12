@@ -39,7 +39,7 @@ function generateAssets(directory = resolve(__dirname, '../integrations/stream-a
         fs.writeFileSync(join(directory, name + '.json'), JSON.stringify({ name, file: name + '.png', frameWidth, frameHeight: image.height, frames, rows: 1, framesPerSecond: fps, loop: true, transparent: true }, null, 2) + '\n');
     }
     for (let i=0;i<10;i++) save('sa_digit_' + i, caption(String(i)));
-    for (const [name,text] of Object.entries({ sa_separator: ' - ', sa_from: ' FROM ', sa_donations: ' DONATIONS - ', sa_dollar: '$', sa_comma: ',', sa_dot: '.', sa_thanks: 'THANK YOU!', sa_raised: ' RAISED THIS STREAM!', sa_goal: 'EXTRA LIFE GOAL REACHED!' })) save(name, caption(text));
+    for (const [name,text] of Object.entries({ sa_separator: ' - ', sa_from: ' FROM ', sa_donations: ' DONATIONS - ', sa_dollar: '$', sa_comma: ',', sa_dot: '.', sa_thanks: 'THANK YOU!', sa_raised: ' RAISED!', sa_goal: 'EXTRA LIFE GOAL REACHED!' })) save(name, caption(text));
     const confetti = new PNG({ width: 32, height: 8 });
     // Broad paper faces throughout the tumble; no synchronized one-pixel edge frames.
     const faces = [
