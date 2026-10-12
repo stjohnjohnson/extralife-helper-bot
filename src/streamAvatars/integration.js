@@ -71,7 +71,7 @@ async function runIntegration({ listenerConfig, token, crowdCount = 20, scenario
                 if (!service.getStatus().themeReady) throw new Error('Theme companion disconnected before preview');
                 const preview = await service.previewGame(focusedTheme);
                 if (preview.changed && !preview.delivered) throw new Error('Theme preview was not dispatched');
-                logger.info(`Theme preview ${theme || game}: dispatched; verify scenery and caption visually.`);
+                logger.info(`Theme preview ${theme || game}: dispatched; verify scenery and the entrance jump visually.`);
             }
             for (const [index,cents] of item.gifts.entries()) donations.push(gift(item.name + '-' + index,cents));
             campaign.sumDonations = item.totalCents / 100;
@@ -93,7 +93,7 @@ async function runIntegration({ listenerConfig, token, crowdCount = 20, scenario
                 check(); if (!service.getStatus().themeReady) throw new Error('Theme companion disconnected before preview');
                 const result = await service.previewGame(step);
                 if (result.changed && !result.delivered) throw new Error('Theme preview was not dispatched');
-                logger.info(`Theme preview ${step.theme || step.gameName}: dispatched; verify scenery and caption visually.`);
+                logger.info(`Theme preview ${step.theme || step.gameName}: dispatched; verify scenery and the entrance jump visually.`);
                 await wait(6500); check();
                 if (!service.getStatus().themeReady) throw new Error('Theme companion disconnected before preview completed');
                 completedScenarios.push(step.theme || step.gameName);

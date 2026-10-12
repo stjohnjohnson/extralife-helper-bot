@@ -41,10 +41,10 @@ app.platformServiceSettings = {
     SetUserLeave = function(id) assert(type(id)=="number" and id>=900001 and id<=900100); users[tostring(id)] = nil; leaves = leaves+1 end
 }
 app.createGameObject = function()
-    local ob; ob = { removed = false, scale = 1, image = { anchor = function(where,dimensions) assert(where=="center" and dimensions==true); ob.anchored=true end, sorting = function(value,layer) assert(value==0 or value==1 or value==2); assert(layer=="behindBackground" or layer=="background"); if scenario=="theme-prop-sorting-error" and ob.name:find("scenery_one") then error("private native sorting failure") end; ob.layer=layer; ob.order=value end }, text = { setText = function(value) assert(type(value)=="string"); if scenario=="entrance-caption-error" then error("caption unavailable") end; ob.caption=value end, setSize = function(value) assert(type(value)=="number" and value>0); ob.fontSize=value end } }
+    local ob; ob = { removed = false, scale = 1, image = { anchor = function(where,dimensions) assert(where=="center" and dimensions==true); ob.anchored=true end, sorting = function(value,layer) assert(value==0 or value==1 or value==2); assert(layer=="behindBackground" or layer=="background"); if scenario=="theme-prop-sorting-error" and ob.name:find("scenery_one") then error("private native sorting failure") end; ob.layer=layer; ob.order=value end }, text = { setText = function(value) assert(type(value)=="string"); ob.caption=value end, setSize = function(value) assert(type(value)=="number" and value>0); ob.fontSize=value end } }
     local initialScaleFailure=scenario=="theme-prop-initial-scale-error" and #objects==4
     ob.setScale = function(x,y) assert(x==y); if initialScaleFailure and x==0 and not ob.name then error("private initial scale failure") end; if scenario=="theme-prop-scale-error" and x>0 and ob.name and ob.name:find("scenery_one") then error("private native scale failure") end; ob.scale=x end
-    ob.setPosition = function(x,y) if scenario=="theme-prop-position-error" and ob.name and ob.name:find("scenery_one") then error("private native position failure") end; if scenario=="entrance-position-error" and ob.caption then error("caption position unavailable") end; assert(not ob.removed and type(x)=="number" and type(y)=="number" and x==x and y==y and math.abs(x)<math.huge and math.abs(y)<math.huge); ob.x=x; ob.y=y end
+    ob.setPosition = function(x,y) if scenario=="theme-prop-position-error" and ob.name and ob.name:find("scenery_one") then error("private native position failure") end; assert(not ob.removed and type(x)=="number" and type(y)=="number" and x==x and y==y and math.abs(x)<math.huge and math.abs(y)<math.huge); ob.x=x; ob.y=y end
     ob.destroy = function() ob.removed=true end
     objects[#objects+1]=ob; return ob
 end
@@ -255,6 +255,26 @@ if themeScenario then
         send(celebration());tick();assert(assetCount("sa_heart")==1 and #captions()==0 and jumps==1)
         print("OK "..scenario);return
     end
+    if scenario=="theme-no-game-title" then
+        local textCalls=0
+        local create=app.createGameObject
+        app.createGameObject=function()
+            local ob=create()
+            ob.text.setText=function(value) textCalls=textCalls+1; ob.caption=value end
+            return ob
+        end
+        send(themed()); tick(); local original=themeObject()
+        send(entranceEvent()); assert(themes()==8 and jumps==1 and #objects==8 and textCalls==0, "game entrance must jump without allocating or displaying title text")
+        local value=themed(string.rep("c",64)); value.theme.gameName="PlateUp! 🚀 <size=900>"; send(value); send(entranceEvent("shared",value))
+        assert(themeObject()==original and jumps==2 and #objects==8 and textCalls==0, "shared-theme game must keep scenery and jump without title text")
+        value=themed(string.rep("d",64),nil,"kitchen"); value.theme.gameName="kitchen"; send(value); tick(); send(entranceEvent("kitchen",value))
+        assert(themes()==8 and jumps==3 and #objects==16 and textCalls==0, "theme switch must replace scenery without a title object")
+        send(celebration()); tick()
+        assert(captionText()=="$25 - THANK YOU!" and assetCount("sa_heart")==1 and textCalls==0, "removing game titles must preserve bitmap donation captions and hearts")
+        value=themed(string.rep("e",64)); value.theme.themeId=nil; value.theme.gameName="Just Chatting"; send(value); send(entranceEvent("neutral",value))
+        assert(themes()==0 and #captions()==0 and textCalls==0 and captionText()=="$25 - THANK YOU!", "neutral must clear scenery without title text or clearing donation captions")
+        print("OK "..scenario);return
+    end
     if scenario=="theme-no-native-gear" then
         local nativeGearCalls=0
         local function forbiddenGear()
@@ -267,7 +287,7 @@ if themeScenario then
         end
         guard(users["1"])
         send(themed()); tick(); assert(themes()==8 and nativeGearCalls==0, "legacy gear metadata must never invoke native gear APIs")
-        send(entranceEvent()); assert(#captions()==1 and jumps==1)
+        send(entranceEvent()); assert(#captions()==0 and jumps==1)
         send(celebration()); tick(); local heart
         for _,ob in ipairs(objects) do if ob.asset=="sa_heart" and not ob.removed then heart=ob end end
         assert(heart and assetCount("sa_heart")==1, "scenery must preserve donation recognition")
@@ -298,7 +318,7 @@ if themeScenario then
     elseif scenario:match("^theme%-prop%-.+%-error$") then
         tick(); assert(themes()==7, "one failing prop must preserve four backdrops and three props")
         send(entranceEvent()); send(hearts()); tick()
-        assert(#captions()==1 and assetCount("sa_heart")==1 and themes()==7, "component failure must preserve caption and hearts")
+        assert(jumps==1 and #captions()==0 and assetCount("sa_heart")==1 and themes()==7, "component failure must preserve the entrance jump and hearts")
         local function errors(expected)
             local n=0; for _,packet in ipairs(packets) do if packet.type=="diagnostic" then
                 assert(packet.code=="theme-render-error", "placement failure must have its own diagnostic")
@@ -362,7 +382,7 @@ if themeScenario then
             if ob.name:find("backdrop") then assert(math.abs(ob.y-18.75)<0.0001, "center pivot must preserve baseline anchor") end
         end
         if scenario:match("^theme%-density%-") then
-            local n=tonumber(scenario:match("(%d+)$")); send(entranceEvent()); assert(jumps==n and themes()==8 and #captions()==1)
+            local n=tonumber(scenario:match("(%d+)$")); send(entranceEvent()); assert(jumps==n and themes()==8 and #captions()==0)
             for _,user in pairs(users) do assert(user.x==user.id*5 and user.y==20, "world must preserve movement positions") end
         elseif scenario=="theme-kitchen" then
             send(themed(string.rep("c",64),nil,"kitchen")); tick(); assert(themes()==8)
@@ -376,7 +396,7 @@ if themeScenario then
             app.convertPercentToPosition=function(x,y) return {x=-100+x*777,y=-20+y*200} end; tick(); assert(themes()==8 and #objects==8)
             for _,ob in ipairs(objects) do assert(math.abs(ob.x-(-100+before[ob]*777/1000))<0.0001); assert(math.abs(ob.scale-777/1920)<0.0001) end
         elseif scenario=="theme-heart-coexistence" then
-            send(hearts()); assert(count()==9); send(entranceEvent()); assert(count()==9 and #captions()==1); tick(5.1); tick(); assert(themes()==8 and count()==8 and #captions()==1); tick(1); tick(); assert(themes()==8 and #captions()==0)
+            send(hearts()); assert(count()==9); send(entranceEvent()); assert(count()==9 and #captions()==0); tick(5.1); tick(); assert(themes()==8 and count()==8 and #captions()==0); tick(1); tick(); assert(themes()==8 and #captions()==0)
         elseif scenario=="theme-reconnect-no-entrance" then
             assert(jumps==0 and #captions()==0); send(entranceEvent()); assert(jumps==1); callbacks.websocket("sa_helper_bridge","OnClose","",""); tick(); assert(themes()==0 and #captions()==0); tick(1.1); send(themed()); tick(); assert(themes()==8 and jumps==1 and #captions()==0)
         elseif scenario=="theme-native-null-recognition" or scenario=="theme-native-null-party" then
@@ -390,9 +410,9 @@ if themeScenario then
             send(entranceEvent("obsolete"));assert(#captions()==0 and jumps+dances==actions, "cleared snapshot must reject old entrance")
         elseif scenario=="theme-native-null-repeated-neutral" then
             local value=themed();value.theme.themeId=codec.null;value.theme.gameName="Just Chatting"
-            send(value);send(entranceEvent("neutral",value));local caption=captions()[1];assert(caption and themes()==0 and jumps==1)
-            for _=1,3 do send(value);tick(0.2);assert(captions()[1]==caption and not caption.removed and jumps==1, "unchanged native-null neutral snapshots must retain the entrance caption") end
-            tick(6);tick();assert(#captions()==0 and jumps==1, "neutral caption must expire without replay")
+            send(value);send(entranceEvent("neutral",value));assert(#captions()==0 and themes()==0 and jumps==1)
+            for _=1,3 do send(value);tick(0.2);assert(#captions()==0 and jumps==1, "unchanged native-null neutral snapshots must not add titles or replay the entrance") end
+            tick(6);tick();assert(#captions()==0 and jumps==1, "neutral entrance must not replay")
         elseif scenario=="theme-wire-neutral" then
         local value=themed(); value.theme.themeId=codec.null; send(value); assert(themes()==0, "native JSON null must clear theme")
     elseif scenario=="theme-donation-jump" or scenario=="theme-donation-hug" or scenario=="theme-donation-party" then
@@ -400,7 +420,7 @@ if themeScenario then
         local gift=celebration(scenario=="theme-donation-party" and "milestone" or "donation")
         if scenario=="theme-donation-hug" then gift.recognitionAction="hug" end
         raw(codec.encode(entranceEvent())); raw(codec.encode(gift)); tick()
-        assert(themes()==8 and #captions()==1, "donation must preserve world and entrance caption")
+        assert(themes()==8 and #captions()==0, "donation must preserve scenery without adding a game title")
         if scenario=="theme-donation-jump" then assert(jumps==2, "same-frame entrance and donation must jump each avatar only once")
         elseif scenario=="theme-donation-hug" then assert(jumps==0 and #hugs==1, "entrance must defer to donation hug ownership")
         else assert(jumps==0 and dances==2, "entrance must defer to donation party ownership") end
@@ -408,10 +428,10 @@ if themeScenario then
             local value=themed(); value.mode="production"; value.integration.active=false; send(value); assert(themes()==0, "candidate must never render in production")
             value=themed(); value.integration.active=false; send(value); assert(themes()==0, "candidate requires active rehearsal")
         elseif scenario=="theme-revision" then
-            send(entranceEvent()); assert(#captions()==1); send(themed(nil,string.rep("d",64))); assert(themes()==0 and #captions()==0, "theme revision must cancel entrance"); send(themed()); tick(); assert(themes()==8 and #objects==17)
+            send(entranceEvent()); assert(#captions()==0); send(themed(nil,string.rep("d",64))); assert(themes()==0 and #captions()==0, "theme revision must cancel entrance"); send(themed()); tick(); assert(themes()==8 and #objects==16)
         elseif scenario=="theme-scope-cancellation" then
             for _,change in ipairs({"clear","mode","session","disconnect"}) do
-                send(themed()); tick(); send(entranceEvent(change)); assert(#captions()==1)
+                send(themed()); tick(); send(entranceEvent(change)); assert(#captions()==0)
                 if change=="clear" then send({version=3,type="clear",mode="integration",generation=1})
                 elseif change=="mode" then local value=snapshot("production"); send(value)
                 elseif change=="session" then local value=snapshot(); value.campaign.campaignId="next"; send(value)
@@ -419,56 +439,33 @@ if themeScenario then
                 assert(themes()==0 and #captions()==0, "scope cancellation must clear theme and entrance")
             end
         elseif scenario=="entrance-timing" then
-            send(entranceEvent()); assert(#captions()==1 and jumps==1); send(entranceEvent()); assert(jumps==1)
-            tick(5.8); tick(); assert(#captions()==1); tick(0.3); tick(); assert(#captions()==0 and themes()==8)
-            local expired=entranceEvent("expired"); expired.issuedAtMs=0; expired.expiresAtMs=10000; send({version=3,type="heartbeat",serverNowMs=10000}); send(expired); assert(jumps==1)
-        elseif scenario=="entrance-bounds-failure-expiry" then
-            send(entranceEvent()); local captionObject=captions()[1]
-            assert(captionObject and jumps==1, "entrance must be active before bounds fail")
+            send(entranceEvent()); assert(#captions()==0 and jumps==1); send(entranceEvent()); assert(jumps==1)
+            tick(6.1); tick(); assert(#captions()==0 and themes()==8 and jumps==1)
+            -- An admitted action must not run if the native render loop resumes too late.
+            send(themed()); raw(codec.encode(entranceEvent("delayed"))); tick(0); tick(6.1)
+            assert(jumps==1, "pending entrance jump must expire after six seconds")
+            local expired=entranceEvent("expired"); expired.issuedAtMs=0; expired.expiresAtMs=10000; send({version=3,type="heartbeat",serverNowMs=20000}); send(expired); assert(jumps==1)
+        elseif scenario=="entrance-bounds-failure" then
+            send(entranceEvent()); assert(#captions()==0 and jumps==1, "entrance must jump without title text before bounds fail")
             local convert=app.convertPercentToPosition
             app.convertPercentToPosition=function() error("native bounds unavailable") end
             for _=1,70 do tick(0.1) end
-            assert(captionObject.removed and #captions()==0, "repeated native bounds failure must not prevent six-second caption expiry")
+            assert(#captions()==0 and jumps==1, "bounds failure must not create titles or repeat entrance actions")
             send({version=3,type="heartbeat",serverNowMs=9000})
             assert(packets[#packets].type=="heartbeat", "bounds failure must preserve heartbeat transport")
             app.convertPercentToPosition=convert; send(themed()); tick()
-            assert(themes()==8 and #captions()==0 and jumps==1, "bounds recovery must restore world without replaying expired entrance")
+            assert(themes()==8 and #captions()==0 and jumps==1, "bounds recovery must restore world without replaying entrance")
         elseif scenario=="entrance-obsolete" then
             local value=entranceEvent(); value.gameIdentity=string.rep("c",64); send(value); assert(jumps==0)
             value=entranceEvent(); value.themeId="kitchen"; send(value); assert(jumps==0)
             value=entranceEvent(); value.campaignId="wrong"; send(value); assert(jumps==0)
             value=entranceEvent(); value.generation=0; send(value); assert(jumps==0)
-        elseif scenario=="entrance-caption" then
-            local value=themed(); value.theme.gameName="<size=900>"..string.rep("遊",70).."</size>"; send(value); send(entranceEvent(nil,value))
-            assert(#captions()==1); local text=captions()[1].caption; assert(not text:find("[<>]") and text:sub(-3)=="…", "caption must remove markup brackets and truncate without splitting UTF-8")
-            assert(#text<200 and not text:find("\239\191\189"))
-        elseif scenario=="entrance-unicode" then
-            local cases={
-                {"遊戲世界 ゼルダの伝説", "遊戲世界 ゼルダの伝説"}, {"Space 🚀 Party 🎉", "Space 🚀 Party 🎉"},
-                {string.rep("😀",70), string.rep("😀",47).."…"}, {"世丟似佾", "世丟似佾"},
-                {"A"..string.char(0,10,127).."<>B", "AB"}, {"A"..string.char(224,128,128).."B", "AB"},
-                {"A"..string.char(237,160,128).."B", "AB"}, {"A"..string.char(244,144,128,128).."B", "AB"}
-            }
-            for i,c in ipairs(cases) do local value=themed(); value.theme.gameName=c[1]; send(value); send(entranceEvent("unicode"..i,value)); assert(captions()[1].caption==c[2], "caption must preserve complete Unicode scalars and remove only invalid scalars/ASCII controls/angles") end
         elseif scenario=="entrance-neutral" then
-            local value=themed(); value.theme.themeId=nil; value.theme.gameName="Just Chatting"; send(value); send(entranceEvent(nil,value)); assert(themes()==0 and #captions()==1 and captions()[1].caption=="Just Chatting" and jumps==1)
-        elseif scenario=="entrance-caption-error" then
-            send(hearts()); send(entranceEvent()); assert(themes()==8 and count()==9 and jumps==0, "caption failure must preserve other owners")
-            assert(objects[#objects].removed, "failed caption must be destroyed")
-            send({version=3,type="heartbeat",serverNowMs=1200}); assert(packets[#packets].type=="heartbeat")
-        elseif scenario=="entrance-position-error" then
-            send(hearts()); local heart=objects[#objects]; send(entranceEvent())
-            assert(themes()==8 and count()==9 and #captions()==0 and jumps==1, "caption position failure must preserve world and hearts")
-            for i=1,8 do assert(not objects[i].removed, "caption position failure must preserve existing scenery objects") end
-            assert(objects[#objects].removed, "failed caption position must destroy only the caption")
-            assert(packets[#packets].code=="render-error", "caption position failure must report its diagnostic")
-            send({version=3,type="heartbeat",serverNowMs=1200}); assert(packets[#packets].type=="heartbeat")
-            app.convertPercentToPosition=function(x,y) return {x=-100+x*777,y=-20+y*200} end; tick()
-            assert(themes()==8 and count()==9 and not heart.removed and #objects==10, "caption position failure must not recreate or lose other owners")
-            for i=1,8 do assert(math.abs(objects[i].scale-777/1920)<0.0001, "world must continue rendering after caption failure") end
+            local value=themed(); value.theme.themeId=nil; value.theme.gameName="Just Chatting"; send(value); send(entranceEvent(nil,value)); assert(themes()==0 and #captions()==0 and jumps==1)
         elseif scenario=="entrance-supersession" then
-            send(entranceEvent()); local old=captions()[1]; local value=themed(string.rep("c",64)); value.theme.gameName="Next Game"; send(value); assert(old.removed and #captions()==0)
-            send(entranceEvent("new",value)); assert(#captions()==1 and captions()[1].caption=="Next Game" and jumps==2 and themes()==8)
+            raw(codec.encode(entranceEvent())); local value=themed(string.rep("c",64)); value.theme.gameName="Next Game"; raw(codec.encode(value)); tick()
+            assert(#captions()==0 and jumps==0 and themes()==8, "game switch must cancel an unconsumed entrance jump")
+            send(entranceEvent("new",value)); assert(#captions()==0 and jumps==1 and themes()==8)
         end
     end
 elseif scenario=="phase-ordered" then

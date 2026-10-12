@@ -1,6 +1,6 @@
 # Stream Avatars scenery theme review and acceptance
 
-The user's October 12 design decision removes hats and keeps background events. Active scope is **30 unapproved scenery designs: 24 props and six backdrops**. Each game change retains the welcoming jump and compact caption. Default packaging preserves all 22 campaign images; a scenery candidate package contains 52 script PNGs. Production still requires explicit art approval and checksum-bound native image import proofs. No push or pull request is authorized yet.
+The user's October 12 design decision removes hats and keeps background events. Active scope is **30 unapproved scenery designs: 24 props and six backdrops**. Each game change retains the welcoming jump; game/theme title text is removed. Default packaging preserves all 22 campaign images; a scenery candidate package contains 52 script PNGs. Production still requires explicit art approval and checksum-bound native image import proofs. No push or pull request is authorized yet.
 
 ## Review artifacts and exact revision
 
@@ -9,7 +9,7 @@ Ignored local artifacts remain in the prepared review workspace:
 - [Scenery-only native ZIP](../reports/stream-avatars-artwork/scenery-preview.zip), [portable catalog](../reports/stream-avatars-artwork/scenery-preview-pack/catalog.json) and [explicit thirty-attempt input map](../reports/stream-avatars-artwork/reviewed-scenery-candidate-manifest.json).
 - [Source/version/feedback gallery](../reports/stream-avatars-artwork/gallery/task6a-review.html) and [six existing reference scenes](../reports/stream-avatars-artwork/review-ready-previews/index.html). These retained historical reviews also include retired hats, clearly outside active scope.
 
-The scenery pack revision is `5e17bac3e480d569591640a6127bf21cb2b6a8384144c1a6076d9a4ebbf037dc`. Its thirty attempt IDs, image hashes and PNG bytes match the exact retained scenery subset of the older pack. There are no gear/compatibility files or catalog gear entries. The final scenery ZIP SHA256 is `145b662d089f6413c1a837219ac872da64916e76cabc6242d2acfa3b4c9f406c`; packaged Lua SHA256 is `e5fa88937c2c3c0d987976b754910825b4457bcf8a6d040da09eb64978f6d8c5`. A deterministic rebuild matched all 55 entries / 52 PNGs, with no gear or avatar entries. Build/import commands are in [setup](stream-avatars-setup.md#candidate-import-and-matching-integration-runner). The thirty designs remain unapproved, with zero selections.
+The scenery pack revision is `5e17bac3e480d569591640a6127bf21cb2b6a8384144c1a6076d9a4ebbf037dc`. Its thirty attempt IDs, image hashes and PNG bytes match the exact retained scenery subset of the older pack. There are no gear/compatibility files or catalog gear entries. The final scenery ZIP SHA256 is `b364d6c4fca7929aeb7250b12a57f9fbf21c9328163e7396911935d77b008543`; packaged Lua SHA256 is `303f6301202e66dc7cef6e036bf0aae3c7baa27238f10db107a3d8a79bed8f19`. A deterministic rebuild matched all 55 entries / 52 PNGs, with no gear or avatar entries. Build/import commands are in [setup](stream-avatars-setup.md#candidate-import-and-matching-integration-runner). The thirty designs remain unapproved, with zero selections.
 
 Placement remains a 1920px reference width, 120px band, 4px baseline offset, four literal 480×64 backdrop repeats and four sparse props per theme. Backdrop visible height is bounded to 40px, top four rows are transparent and the bottom base has alpha ≥128. Guide silhouettes and stream screenshots are composition references. Alpha/seam warnings remain for visual review; no image regeneration or source repair occurred during hat removal.
 
@@ -38,16 +38,18 @@ After explicit user approval, record exact selections and genuine checksum-bound
 
 ## Acceptance evidence
 
-Final Node 24.21.0 / Lua 5.4.9 verification passed `npm run lint` and the complete `npm test -- --runInBand`: **61 suites / 1,320 tests**. The separate native companion/protocol suite passed **284 tests** under Lua 5.4 and Lua 5.2. Removed hat-only tests accompany removal of their feature; scenery, donation and production-proof checks remain active.
+Final Node 24.21.0 / Lua 5.4.9 verification passed `npm run lint` and the complete `npm test -- --runInBand`: **61 suites / 1,315 tests**. The separate companion/protocol suite passed **279 tests** under Lua 5.2.4; all 232 companion tests also passed under Lua 5.4.9. Retired hat/title-only tests accompany removal of those features; replacement regressions cover zero native title calls/objects, shared-theme continuity, entrance deadlines/supersession and preserved donation bitmap captions. Scenery, donation and production-proof checks remain active.
 
-After the final package was installed and F5 reloaded the companion, a real local `themes` run with 20 viewers completed all ten steps with exit 0 and no diagnostic. The visible Minecraft scene showed continuous backdrop and props behind ordinary avatars, with no added hats. This is local visual evidence, not acceptance of every theme's joins, clipping, LAN/OBS geometry or dense performance.
+Before title removal, a real local `themes` run with 20 viewers completed all ten steps with exit 0 and no diagnostic. The visible Minecraft scene showed continuous backdrop and props behind ordinary avatars, with no added hats. This is local visual evidence, not acceptance of every theme's joins, clipping, LAN/OBS geometry or dense performance.
+
+The title-free companion was installed with private connection settings preserved and F5 reloaded on macOS build 25831299. Focused kitchen/ordinary and kitchen/large previews with 20 viewers dispatched successfully. A live kitchen view showed the continuous backdrop and props behind ordinary avatars with no game title. This checks title removal locally; full art and OBS acceptance remains pending. The prior title-bearing scenery/default archives were preserved in ignored `history/before-title-removal-145b662d089f.zip` and `history/before-title-removal-de8ca0ef569f.zip`.
 
 | Criterion | Executable evidence | Real-environment acceptance |
 | --- | --- | --- |
 | Detection, actual game names, aliases, streamed-category priority and neutral | Themes/session/state/integration tests | Manual Twitch category changes with background Realm running |
-| Scenery change, compact caption and welcoming jump | Protocol/events/companion entrance tests | Crowd jump, native glyphs/width and world switch |
+| Scenery change and welcoming jump without game title text | Protocol/events/companion entrance tests | Crowd jump, title-free view and world switch |
 | Sparse transparent bottom-strip scenery | Shared layout, PNG/alpha/geometry and literal repeats | Tile joins, sort order, clipping and measured OBS geometry |
-| Same-theme games retain world with a new entrance | State/events/integration and owner-continuity tests | Raft → PEAK scenery continuity with a new caption/jump |
+| Same-theme games retain world with a new entrance | State/events/integration and owner-continuity tests | Raft → PEAK scenery continuity with a new jump and no title |
 | Donation/campaign and chapter owners remain independent | Owner cleanup, accounting and celebration tests | Confirm clear/reconnect does not remove unrelated decorations |
 | Reconnect/restart restores without replay | Stores/lifecycle/server/companion tests | Socket reconnect, F5 and restarts in the native scene |
 | Missing images fail visibly; small/dense crowds remain bounded | Package/renderer/runner diagnostics and geometry tests | 0/1/20/100 viewers, missing imports, resized bounds and frame time |

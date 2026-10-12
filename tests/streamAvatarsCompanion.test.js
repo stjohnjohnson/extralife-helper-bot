@@ -97,7 +97,7 @@ test.each(['donation','milestone','goal','hidden','goal-only'])('Lua renders act
 
 const { buildThemeCatalog, buildThemeLayout } = require('../src/streamAvatars/themeLayout');
 const { candidate } = require('./fixtures/themeCandidates');
-const themeScenarios = ['entrance-bounds-failure-expiry', 'theme-prop-initial-scale-error', 'theme-native-background', 'theme-prop-position-error', 'theme-prop-sorting-error', 'theme-prop-scale-error', 'theme-native-null-auth', 'theme-native-null-recognition', 'theme-native-null-party', 'theme-native-null-repeated-neutral', 'theme-donation-jump', 'theme-donation-hug', 'theme-donation-party', 'theme-wire-neutral', 'theme-stale-load', 'theme-shared-game', 'theme-neutral', 'theme-missing-backdrop', 'theme-missing-prop', 'theme-backdrop-timeout', 'theme-resize', 'theme-small-bounds', 'theme-heart-coexistence', 'theme-reconnect-no-entrance', 'theme-production-gate', 'theme-revision', 'theme-load-timeout', 'theme-pending-cap', 'theme-scope-cancellation', 'entrance-timing', 'entrance-obsolete', 'entrance-caption', 'entrance-neutral', 'entrance-supersession', 'theme-density-0', 'theme-density-20', 'theme-density-100', 'theme-kitchen', 'entrance-caption-error', 'entrance-position-error', 'entrance-unicode'];
+const themeScenarios = ['theme-no-game-title', 'entrance-bounds-failure', 'theme-prop-initial-scale-error', 'theme-native-background', 'theme-prop-position-error', 'theme-prop-sorting-error', 'theme-prop-scale-error', 'theme-native-null-auth', 'theme-native-null-recognition', 'theme-native-null-party', 'theme-native-null-repeated-neutral', 'theme-donation-jump', 'theme-donation-hug', 'theme-donation-party', 'theme-wire-neutral', 'theme-stale-load', 'theme-shared-game', 'theme-neutral', 'theme-missing-backdrop', 'theme-missing-prop', 'theme-backdrop-timeout', 'theme-resize', 'theme-small-bounds', 'theme-heart-coexistence', 'theme-reconnect-no-entrance', 'theme-production-gate', 'theme-revision', 'theme-load-timeout', 'theme-pending-cap', 'theme-scope-cancellation', 'entrance-timing', 'entrance-obsolete', 'entrance-neutral', 'entrance-supersession', 'theme-density-0', 'theme-density-20', 'theme-density-100', 'theme-kitchen'];
 function themeSource(extraCatalog = {}) {
     const manifest = candidate();
     for (const asset of Object.values(manifest.assets)) {
@@ -142,8 +142,6 @@ test.each([
     ['entrance-timing', 'and not seen[value.id] and', 'and'],
     ['entrance-obsolete', 'value.themeId==snapshot.theme.themeId', 'true'],
     ['entrance-obsolete', 'value.gameIdentity==snapshot.theme.gameIdentity', 'true'],
-    ['entrance-caption', 'local keep=valid and code>=32 and code~=127 and code~=60 and code~=62', 'local keep=valid'],
-    ['entrance-position-error', 'if not positioned then clearEntrance(); diagnostic("render-error") end', 'if not positioned then clearTheme(); clearEntrance(); diagnostic("render-error") end'],
     ['entrance-supersession', 'then clearEntrance() end', 'then end']
 ])('theme/entrance regression detects mutation %s / %s', (scenario, original, broken) => {
     const result = runTheme(scenario, source => {

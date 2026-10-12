@@ -137,7 +137,7 @@ return function()
         objects = {}; effect = nil
     end
     local function clearEntrance()
-        if entrance then pcall(entrance.object.destroy); entrance=nil end
+        entrance=nil
     end
     local function clearTheme()
         themeLoadToken=themeLoadToken+1
@@ -163,42 +163,9 @@ return function()
         local allowed={ ["block-world"]=true,kitchen=true,outdoor=true,puzzle=true,["space-salvage"]=true,party=true }
         return theme.themeId==nil or (type(json.isnull)=="function" and json.isnull(theme.themeId)) or (type(json.null)~="function" and theme.themeId==json.null) or allowed[theme.themeId]==true
     end
-    local function caption(value)
-        local points, i = {}, 1
-        local nativeUnicode=type(string.unicode)=="function"
-        while i<=#value do
-            local code, width, valid
-            if nativeUnicode then
-                -- Installed MoonSharp strings are UTF16; byte() loses non-ASCII chars.
-                code=string.unicode(value,i); width=1; valid=true
-                if code>=55296 and code<=56319 then
-                    local low=i<#value and string.unicode(value,i+1) or nil
-                    if low and low>=56320 and low<=57343 then width=2 else valid=false end
-                elseif code>=56320 and code<=57343 then valid=false end
-            else
-                -- Standard Lua strings are UTF8 bytes; validate complete scalar sequences.
-                local first=value:byte(i); width=1; code=first; valid=first<128
-                local count=first>=194 and first<=223 and 2 or first>=224 and first<=239 and 3 or first>=240 and first<=244 and 4 or nil
-                if count then
-                    code=first-(count==2 and 192 or count==3 and 224 or 240); valid=true
-                    for j=1,count-1 do local part=value:byte(i+j); if not part or part<128 or part>191 then valid=false; break end; code=code*64+part-128 end
-                    if valid and code>=(count==2 and 128 or count==3 and 2048 or 65536) and code<=1114111 and not (code>=55296 and code<=57343) then width=count else valid=false end
-                end
-            end
-            local keep=valid and code>=32 and code~=127 and code~=60 and code~=62
-            if keep then points[#points+1]=value:sub(i,i+width-1) end
-            i=i+width
-        end
-        if #points<=48 then return table.concat(points) end
-        local short={}; for j=1,47 do short[j]=points[j] end
-        return table.concat(short).."…"
-    end
     local function startEntrance()
         clearEntrance()
-        local object=app.createGameObject(); entrance={object=object,ends=elapsed+6,jumpPending=true}
-        local ok=pcall(function() object.text.setText(caption(snapshot.theme.gameName)); object.text.setSize(24) end)
-        if not ok then clearEntrance(); diagnostic("render-error"); return end
-
+        entrance={ends=elapsed+6}
     end
     local function reconcileCrowd(ids)
         local desired = {}
@@ -498,8 +465,10 @@ return function()
         for id,entry in pairs(heartLayer) do if not liveIds[id] then if entry.object then release(entry) end; heartLayer[id]=nil end end
     end
     local function renderEntranceActions()
-        if not entrance or not entrance.jumpPending then return end
-        entrance.jumpPending=false
+        if not entrance then return end
+        local deadline=entrance.ends
+        clearEntrance()
+        if elapsed>=deadline then return end
         -- Donation recognition/parties own native actions for this frame, including
         -- hug requests whose host state transition has not completed yet.
         if recognition or celebration then return end
@@ -588,18 +557,10 @@ return function()
         end
     end
     local function renderWorld()
-        -- Lifetime cleanup must run even while native bounds conversion fails.
-        if entrance and elapsed>=entrance.ends then clearEntrance() end
         local bottom=app.convertPercentToPosition(0,0); local top=app.convertPercentToPosition(1,1)
         local width,height=top.x-bottom.x,top.y-bottom.y
         local scale=width/REFERENCE_WIDTH
         local fits=number(scale) and number(height) and scale>0 and height>=(BAND_HEIGHT+BASELINE_OFFSET)*scale
-        if entrance then
-            if fits then
-                local positioned=pcall(function() entrance.object.setPosition(bottom.x+width/2,bottom.y+(BAND_HEIGHT+BASELINE_OFFSET)*scale) end)
-                if not positioned then clearEntrance(); diagnostic("render-error") end
-            else clearEntrance() end
-        end
         if not themeLayout then return end
         local components={}
         -- Native background/0 must not occlude the continuous overlay. Both
@@ -643,7 +604,7 @@ return function()
                         else entry.object.setScale(0,0) end
                     end)
                     if not rendered then
-                        -- Discard only this component; captions/hearts and the rest of
+                        -- Discard only this component; hearts and the rest of
                         -- the world keep their independent lifetimes and ownership.
                         pcall(release,entry); entry.skipped=true; themeRenderDiagnostic()
                     end
