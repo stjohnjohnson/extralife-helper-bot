@@ -5,7 +5,7 @@ script_trigger_type = "On Connect"
 local HEART_WIDTH, HEART_HEIGHT = 32, 32
 local RAISED_WIDTH = 143
 local MAX_HEARTS, AVATAR_TOP = 50, 40
-local STATUS_SIZE, STATUS_TIMEOUT = 64, 30
+local STATUS_SIZE, STATUS_SCALE, STATUS_TIMEOUT = 32, 0.5, 30
 -- Only the portable package builder may embed trusted image IDs and geometry.
 -- Empty until explicit candidate packaging or separately gated production promotion.
 local THEME_CATALOG_JSON = nil
@@ -107,6 +107,7 @@ return function()
     local elapsed, serverOffset, updateElapsed = 0, 0, 0
     local retryAt, retryDelay, rotation, wasConnected = 0, 1, 0, false
     local statusImages, lastBridgeAt, statusWarning, statusDisabled = {}, nil, false, false
+    local statusHostId
     local address = settings.address or settings.url
     if type(address)=="string" and (#address==0 or address:find("%s")) then
         log("SA bridge: invalid connection address"); connectionEnabled=false
@@ -140,6 +141,7 @@ return function()
         else set(entry.key,nil); pcall(entry.object.destroy) end
     end
     local function hideStatus()
+        statusHostId=nil
         for _,entry in pairs(statusImages) do if not entry.failed then pcall(entry.object.setScale,0,0) end end
     end
     local function warnStatus()
@@ -189,8 +191,9 @@ return function()
         if not entry then return end
         local half=STATUS_SIZE/2
         local x=math.max(bounds.x+half,math.min(bounds.x+bounds.width-half,pos.x))
-        local y=math.max(bounds.y+half,math.min(bounds.y+bounds.height-half,pos.y+AVATAR_TOP+HEART_HEIGHT+half+8))
-        entry.object.setPosition(x,y); entry.object.setScale(1,1)
+        local y=math.max(bounds.y+half,math.min(bounds.y+bounds.height-half,pos.y+AVATAR_TOP+half))
+        entry.object.setPosition(x,y); entry.object.setScale(STATUS_SCALE,STATUS_SCALE)
+        statusHostId=tostring(host.id)
     end
     local clearCelebration
     local function clearObjects()
@@ -500,7 +503,7 @@ return function()
             local id=tostring(user.id); liveIds[id]=true
             if recognition then
                 local pos=user.getPosition()
-                place(heartLayer,id,"sa_heart",math.max(bounds.x+16,math.min(bounds.x+bounds.width-16,pos.x)),math.max(bounds.y+16,math.min(bounds.y+bounds.height-16,pos.y+AVATAR_TOP+16)),1)
+                place(heartLayer,id,"sa_heart",math.max(bounds.x+16,math.min(bounds.x+bounds.width-16,pos.x)),math.max(bounds.y+16,math.min(bounds.y+bounds.height-16,pos.y+AVATAR_TOP+16)),id==statusHostId and 0 or 1)
             end
             if celebration and not dancing[id] and not pendingDances[id] and not actionAttempts[id] then
                 local ok=pcall(function()
@@ -616,8 +619,17 @@ return function()
             local x=math.max(strip.x+HEART_WIDTH/2,math.min(strip.x+strip.width-HEART_WIDTH/2,pos.x))
             local y=math.max(strip.y+HEART_HEIGHT/2,math.min(strip.y+strip.height-HEART_HEIGHT/2,pos.y+AVATAR_TOP+HEART_HEIGHT/2))
             entry.object.setPosition(x,y)
-            if entry.loaded then entry.object.setScale(1,1) end
+            if entry.loaded then local scale=id==statusHostId and 0 or 1; entry.object.setScale(scale,scale) end
         end
+    end
+    local function refreshHeartVisibility(layer)
+        for id,entry in pairs(layer) do if entry.loaded then
+            local hidden=id==statusHostId
+            if entry.statusHidden~=hidden then
+                local scale=hidden and 0 or 1
+                entry.object.setScale(scale,scale); entry.statusHidden=hidden
+            end
+        end end
     end
     local function renderWorld()
         local bottom=app.convertPercentToPosition(0,0); local top=app.convertPercentToPosition(1,1)
@@ -722,6 +734,9 @@ return function()
                 entry.failed=true
             end end
         end
+        -- Host-heart replacement follows displayed status even while game time is paused.
+        if not pcall(refreshHeartVisibility,heartLayer) then clearCelebration(); diagnostic("render-error") end
+        if not pcall(refreshHeartVisibility,objects) then clearObjects(); diagnostic("render-error") end
         if updateElapsed>=0.05 then
             renderEntranceActions()
             local worldOk=pcall(renderWorld); if not worldOk then clearTheme(); themeRenderDiagnostic() end

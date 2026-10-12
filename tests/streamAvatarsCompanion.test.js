@@ -14,7 +14,7 @@ test.each(['phase-delayed-party-update', 'phase-ordered', 'phase-regression', 'p
 function run(script, scenario, fixture) {
     return spawnSync(process.env.LUA_BIN || 'lua', [resolve('tests/lua/companionHarness.lua'), script, scenario, ...(fixture ? [fixture] : [])], { encoding: 'utf8', timeout: 5000 });
 }
-test.each(['status-startup', 'status-auth', 'status-timeout', 'status-reconnect', 'status-close-open-race', 'status-host-movement', 'status-clear', 'status-donation', 'status-backward-clock', 'status-missing-image', 'status-delayed-image', 'status-image-timeout', 'status-host-error', 'status-create-error'])('host connection indicator: %s', scenario => {
+test.each(['status-startup', 'status-auth', 'status-timeout', 'status-reconnect', 'status-close-open-race', 'status-host-movement', 'status-clear', 'status-donation', 'status-legacy-hearts', 'status-backward-clock', 'status-missing-image', 'status-delayed-image', 'status-image-timeout', 'status-host-error', 'status-create-error'])('host connection indicator: %s', scenario => {
     const result = run(resolve('integrations/stream-avatars/companion.lua'), scenario);
     expect({ status: result.status, stderr: result.stderr, stdout: result.stdout.trim() }).toEqual({ status: 0, stderr: '', stdout: 'OK ' + scenario });
 });

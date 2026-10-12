@@ -232,6 +232,8 @@ if statusScenario then
     local function status(healthy)
         assert(#visible("sa_bridge_healthy")== (healthy and 1 or 0), "healthy logo must match authenticated fresh bridge state")
         assert(#visible("sa_bridge_unknown")== (healthy and 0 or 1), "question mark must cover unconfirmed bridge state")
+        local indicator=visible(healthy and "sa_bridge_healthy" or "sa_bridge_unknown")[1]
+        assert(indicator.scale==0.5, "both indicators must display at half size")
     end
     if scenario:match("^status%-settings%-") or scenario:match("^status%-token%-") or scenario:match("^status%-address%-") then
         status(false)
@@ -254,7 +256,7 @@ if statusScenario then
         assert(#objects==2 and #visible("sa_bridge_healthy")==0 and #visible("sa_bridge_unknown")==0, "failed status loads must remain bounded and hidden")
         send(celebration()); assert(#visible("sa_heart")==2, "status image timeout must preserve donation rendering")
     elseif scenario=="status-missing-image" then
-        send(snapshot()); status(false); send(celebration()); assert(#visible("sa_heart")==2, "missing logo must preserve donation rendering")
+        send(snapshot()); status(false); send(celebration()); assert(#visible("sa_heart")==1, "question-mark fallback must replace only the host heart")
     elseif scenario=="status-delayed-image" then
         send(snapshot()); status(false); callbacks.websocket("sa_helper_bridge","OnClose","",""); tick(); allowImageCompletion=true; tick(); status(false)
     else
@@ -275,19 +277,33 @@ if statusScenario then
                 send({version=3,type="heartbeat",serverNowMs=2000}); status(false)
                 send(snapshot()); tick(); status(true)
             elseif scenario=="status-host-movement" then
-                local ob=visible("sa_bridge_healthy")[1]; assert(ob.x==50 and ob.y>76 and ob.layer=="afterForeground", "logo must sit above the host and donation hearts")
+                local ob=visible("sa_bridge_healthy")[1]; assert(ob.x==50 and ob.y==76 and ob.layer=="afterForeground", "compact logo must use the host's heart position")
                 statusHost.x=400; tick(); assert(visible("sa_bridge_healthy")[1].x==400, "logo must follow the actual host")
                 statusHost.isActive=false; tick(); assert(#visible("sa_bridge_healthy")==0 and #visible("sa_bridge_unknown")==0, "inactive host must hide status")
                 statusHost=nil; tick(); assert(#visible("sa_bridge_healthy")==0 and #visible("sa_bridge_unknown")==0, "missing host must not attach status to a viewer")
                 statusHost=users.host; statusHost.isActive=true; tick(); status(true)
                 app.convertPercentToPosition=function(x,y) return {x=-200+x*400,y=y*100} end
-                tick(); ob=visible("sa_bridge_healthy")[1]; assert(ob.x==168 and ob.y==68, "full status frame must stay inside resized bounds")
+                tick(); ob=visible("sa_bridge_healthy")[1]; assert(ob.x==184 and ob.y==76, "displayed status frame must stay inside resized bounds")
+                app.convertPercentToPosition=function(x,y) return {x=x*40,y=y*40} end
+                tick(); status(true); ob=visible("sa_bridge_healthy")[1]
+                assert(ob.x==24 and ob.y==24, "compact status must fit a canvas smaller than the source frame")
+                app.convertPercentToPosition=function(x,y) return {x=x*31,y=y*31} end
+                tick(); assert(#visible("sa_bridge_healthy")==0 and #visible("sa_bridge_unknown")==0, "status must hide when the displayed frame cannot fit")
             elseif scenario=="status-clear" then
                 send({version=3,type="clear",mode="integration",generation=2}); status(false)
                 send(snapshot("integration",2)); status(true)
                 assert(#objects==2, "campaign clears must reuse the two status assets")
-            elseif scenario=="status-donation" then
-                send(celebration()); status(true); assert(#visible("sa_heart")==2, "status must coexist with donation hearts")
+            elseif scenario=="status-donation" or scenario=="status-legacy-hearts" then
+                send(scenario=="status-donation" and celebration() or hearts()); tick(); status(true)
+                local viewerHeart=visible("sa_heart")
+                assert(#viewerHeart==1 and viewerHeart[1].x==700 and viewerHeart[1].scale==1, "indicator must replace only the host heart and preserve the viewer heart")
+                if scenario=="status-donation" then assert(jumps==2, "host must retain its donation action") end
+                statusHost=nil; tick(); assert(#visible("sa_heart")==2, "unavailable indicator must retain normal donation hearts")
+                statusHost=users.host; tick(0,1); status(true); assert(#visible("sa_heart")==1, "returning host indicator must hide its existing heart while paused")
+                statusHost=users.viewer; tick(0,1); status(true); viewerHeart=visible("sa_heart")
+                assert(#viewerHeart==1 and viewerHeart[1].x==50 and visible("sa_bridge_healthy")[1].x==700, "replacement must follow the actual native host identity")
+                statusHost=nil; tick(0,1); assert(#visible("sa_heart")==2, "indicator loss must restore the host heart while paused")
+                statusHost=users.host; tick(0,31); status(false); assert(#visible("sa_heart")==1, "question mark must also replace the host heart")
                 callbacks.websocket("sa_helper_bridge","OnClose","",""); tick(); status(false); assert(#visible("sa_heart")==0, "disconnect must clear donations and preserve the question mark")
             elseif scenario=="status-backward-clock" then
                 tick(0,-2); status(false)
