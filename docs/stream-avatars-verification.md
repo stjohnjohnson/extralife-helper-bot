@@ -1,138 +1,61 @@
 # Stream Avatars verification
 
-## Automated evidence
+The [approved campaign design](plans/2026-10-11-campaign-progress-celebrations-design.md) supersedes the original broadcast-total and simultaneous-party requirements in issue #67. The [implementation plan](superpowers/plans/2026-10-11-campaign-progress-celebrations.md) covers the replacement. Bot and companion now use protocol v3; reimport the ZIP and restore private address/token together with the bot update.
 
-The companion harness executes the shipped Lua in a sandbox with no filesystem, shell, package or OS APIs. Host doubles enforce API names/arguments, copied mailbox state and coroutine behavior. A pinned MIT-licensed **test-only** JSON codec exercises real messages, including validated Node protocol JSON with UTF-8/null fields. Production uses Stream Avatars' own codec; the vendored test library is absent from the ZIP and Docker runtime.
+## Verified behavior
 
-Tests cover authentication and address configuration, movement, empty/dense crowds, rotating density, expiry/duplicates, mode/session/generation changes, disconnect races, reconnect/backoff, bounded mailboxes, malformed packets, owned-user cleanup, missing/delayed images, cancellation and dynamically resized/negative game bounds. Behavioral mutations verify caps, deadlines, cancellation, following and owned action cleanup. CRLF source and paths containing spaces are checked. Missing Lua fails instead of skipping coverage.
+Fresh donations, including matching records, receive five seconds of hearts, their combined amount/Thank you caption and a random jump or paired hug. Nearby gifts extend recognition only to ten seconds from its original start. A qualifying campaign milestone follows recognition for 18 seconds; a goal follows for 20 seconds and wins its simultaneous milestone. The participant's fresh `sumDonations` supplies the actual campaign banner, never an estimated sum of gifts. Delayed API totals can leave a gap after thanks without repeating it.
 
-Node tests use real localhost HTTP/SSE/WebSocket connections and temporary production stores. They cover shared-listener lifecycle, authentication, current-state reconnects, transient expiry, stale observations, session isolation, shutdown, durable recovery and original-start persistence. Temporary runner process tests cover all synthetic scenarios, no external application clients, signal cleanup, readiness timeouts, port conflicts and untouched production paths. ZIP tests verify native layout, animation metadata, generated image dimensions, catalog expansion, deterministic bytes, placeholders and malformed/bounded PNG inputs.
+Startup/restart/reset independently baseline donations and campaign totals silently. Accounted IDs and thresholds persist before output. A final ready-companion disconnect cancels visual work and correlation; reconnect publishes current totals without replay. Gifts during a party wait in one combined next thank-you. Late goal confirmation for the existing batch retains its sequence and dance attempts, with a 38-second maximum from the original party start. Campaign controls need confirmed admin authorization, with no Twitch offline requirement. Legacy broadcast `state.json` is untouched for rollback.
 
-CI runs the complete suite, lint, production dependency audit and Docker build on Linux with Lua 5.4. A separate Linux job checks Lua 5.2 companion contracts. Windows compilation jobs were removed because stock Windows Lua adds little evidence about the application's embedded runtime. There is no Windows-specific companion code or system Lua installation requirement.
+## Automated evidence (2026-10-11)
 
-These checks verify executable logic and host API expectations. Actual application rendering, firewall/LAN access, image imports, chosen avatar spacing, OBS cropping and performance still need a real-environment run.
-
-Local checks pass `npm run lint`, the complete `npm test -- --runInBand` suite (**52 suites / 807 tests**, local Lua 5.5.0 plus 92 companion checks under locally compiled Lua 5.2.4; CI separately verifies 5.4 and 5.2), and `npm run audit:prod` with zero vulnerabilities. The regenerated ZIP passes the installed Stream Avatars ZIP-reader/import-type probe; the shipped parser compatibility code also passes against the installed MoonSharp codec.
-
-## Outstanding verification
-
-**Pending for this change:** Import/render the v2 donation package on the destination computer and verify Linux-to-gaming-computer LAN connectivity, OBS transparency/cropping, window resize behavior and dense-crowd frame rate. Local Mac animated hearts and a 100-viewer crowd were previously observed, as recorded below. Fixed 40-unit avatar-top spacing is suitable for the supplied art but needs visual checking for other avatar sizes. The operator resolved the earlier height-lock/teleporting issue by changing display settings on 2026-10-11.
-
-The local Docker daemon is unavailable; CI checks the image build. Persistent-volume operation still belongs in the Linux acceptance run. Follow the [acceptance checklist](stream-avatars-setup.md#real-lan-and-obs-acceptance-run) before accepting issue #65.
-
-## Local Mac startup verification (2026-10-08)
-
-A real Stream Avatars startup failed because the installed MoonSharp serializer emits escaped slashes (`\/`) while its lexer rejects them. The host's `get()` helper internally serializes and parses tables, so reading the settings table failed even though the settings JSON was valid. The companion now wraps its script-local `json.parse` to normalize only slash escapes with odd backslash counts; literal backslashes remain unchanged. No private settings or host application binaries are changed.
-
-A temporary .NET probe using the installed `Assembly-CSharp-firstpass.dll` reproduced the original URL round-trip exception and passed after executing the shipped compatibility code. The portable regression reproduces the host's table round trip, authentication and queued messages, checks literal backslash/slash preservation, and rejects mutations that omit normalization or normalize even backslash runs. A near-limit JSON string with 30,000 literal backslashes checks that runs without a following slash are consumed without quadratic retries.
-
-After installing the companion and pressing F5, the real Mac application opened an authenticated loopback connection to the rehearsal server at port 3000 and accepted `crowd 3` and `hearts` commands. The application console reported game bounds **(-480, 0) to (480, 460.5)**. The subsequent connection drop was traced to an unimported `sa_heart`: a missing-image CLR exception escapes Lua `pcall` and stops the main coroutine. After the image was imported, repeated previews and multiple heartbeat intervals kept the connection alive. A pink heart was observed above the real local avatar with the measured game bounds. This verifies local startup and initial transport; it does not verify dense crowd appearance/performance, Linux LAN connection, or OBS acceptance. The local avatar teleporting reported by the operator remains under investigation. The previous startup stack trace remains in the console history until cleared.
-
-## Host image-loading recovery
-
-A temporary probe registered a host object with the installed MoonSharp interpreter and verified that a missing-image `KeyNotFoundException` escapes Lua `pcall`. The companion therefore loads each image in a separate exported `async` worker, preserving the main heartbeat, effect expiry and message loop. A load that has not completed within two game seconds clears the preview and sends `missing-heart-image`.
-
-The host's image callback cannot be cancelled with `stopAsync`. Pending objects remain alive after cancellation until that callback completes; the worker then destroys them without publishing a stale image. Cleanup also handles completion immediately before a clear message, before the parent acknowledges the loaded image. Failed Lua loads and already loaded objects are destroyed immediately.
-
-If a CLR failure prevents the callback from ever returning, a blank pending object and completion marker remain until F5 reload. The foundation preview capped outstanding loads at 100; donation rendering caps them at 128, so repeated failures cannot create an unbounded collection. After repairing an image import, press F5; the host destroys the prior script objects. This host limitation is not equivalent to successful cancellation of an image request.
-
-Six new scenarios cover missing-host exceptions, delayed and indefinitely pending images, callback completion after cancellation, the 100-load cap, and completion immediately before clear. Five additional mutations verify deadline, cancellation, cap, acknowledgment handling and hiding images before the host completes loading. Pending images stay at zero scale until the parent has acknowledged their load and positioned them for an active effect, preventing a late callback from flashing a cancelled heart. These scenarios and mutations remain in the executable harness.
-
-## Imported animation loop setting
-
-The local imported `sa_heart` had eight 32×32 frames at 12 FPS, but its saved loop count was `1`. Inspection of the installed application's image loader and animator confirmed that Lua playback uses this saved count and holds the last frame after a single cycle, explaining a still heart that continued to follow its avatar. The image editor's preview forces infinite looping independently of the saved count. Its infinity button stores `loopTotal = 61`; the local image setting was changed to this value with a private backup and a semantic check that every other saved setting was preserved. Setup instructions now name the infinity button explicitly. This is an image-import setting correction; the Lua companion did not need a change.
-
-## Dense crowd and portable packages
-
-After saving infinite looping, the operator confirmed that the animated heart looked correct. A subsequent local Mac rehearsal selected the actual Custom Lua streaming service and allowed 101 avatars. A dense 100-viewer synthetic crowd, including `sa_rehearsal_100`, and many simultaneous pink hearts were visually observed. The earlier renderer capped each preview at 50 hearts and rotates eligible users between previews. This establishes local dense appearance, without measuring frame rate or verifying LAN/OBS behavior. The reported avatar teleporting remains unresolved.
-
-`npm run sa:package` generates an import ZIP from the shipped Lua and repository image manifests. Automated tests unzip the real archive and check native command settings, image bytes, frame/FPS/loop metadata, automatic catalog expansion, deterministic output, placeholder-only settings, invalid inputs, path/symlink rejection, full PNG decoding with bounded inflation, malformed IHDR/IDAT with valid checksums, multi-row sheets, and CLI output paths with spaces. A temporary .NET probe used the installed application's `StreamAvatars.Zip.dll` and deserialized `data.txt` into its actual `SA_ImportExport.BuildExportFiles` type. It accepted all four foundation entries, the On Connect command, 32×32 frames, eight frame timings at 12 FPS, the native infinite loop value `61`, and placeholder credentials. This is a native import-format check, not a completed graphical import: the application was not running and the available UI launcher did not start it. Import and rendering of the generated package on the destination computer remain part of acceptance.
-
-### Donation action and asset evidence (2026-10-09)
-
-Read-only inspection of the installed macOS host's `Assembly-CSharp.dll` verifies `User.runCommand(string cmd, bool runQuietly=false)` forwards `true` to the command system's `preventOutput`. The companion uses fixed localized jump/dance commands with `true`, never donor text. `User.getState()`/`getAnimation()` expose the current action; `User.exitState()` transitions to idle without touching equipment. Native dance plays the avatar's configured dance animation and may return to idle; the companion requests each eligible avatar's dance once per party and exits only its still-matching dance on expiry/clear. It remembers recent requests across clears/reconnects/reloads and respects its configured real-time cooldown guard. Native animation availability, command restrictions/cooldowns, visual behavior and performance remain deployment acceptance checks.
-
-The installed `LuaScriptFunctions.MainGetUsers()` iterates the active-character map, which includes the active caster. No donor-to-Twitch identity association is needed. Automated fixtures cover 101 active hearts, bounded confetti/captions, layer failures, absolute deadlines, generation changes, duplicate/older events and preserving another avatar action. Deterministic transparent PNGs and native animation metadata are generated by `scripts/sa-assets.js`; the ZIP contains no private settings.
-
-References: [User runCommand](https://docs.streamavatars.com/lua-scripting-api/api-reference-and-tips/classes/user/runcommand), [getUsers](https://docs.streamavatars.com/lua-scripting-api/api-reference-and-tips/global-functions/getusers), [native dance](https://docs.streamavatars.com/stream-avatars/commands/minigames-and-fun-commands/dance). Host inspection resolves the contradictory quiet-flag prose in the global runCommand documentation. It confirms signatures and control flow, not a completed visual test.
-
-
-## Issue #67 acceptance coverage
-
-| Acceptance | Automated evidence | Deployment check |
-| --- | --- | --- |
-| Timestamp/session eligibility, registration/participant exclusions, exact cents | donationSource, donationMoney and broadcastDonations tests | Production session/grace behavior |
-| API version/order/conditional pagination, failed/unstable pages | donor fixture contract and donationSource tests; official DonorDrive docs linked in design | Inspect sanitized poll errors if API unavailable |
-| Once-only IDs, unknown-to-known/conflicting amounts, out-of-order gifts | broadcastDonations and broadcastDonationLifecycle tests | Reconnect/restart without replay |
-| Mid-session reconciliation/migration and persisted thresholds | broadcastDonationLifecycle and donationIntegration tests | Preserve Linux volume during restart |
-| Hearts, jump, batching, caster/anonymous recognition | ordinary-101, movement, late join and real Node-to-Lua harness; runner ordinary/anonymous/batch | Checklist steps 2–3 |
-| Configurable intervals, cumulative banners, multi-cross coalescing | streamAvatarsConfig, celebrations, reducer and milestone-banner tests | $500 / $1,550 runner scenarios |
-| Once-only live campaign-goal crossing; silent baseline/goal change | reducer, delayed-goal integration and goal-banner tests | goal scenario |
-| Existing Hue, chat, markers, summary and goal command | app, hueControl, commands and streamMarkers regression suites | Optional --hue and existing production outputs |
-| Gear/decor ownership, stale effects, failures/disconnect | gear-preservation, celebration-faults/missing layers, mutations, protocol/server and reconnect tests | Checklist steps 4–5 |
-| Complete fixture preview without external clients or production writes | DevelopmentRunner and IntegrationCli tests, actual child processes/localhost sockets | Checklist steps 1–6 |
-
-The approved temporary subsystem runner replaces issue #67's reference to #65's interactive rehearsal. It covers the same preview cases with synthetic inputs through shared production code. It requires no game theme, donor identity linking or fresh-online check per effect; it displays no special incomplete-total caption. A normal CLI run never initializes physical Hue, even if Hue environment settings exist.
-
-The automated transport fixture is not a visual pass on the destination deployment. Existing foundation Mac observations above remain historical; they do not establish that the new confetti/captions/actions passed LAN/OBS acceptance. Native command restrictions, animation availability, dense performance and persistent-volume deployment remain explicit manual checks. The earlier teleporting was resolved by the operator’s display-settings change.
-
-The v2 ZIP also passes the installed native Stream Avatars ZIP reader/import-type probe: 22 entries, 19 images, the 431×23 goal caption, four confetti frame timings and placeholder credentials. This is import-format evidence, not graphical acceptance. Production audit reports zero vulnerabilities.
-
-## Final branch review
-
-A fresh whole-branch review found two accounting edge cases, both fixed with failing-then-passing regression tests: campaign reconciliation now waits independently for its first fresh observation after startup/recovery, and revealed historical amounts no longer suppress unrelated new-gift milestones. Mixed scans are tested in both input orders; revelation-only crossings remain silent. Production's separate donation-accept/campaign-refresh sequence is covered.
-
-Deferred minor: the source collapses repeated IDs within one scan before reducer conflict diagnostics, so contradictory duplicate rows in that scan retain the first accepted amount without a warning. Conflicts against previously persisted facts are still diagnosed; no duplicate ID adds money twice.
-
-## Deployment feedback and native null fix (2026-10-11)
-
-The operator observed milestone captions, but no Thank you captions, goal effects, jumps or dances. A read-only synthetic probe against the installed MoonSharp assembly reproduced the packet-validation cause: `json.parse` represents a null milestone as userdata, `json.null` is a function, and equality with nil or that function is false. The exact shipped validator accepted numeric milestone packets but rejected ordinary and goal packets. The corrected validator uses native `json.isnull` with a portable constant-null fallback; the same installed-runtime probe accepts all three actual JSON packet kinds afterwards. Portable Lua tests reproduce the function/userdata contract and assert captions, actions and expiry.
-
-Gold confetti now uses paper faces at every animation frame, scattered phases, varied sizes/fall speeds and lateral sway instead of one synchronized diagonal. Tests check canvas coverage, speed/size variation and readable faces. Whole-dollar milestones show `$500` / `$1,550`; nonzero cents retain their exact value. The updated ZIP still contains 19 images and 22 entries.
-
-The red “Height is fixed in settings” messages and teleporting were resolved by the operator’s display settings. Retesting the corrected companion on the destination remains pending; native command settings/available avatar animations still affect dancing.
-
-## Native dance admission and cleanup (2026-10-11)
-
-Installed host inspection and a temporary live probe establish that ordinary walking/resting stays in the persistent `Wander` state. The previous Idle-only admission never sent the crowd's dance command. The companion now admits both Idle and Wander, while preserving other active states. On the actual synthetic caster, the fixed quiet native command transitions from Wander/idle to CustomAnimation/custom2 on a later frame; the configured dance action maps to the custom2 sprite.
-
-`StateManager.ChangeState` queues transitions, so immediate inspection also missed cleanup ownership. The companion observes eligible requests for at most two seconds and owns only a later CustomAnimation/dance on the original avatar. Clear and reload drain those identifiable pending dances. Original avatar metadata is persisted for both pending and confirmed actions, preserving avatar changes, other custom animations, minigames and pre-existing dances.
-
-The public Lua API reports sprite names without the logical action or command result. CustomAnimation/custom2 and CustomAnimation/idle can represent either a mapped/tween dance or another action. The companion allows native dances with those sprites but never forcibly exits them. They follow their configured native duration; a looping mapped animation can outlast the party or clear and must be stopped manually. Configure mapped dances to return to idle. Even a literal dance started manually during the short pending window cannot be distinguished from the requested dance.
-
-Thirteen added Lua scenarios cover Wander admission, delayed ownership/expiry, clear/reload before start, original avatar preservation across reload, different custom actions before/after ownership, rejected requests, pre-existing dances, and native mapped/tween variants. Reproduced cleanup failures were verified failing before correction. The full suite passes 820 tests across 52 suites; all 105 companion checks also pass on Lua 5.2.4, and lint is clean. The regenerated 19-image ZIP is accepted by the installed native ZIP reader/import types.
-
-A temporary subsystem run on loopback port 3010 dispatched all six scenarios with 20 synthetic viewers plus the caster. Native UI observations show Thank you with following hearts and 21 Jump states, the $500 caption without .00 with scattered gold paper faces, and the Extra Life goal caption with confetti. Synthetic-only diagnostics show all 21 avatars entering CustomAnimation/custom2 during parties and returning to idle under their native animation settings. The temporary probe/script is restored byte-for-byte afterwards; private settings and real bot clients are untouched. This verifies the local macOS native host; Windows deployment, LAN/OBS capture, 101-avatar performance and optional physical Hue remain acceptance checks.
-
-## Combined amounts and random recognition (2026-10-11)
-
-The follow-up displays `$25 - THANK YOU!` for a single gift and `$25 FROM 2 DONATIONS - THANK YOU!` for a combined batch. Tests distinguish fresh money from revealed historical amounts, preserve hidden totals, and select jump/hug once per bounded window. Strict Node/Lua contracts carry the amount/count/start/action fields; real WebSocket tests reject older celebration-only companions before readiness. Reimport the latest ZIP, including its three additional fixed caption images.
-
-Lua behavioral tests cover 1, 2, 3, 20 and 101 eligible avatars, shuffled matching without self/reciprocal/reused pairs, busy-state rechecks, late joins, amount updates, unsafe internal IDs, synchronous exceptions and cleanup/reconnect/reload. Deliberate mutations prove the pairing and admission guards matter. Party captions/actions remain suppressed after expiry while remaining hearts finish. Long captions fit small, resized and negative-coordinate canvases; amount changes release unused objects. Tests run on both local Lua and Lua 5.2.4. The temporary runner's forced actions are tested through real localhost sockets and child processes, preserving production state and optional Hue isolation.
-
-Native command inspection establishes that a hug travels to its target, temporarily uses Targeted state, and releases it within the native action sequence. The companion emits one initiator, never a reciprocal request or forced hug cleanup. This is control-flow evidence; command access/cooldowns, partner departure or another action during travel may affect the host result. A quiet command has no success return, so silent native rejection cannot trigger automatic fallback/retry.
-
-The latest native host is closed and the available UI launcher could not start it. No installed script, private settings or credentials were changed for this follow-up. Visual acceptance of the new captions/hugs and native partner release is therefore pending, including busy/departing targets and dense performance. Earlier dance observations above apply to the previous verified build.
-
-With the companion's private address set to the same port and its matching token already in your environment, run:
+Using Node.js 24.19.0:
 
 ```sh
-WEB_PORT=3010 npm run sa:integration -- --scenario all --crowd 20 --recognition jump
+npm ci
+npm run lint
+npm test -- --runInBand
+npm run audit:prod
+LUA_BIN=/path/to/lua5.2 npm test -- --runInBand --coverage=false --runTestsByPath tests/streamAvatarsCompanion.test.js
+npm run sa:package
+```
+
+The complete coverage-enforced suite passes 990 tests across 54 suites; lint is clean. All 169 companion contracts and behavioral mutations pass with Lua 5.2.4 and local Lua. Production dependency audit reports zero vulnerabilities. No tests are disabled to obtain these results. Retired stream-session tests were replaced with campaign, shared Twitch-validation and integration coverage.
+
+| Behavior | Evidence |
+| --- | --- |
+| Silent baselines, exact cents, thresholds, goal/interval edits, decreases, stale/repeated input, confirmation expiry | `campaignProgressState`, `campaignProgressLifecycle`, `donationMoney` |
+| Atomic writes, locks, symlink/hardlink rejection, failed persistence, backups/quarantine, identity changes, legacy isolation | `campaignProgressStore`, `campaignProgressLifecycle` |
+| Prompt thanks before delayed totals, batch/epoch correlation, unchanged announcements/Hue/markers/summary/goal commands | `app`, `donationIntegration`, `commands`, `hueControl`, `streamMarkers` |
+| 100+ gifts, backdated rows behind known IDs, missing/changing counts, invalid/registration rows, repeated pages, cancellation/pacing | `campaignDonationSource`, `donationSource` |
+| Recognition before parties, combined pending gifts, delayed same-party goal upgrades and bounded timers | `campaignCelebrations`, `campaignAvatarLifecycle` |
+| Reset/disconnect/reject/shutdown cleanup, multiple clients, late readiness, no reconnect replay | Real WebSocket `campaignAvatarLifecycle`, `streamAvatarsServer`, `streamAvatarsIntegration` |
+| Strict v3 vocabulary, no arbitrary captions/commands/donor IDs, native JSON null compatibility | `campaignProtocol`, `streamAvatarsProtocol`, companion contracts and installed MoonSharp probe |
+| Random pair admission, busy states/gear, quiet native targeting, action ownership/cooldown guards, bounds and object budgets | `streamAvatarsCompanion` with 101-avatar and mutation fixtures |
+| Six independent campaign fixtures, real CLI signals, readiness/port errors, temp-state isolation, no real clients, opt-in Hue | `streamAvatarsDevelopmentRunner`, `streamAvatarsIntegrationCli` |
+
+Regression checks were observed failing before fixes for split-response duplicate recognition, rejected-client readiness loss, repeat-ready updates, delayed initial-request cutoff and service abort cleanup. A deliberate mutation that assigns party-time gifts to the active batch fails the delayed-goal/pending-recognition regression; restoring the implementation passes. Existing Lua mutations detect phase/action/admission regressions.
+
+The source now diagnoses contradictory duplicate facts within one scan while retaining the first normalized record and never adding a duplicate ID twice. This resolves the previously recorded same-scan diagnostic omission.
+
+## Package and native-format evidence
+
+The final ZIP is deterministic, with 22 images and 25 entries, placeholder credentials and portable Node-only packaging. `sa_raised` is a transparent 143×23 image reading ` RAISED!`; its dimensions are derived from the manifest. The native Stream Avatars ZIP reader/import types accept the generated package, frame metadata and placeholder settings. The installed MoonSharp interpreter accepts the exact v3 recognition/party validator, native JSON null values and authoritative campaign money. These are import/runtime checks, not a graphical acceptance pass.
+
+Previous host inspection established that native `User.runCommand(..., true)` suppresses output, active users include the caster, ordinary moving avatars remain in Wander, and native Dance/Hug per-user cooldowns are ten seconds on this host. The companion remembers its own requests across clears/reconnects/reloads using real time; it does not inspect native timers or observe every manual command. Customized timers must be mirrored in private companion settings. A recent manual command can still make the first companion request hit a native cooldown. Mapped/tween dances follow native animation settings and may need manual stopping if configured to loop; ambiguous custom actions are never forcibly exited. Native hugs release under their own control.
+
+## Deployment acceptance still required
+
+Earlier local native observations verified the previous companion's hearts, confetti and mapped dancing. They do not establish visual acceptance of this revised campaign sequence. No installed scripts, private settings or credentials were changed for this redesign. The operator's earlier teleporting/“Height is fixed in settings” issue was resolved by display settings.
+
+Follow [setup and acceptance](stream-avatars-setup.md#real-lan-and-obs-acceptance-run). With the matching private token already in your environment and companion address set to `BOT_LAN_IP:3010`:
+
+```sh
 WEB_PORT=3010 npm run sa:integration -- --scenario all --crowd 20 --recognition hug
+WEB_PORT=3010 npm run sa:integration -- --scenario all --crowd 20 --recognition jump
 WEB_PORT=3010 npm run sa:integration -- --scenario ordinary --crowd 0 --recognition hug
 WEB_PORT=3010 npm run sa:integration -- --scenario ordinary --crowd 100 --recognition hug
 ```
 
-Observe combined captions, one initiating hug per eligible pair, odd-avatar jumps, native partner release, and unchanged milestone/goal dancing. During travel, check a departing/busy target without forcibly exiting its partner. Dispatch logs alone are not a visual pass.
-
-Follow-up verification: `npm ci`, clean `npm run lint`, and complete `npm test -- --runInBand` pass 894 tests across 52 suites. All 141 companion contracts/mutations pass with Lua 5.2.4. `npm run sa:package` produces a deterministic 22-image, 25-entry ZIP accepted by the installed native ZIP reader and import types, including the three phrase dimensions and placeholder settings.
-
-The final fresh branch review reproduced a delayed-extension bug: visual expiry could discard the window identity and replay actions or reveal a party-suppressed caption. Window history now survives visual expiry until a new start or explicit clear. Three failing-then-passing regressions cover jump, hug and party suppression; a deliberate mutation detects loss of that history. Final verification passes 898 tests across 52 suites, clean lint and all 145 Lua 5.2.4 companion checks. The previously documented same-scan duplicate diagnostic omission remains the only deferred minor.
-
-## Native action cooldown regression
-
-Import the latest companion and keep the native Dance/Hug per-user cooldowns at ten seconds (or mirror custom values in the companion settings described in setup). During milestone/goal scenarios, a finished or rejected dance must not be requested again within the party. A goal upgrade keeps the same attempted avatars; a late eligible avatar may join once. Repeat a scenario after clearing/reconnecting/reloading within ten seconds: existing avatars wait before their next dance, while confetti/captions remain visible. Closely spaced hug windows use jumps until the initiating avatar's cooldown expires. No companion-generated repeat should produce a cooldown clock or `dance is on UserCD` warning. A recent manual command is outside the companion's timer visibility.
-
-The Lua harness models real-time native timers and asserts zero rejected cooldown requests for dance completion/rejection, goal upgrades, busy avatars, nearby parties, clears/reloads/reconnects, custom cooldowns, game-speed changes and repeated hug windows.
-
-Verification for this correction: `npm run lint` and the complete `npm test -- --runInBand` suite pass (52 suites, 915 tests, Lua 5.2.4). All 162 companion contracts/mutations also pass on local Lua. An isolated probe using the installed MoonSharp interpreter accepts the exact shipped cooldown helper, `os.time()`, host JSON persistence and reload guards. The rebuilt 22-image / 25-entry ZIP passes the installed native import reader. The clock-icon/UserCD symptom and per-user ten-second settings were observed on the operator's host; the corrected renderer still needs a visual rerun there.
+Observe thanks before `$2,500 RAISED!`, `$3,550 RAISED!` and the distinct goal party; matching-equivalent gifts use the same path. Check one initiating hug per eligible pair, odd-avatar jumps, native partner release, busy/departing targets, gear preservation and no repeated companion UserCD warnings. Windows/LAN/OBS capture, native action access, dense performance, persistent-volume deployment and optional physical Hue remain operator checks. Dispatch logs alone are not a visual pass.

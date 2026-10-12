@@ -87,3 +87,11 @@ test('a reward for older thanks during another party queues no fabricated donati
 test.each([{donationCount:2},{donationTotalCents:-1},{campaignTotalCents:1.5},{milestoneCents:300000},{goalReached:'yes'}])('invalid intent %j leaves no effects',patch=>{
     expect(()=>c.accept(gift('a',patch))).toThrow();expect(c.nextTransitionAt()).toBeNull();
 });
+test('a delayed goal upgrade keeps new party-time gifts in one later thank-you',()=>{
+    c.accept(gift('a',{milestoneCents:250000}));now=6000;const original=c.advance()[0];
+    now=7000;c.accept(gift('b',{donationTotalCents:1000}));now=8000;c.accept(gift('c',{donationTotalCents:1500}));
+    now=9000;expect(c.accept(reward('a',{goalReached:true}))[0]).toMatchObject({sequenceId:original.sequenceId,kind:'goal',partyUntilMs:29000,donationCount:0});
+    now=28000;expect(c.advance()).toEqual([]);now=29000;
+    const next=c.advance()[0];expect(next).toMatchObject({phase:'recognition',donationCount:2,donationTotalCents:2500,heartsUntilMs:34000});expect(next.sequenceId).not.toBe(original.sequenceId);
+    now=34000;expect(c.advance()).toEqual([]);expect(draws).toBe(2);
+});

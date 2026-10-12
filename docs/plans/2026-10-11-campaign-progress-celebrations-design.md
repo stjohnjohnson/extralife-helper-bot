@@ -1,6 +1,6 @@
 # Campaign progress and sequential celebrations
 
-Status: experience agreed in conversation; implementation plan presented for review. This revision supersedes the broadcast-total and simultaneous-party requirements in issue #67 and earlier Stream Avatars plans. The existing implementation remains unchanged until plan review.
+Status: approved and implemented on the issue #67 task branch. This revision supersedes broadcast-total and simultaneous-party requirements in issue #67 and earlier Stream Avatars plans. Native visual acceptance of the revised sequence remains a deployment check.
 
 ## Experience
 

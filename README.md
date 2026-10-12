@@ -234,9 +234,9 @@ The `color` command name is reserved even when chat light control is disabled; r
 
 ### Stream Avatars donations (optional)
 
-Enable `STREAM_AVATARS_ENABLED=true` and a private `STREAM_AVATARS_TOKEN`, then import the v2 companion ZIP. Eligible session gifts trigger five-second shared hearts/jump/Thank you!; each $500 of live money starts an 18-second gold crowd party, and a live campaign-goal crossing gets a distinct 20-second bonus. Set `STREAM_AVATARS_DONATION_INTERVAL_CENTS` to change the $500 interval. Persist session state across restarts; interruptions/offline grace count and startup history reconciles silently.
+Enable `STREAM_AVATARS_ENABLED=true` and a private `STREAM_AVATARS_TOKEN`, then import the v3 companion ZIP. Every fresh donation, including matching, first receives five seconds of hearts, an amount/Thank you caption and a random jump or paired hug. Nearby gifts combine for up to ten seconds. Crossing a $500 campaign-total threshold then starts an 18-second confetti/dance party; reaching the overall goal gets a distinct 20-second party instead. Set `STREAM_AVATARS_DONATION_INTERVAL_CENTS` to change the interval. Campaign totals come from Extra Life, independently of Twitch stream status. Startup/restart silently baseline existing gifts and totals; reconnect never replays missed effects.
 
-Twitch admins retain `!sa status` and `!sa session reset|recover confirm` while offline. The `sa` namespace is reserved. Interactive rehearsal is replaced by a temporary development subsystem:
+Twitch admins retain `!sa status`, `!sa campaign reset confirm` and `!sa campaign recover confirm`. The `sa` namespace is reserved. Interactive rehearsal is replaced by a temporary development subsystem:
 
 ```sh
 WEB_PORT=3010 npm run sa:integration -- --scenario all --crowd 20
@@ -267,7 +267,7 @@ Some commands are restricted to admin users only for security purposes. Admin us
 
 **Admin-only commands:**
 - `!promote` - Voice channel management (moves users from waiting room to live chat)
-- `!sa` - Stream Avatars status and session recovery (Twitch only)
+- `!sa` - Stream Avatars campaign status and recovery (Twitch only)
 - `!testlights` - Test Philips Hue light celebration (verifies connection and triggers a demo light show)
 
 **Admin Configuration Examples:**
