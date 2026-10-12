@@ -1,3 +1,22 @@
+# [4.12.0](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v4.11.0...v4.12.0) (2026-10-12)
+
+### Changes
+
+- Add automatic game-themed scenery with bundled artwork and static mappings. ([#88](https://github.com/stjohnjohnson/extralife-helper-bot/pull/88))
+- Include donation fixtures and all theme transitions in integration scenario `all`. ([#88](https://github.com/stjohnjohnson/extralife-helper-bot/pull/88))
+- Keep avatars unchanged while game changes trigger a welcoming jump. ([#88](https://github.com/stjohnjohnson/extralife-helper-bot/pull/88))
+
+### Upgrade actions
+
+- Run `npm run sa:package`. ([#88](https://github.com/stjohnjohnson/extralife-helper-bot/pull/88))
+- Import `dist/stream-avatars/sa-helper-bridge.zip` into Stream Avatars. ([#88](https://github.com/stjohnjohnson/extralife-helper-bot/pull/88))
+- Restore your existing private connection address. ([#88](https://github.com/stjohnjohnson/extralife-helper-bot/pull/88))
+- Restore your existing private connection token. ([#88](https://github.com/stjohnjohnson/extralife-helper-bot/pull/88))
+- If you configured obsolete theme environment variables, remove them. ([#88](https://github.com/stjohnjohnson/extralife-helper-bot/pull/88))
+- The ZIP contains all 52 campaign and scenery images. ([#88](https://github.com/stjohnjohnson/extralife-helper-bot/pull/88))
+- Complete the broader OBS crop and seam checks during deployment acceptance. ([#88](https://github.com/stjohnjohnson/extralife-helper-bot/pull/88))
+- Complete the checks for other platforms during deployment acceptance. ([#88](https://github.com/stjohnjohnson/extralife-helper-bot/pull/88))
+
 # [4.11.0](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v4.10.0...v4.11.0) (2026-10-12)
 
 ### Changes
