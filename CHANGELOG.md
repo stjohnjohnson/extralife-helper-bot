@@ -1,3 +1,7 @@
+## [4.12.1](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v4.12.0...v4.12.1) (2026-10-12)
+
+Internal maintenance; no user-facing changes.
+
 # [4.12.0](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v4.11.0...v4.12.0) (2026-10-12)
 
 ### Changes
