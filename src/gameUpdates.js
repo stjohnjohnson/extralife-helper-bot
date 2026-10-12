@@ -182,7 +182,7 @@ async function getValidAccessToken(config, logger, signal) {
 
     } catch (refreshErr) {
         logger.error('Failed to refresh access token', { error: refreshErr.message });
-        throw new Error(`Token refresh failed: ${refreshErr.message}. Please re-authorize the application and get a new refresh token.`);
+        throw new Error(`Token refresh failed: ${refreshErr.message}. Please re-authorize the application and get a new refresh token.`, { cause: refreshErr });
     }
 }
 
@@ -233,7 +233,7 @@ async function searchGameCategory(gameName, clientId, accessToken, logger) {
 
         return bestMatch ? bestMatch.id : null;
     } catch (err) {
-        throw new Error(`Failed to search for game "${gameName}": ${err.message}`);
+        throw new Error(`Failed to search for game "${gameName}": ${err.message}`, { cause: err });
     }
 }
 
