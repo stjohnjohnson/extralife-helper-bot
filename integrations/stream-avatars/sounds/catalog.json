@@ -2,16 +2,16 @@
   {
     "name": "sa_donation",
     "file": "sa_donation.ogg",
-    "sha256": "86efa688aa07f4246db99bac9c1ff64f70df3a24fa262b5c1bb018b08c202d3b"
+    "sha256": "df7efbf8557832c10717677a0346a3ed09ecf67df6645ac0c5d6481aa897eb5d"
   },
   {
     "name": "sa_milestone",
     "file": "sa_milestone.ogg",
-    "sha256": "e70457dc5b0e0b3f3f097d3b8b486bb41111bda770c9863dcc8c92215f9157cd"
+    "sha256": "9f63502ae9f1cc11cc6013a4a9f9dccc8a819b895a7783d3031edbc7094bf643"
   },
   {
     "name": "sa_goal",
     "file": "sa_goal.ogg",
-    "sha256": "cba409e67f9e196913405d0d48dba40a7c8a9d0ac23aa83d8dc758e51858538f"
+    "sha256": "fc01ea4017a8608af1e46675278f56b154742c94489143e057f913ff743bcd5c"
   }
 ]

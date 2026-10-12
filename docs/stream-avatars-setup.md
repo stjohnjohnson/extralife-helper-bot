@@ -43,7 +43,9 @@ The package contains placeholder address/token values and never reads `.env`, pr
 
 ### Celebration sounds
 
-The package bundles three original MIT-licensed Ogg Vorbis cues: `sa_donation` (0.8-second chime), `sa_milestone` (1.5-second flourish), and `sa_goal` (2.5-second fanfare). The packager also writes them to `dist/stream-avatars/sounds/` (or a `sounds/` folder beside a custom output ZIP).
+The package bundles three original MIT-licensed Ogg Vorbis cues: `sa_donation` (three-second attention flourish), `sa_milestone` (18-second upbeat celebration), and `sa_goal` (20-second victory celebration). Donation audio attracts attention for a few seconds; milestone and goal melodies carry through their normal visual parties with rhythmic accompaniment and a resolving ending. The packager also writes them to `dist/stream-avatars/sounds/` (or a `sounds/` folder beside a custom output ZIP).
+
+**Updating sounds:** Replace the existing registered sound files through Stream Avatars' Sounds screen, keeping the same names and your volume choices. Reimporting only the companion ZIP preserves the sound library and therefore leaves older audio playing until its files are replaced.
 
 **One-time setup:** Open Stream Avatars' **Sounds → Import Sound** and import each Ogg with its exact name above. Leave chat/soundboard triggering disabled, and set a comfortable volume in the native sound settings. The content ZIP importer does not register sounds automatically; it only carries them in the companion script's `sounds/` subfolder. You can import from that extracted subfolder when transferring only the ZIP to another computer. Existing names should be edited/replaced through Sounds rather than imported again with an unintended suffix. Reimporting the companion replaces its folder, but keeps the independent native sound library and its volume settings.
 

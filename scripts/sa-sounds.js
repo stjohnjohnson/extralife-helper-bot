@@ -6,23 +6,76 @@ const { createHash } = require('node:crypto');
 
 const RATE = 44100;
 const cues = [
-    { name: 'sa_donation', seconds: 0.8, notes: [[0, 76], [0.12, 83], [0.25, 88]] },
-    { name: 'sa_milestone', seconds: 1.5, notes: [[0, 72], [0.13, 76], [0.26, 79], [0.4, 84], [0.4, 88], [0.4, 91]] },
-    { name: 'sa_goal', seconds: 2.5, notes: [[0, 72], [0.18, 76], [0.36, 79], [0.54, 84], [0.84, 79], [1.08, 84], [1.08, 88], [1.08, 91], [1.4, 96]] }
+    { name: 'sa_donation', seconds: 3 },
+    { name: 'sa_milestone', seconds: 18 },
+    { name: 'sa_goal', seconds: 20 }
 ];
+
+function addVoice(pcm, start, duration, amplitude, voice) {
+    const first = Math.round(start * RATE), count = Math.round(duration * RATE);
+    for (let i = 0; i < count && first + i < pcm.length; i++) {
+        const t = i / RATE;
+        const envelope = Math.min(1, t / 0.006) * Math.min(1, (duration - t) / 0.06);
+        pcm[first + i] += amplitude * envelope * voice(t);
+    }
+}
+
+function tone(pcm, start, midi, duration, amplitude = 0.5) {
+    const frequency = 440 * 2 ** ((midi - 69) / 12);
+    addVoice(pcm, start, duration, amplitude, t => {
+        const phase = 2 * Math.PI * frequency * t;
+        return Math.exp(-3 * t / duration) * (Math.sin(phase) + 0.25 * Math.sin(phase * 3) + 0.08 * Math.sin(phase * 5));
+    });
+}
+
+function percussion(pcm, start, snare, seed) {
+    if (!snare) {
+        addVoice(pcm, start, 0.18, 0.4, t => Math.sin(2 * Math.PI * (48 * t + 7 * (1 - Math.exp(-35 * t)))) * Math.exp(-24 * t));
+        return;
+    }
+    let state = seed, previous = 0;
+    addVoice(pcm, start, 0.1, 0.12, t => {
+        state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+        const noise = state / 0x80000000 - 1, filtered = noise - previous;
+        previous = noise;
+        return filtered * Math.exp(-35 * t);
+    });
+}
+
+function arrangement(cue, pcm) {
+    if (cue.name === 'sa_donation') {
+        const notes = [[0, 72], [0.15, 76], [0.3, 79], [0.45, 84], [0.75, 79], [1.05, 84], [1.35, 88], [1.65, 91]];
+        for (const [start, midi] of notes) tone(pcm, start, midi, 0.42);
+        for (const midi of [72, 76, 79, 84]) tone(pcm, 2.05, midi, 0.95, 0.28);
+        return;
+    }
+    // 150 BPM, changing chords and eighth-note melodies keep the party moving.
+    // Reserve the final 1.2 seconds for a resolving chord instead of a cut loop.
+    const goal = cue.name === 'sa_goal', beat = 0.4, finish = cue.seconds - 1.2;
+    const chords = [[72, 4], [69, 3], [77, 4], [79, 4]];
+    for (let step = 0; step * beat / 2 < finish; step++) {
+        const start = step * beat / 2, [root, third] = chords[Math.floor(step / 8) % chords.length];
+        const hook = goal ? [12, 7, third, 7, 2, third, 7, 12] : [0, third, 7, third, 9, 7, third, 2];
+        const duration = Math.min(0.28, finish - start);
+        tone(pcm, start, root + hook[step % 8], duration, goal ? 0.48 : 0.5);
+        if (goal && step % 4 === 0) tone(pcm, start, root + 19, duration, 0.12);
+        if (step % 2 === 0) {
+            tone(pcm, start, root - 24 + (step % 4 === 2 ? 7 : 0), Math.min(0.38, finish - start), 0.45);
+            percussion(pcm, start, step % 4 === 2, step + 1);
+        }
+        if (step % 8 === 0) {
+            for (const offset of [0, third, 7]) tone(pcm, start, root - 12 + offset, Math.min(1.1, finish - start), 0.11);
+        }
+    }
+    for (const midi of [48, 60, 72, 76, 79, ...(goal ? [84, 88] : [])]) tone(pcm, finish, midi, 1.2, 0.24);
+}
 
 function wave(cue) {
     const samples = Math.round(RATE * cue.seconds), pcm = new Float64Array(samples);
+    arrangement(cue, pcm);
     let peak = 0;
     for (let i = 0; i < samples; i++) {
-        const time = i / RATE;
-        for (const [start, midi] of cue.notes) {
-            const t = time - start;
-            if (t < 0) continue;
-            const frequency = 440 * 2 ** ((midi - 69) / 12), phase = 2 * Math.PI * frequency * t;
-            const envelope = Math.min(1, t / 0.012) * Math.exp(-5 * t) * Math.min(1, (cue.seconds - time) / 0.08);
-            pcm[i] += envelope * (Math.sin(phase) + 0.22 * Math.sin(phase * 2) + 0.08 * Math.sin(phase * 3));
-        }
+        pcm[i] *= Math.min(1, i / (RATE * 0.003), (samples - 1 - i) / (RATE * 0.08));
         peak = Math.max(peak, Math.abs(pcm[i]));
     }
     const bytes = Buffer.alloc(44 + samples * 2);
