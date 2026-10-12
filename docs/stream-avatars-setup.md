@@ -1,34 +1,54 @@
 # Stream Avatars setup
 
-The bot runs on Linux, Mac or Windows. Stream Avatars opens an outbound WebSocket connection to it. The voice overlay and this bridge share the `WEB_HOST`/`WEB_PORT` listener, defaulting to port 3000. Either integration can run independently.
+[README](../README.md) · [Configuration](configuration.md) · [Technical reference](stream-avatars-reference.md)
+
+Stream Avatars connects to the bot through a private WebSocket connection.
+It shows donation effects, campaign milestones, goal celebrations, and game-themed scenery.
+The bot runs on Linux, macOS, or Windows.
+The voice overlay and this bridge share the `WEB_HOST` and `WEB_PORT` listener.
+Either web integration can be enabled independently; the [core bot settings](configuration.md#required-core-settings) remain required.
 
 ## Configure the bot
 
-Use Node.js 24.15.0 or newer in the 24.x series and `npm ci`. Keep ordinary bot credentials for integrated Twitch controls. Add to your private `.env`:
+1. Complete the [core bot setup](setup.md).
+2. Generate a private random token:
 
-```dotenv
-STREAM_AVATARS_ENABLED=true
-STREAM_AVATARS_TOKEN=<private-random-token>
-STREAM_AVATARS_DONATION_INTERVAL_CENTS=50000
-```
+   ```sh
+   node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
+   ```
 
-Generate a token with `node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"` and privately copy it to the companion. Tokens must contain 16–256 characters. Authentication uses the first WebSocket frame, never a URL or chat message.
+3. Save these settings in `.env`, replacing the token placeholder:
 
-The existing shared listener settings are `WEB_HOST=0.0.0.0` and `WEB_PORT=3000`. Existing voice-overlay host/port values remain fallback aliases. Permit port 3000 from the gaming computer on your LAN firewall. For an untrusted network, use a TLS reverse proxy and a `wss://` address. Invalid bridge settings disable this integration; ordinary bot services continue. Disconnected companions do not queue animations.
+   ```dotenv
+   STREAM_AVATARS_ENABLED=true
+   STREAM_AVATARS_TOKEN=<private-random-token>
+   STREAM_AVATARS_DONATION_INTERVAL_CENTS=50000
+   STREAM_AVATARS_STATE_DIR=./data/stream-avatars
+   WEB_HOST=0.0.0.0
+   WEB_PORT=3000
+   ```
 
-## Generate and import the ZIP
+4. Permit the Stream Avatars computer to reach the bot's listener on your LAN.
+5. Start the bot.
 
-The default package ships all 52 images: 22 campaign images, six continuous backdrop tiles and 24 props. Static game mappings are in `integrations/stream-avatars/themes.json`; the reviewed scenery pack is checked in under `integrations/stream-avatars/themes/bundled/`. Normal bot runs, Docker and integration previews use that same pack automatically. No theme environment variables or avatar fitting are needed. Import the ZIP into Stream Avatars and configure only the existing private connection address/token.
+The token must contain 16–256 characters.
+Copy it privately to the companion; never put it in chat or a URL.
+Authentication uses the first WebSocket frame.
+For an untrusted network, use a TLS reverse proxy and a `wss://` connection.
+Invalid bridge settings disable Stream Avatars while core services continue.
+Disconnected companions do not queue animations for replay.
 
-```sh
-npm run sa:package
-```
+## Generate and import the companion
 
-Reimport the latest v3 companion for campaign totals and sequential recognition. Readiness requires `campaign`, `celebrations` and `donation-recognition`; older packages are rejected with an import-latest-v3 diagnostic. This creates `dist/stream-avatars/sa-helper-bridge.zip`, containing the On Connect Lua command, repository image catalog and saved animation settings. It sets frame sizes, FPS and infinite looping automatically. Packaging requires Node.js alone and works on Mac, Windows and Linux. Generated files are ignored by Git. To choose another location, use `npm run sa:package -- --output "path with spaces/bridge.zip"`.
+Use a local repository checkout with Node.js 24.x, version 24.15.0 or newer, and dependencies installed through `npm ci`.
 
-1. Back up the destination's Stream Avatars settings. For updates, privately save its existing `sa_helper_bridge_settings.json`.
-2. Open **Import & Export → Select Import** and select the ZIP. The command is named **sa_helper_bridge**.
-3. Open its script folder through **Create Script** and edit **sa_helper_bridge_settings.json**:
+1. Run `npm run sa:package`.
+2. Back up the destination's Stream Avatars settings.
+3. For updates, privately save the existing `sa_helper_bridge_settings.json`.
+4. In Stream Avatars, open **Import & Export → Select Import**.
+5. Select `dist/stream-avatars/sa-helper-bridge.zip`.
+6. Open the **sa_helper_bridge** script folder through **Create Script**.
+7. Edit `sa_helper_bridge_settings.json` with the bot address and matching private token:
 
    ```json
    {
@@ -37,138 +57,127 @@ Reimport the latest v3 companion for campaign totals and sequential recognition.
    }
    ```
 
-4. Replace the address with the bot computer's LAN IP. For testing on the same Mac, use `127.0.0.1`. Connect Stream Avatars.
+8. Connect Stream Avatars.
 
-A bare address uses port 3000 and `/sa/socket`. For another port use `192.168.1.42:4444`; for TLS use the full `wss://bridge.example/sa/socket` URL. IPv6 addresses need brackets, such as `[::1]`. Existing `url` settings remain accepted for migration.
+Packaging uses Node.js alone and works on macOS, Windows, and Linux.
+For another output location, run `npm run sa:package -- --output "path with spaces/bridge.zip"`.
+The package contains placeholder credentials and never reads private `.env` or installed application settings.
 
-The package contains placeholder address/token values and never reads `.env`, private settings or installed application data. **Reimporting replaces the command, its script folder, images and settings.** Restore saved private address/token values afterwards. General application settings, Twitch login, selected platform, avatar capacity and OBS scenes are separate.
+**Reimporting replaces the command, script folder, images, and companion settings.**
+Restore your private address and token after reimporting.
+General application settings, Twitch login, avatar capacity, and OBS scenes are separate.
 
-### Image catalog
+Use the current v3 companion with `campaign`, `celebrations`, and `donation-recognition` capabilities.
+Older packages without these capabilities are rejected.
+The default ZIP contains 52 images: 22 campaign images, six backdrop tiles, and 24 scenery props.
+Game mappings and scenery ship with the bot; no theme environment settings are required.
+The companion does not change avatar gear or display game-title text.
 
-Add PNG spritesheets and matching JSON manifests under `integrations/stream-avatars/assets/`, following `heart.json`:
+### Connection addresses
 
-```json
-{
-  "name": "sa_heart",
-  "file": "heart.png",
-  "frameWidth": 32,
-  "frameHeight": 32,
-  "frames": 8,
-  "rows": 1,
-  "framesPerSecond": 12,
-  "loop": true,
-  "transparent": true
-}
-```
-
-`frames` is the total count across equal rows. Eight 32×32 frames in two rows need a 128×64 PNG. Names must be unique ignoring case and use letters, numbers, underscores or hyphens; Windows reserved names are refused. Files must be regular PNGs directly inside the assets directory. Packaging validates PNG checksums, decoding, sheet dimensions and animation metadata, with bounded input sizes. Use actual PNG alpha for transparency.
-
-Run `npm run sa:package` again to include new manifests. Unlisted PNGs, SVG sources and private files are excluded. A new effect still needs Lua logic to use its image. The heart's dimensions are generated from `sa_heart` metadata at scale 1; keep the imported image scale at 1.
-
-### Renderer behavior
-
-The package includes the looping heart, gold-confetti sheet, goal accent, and bitmap captions/numeric glyphs. `node scripts/sa-assets.js` regenerates the original celebration art deterministically; package all its manifests together. Manual import requires every manifest's geometry and loop settings, so use the ZIP for updates.
-
-Every fresh donation, including matching, creates five-second following hearts above up to 101 active avatars, including the caster, with one randomly chosen jump or paired hug. A single gift shows `$25 - THANK YOU!`; nearby gifts combine as `$25 FROM 2 DONATIONS - THANK YOU!`. Whole dollars omit `.00`; nonzero cents remain. A hidden amount uses generic `THANK YOU!`. Nearby gifts share a window capped at ten seconds from its original start, retaining the same action choice.
-
-After that thank-you finishes, crossing a cumulative campaign interval starts one 18-second gold confetti/dance party. It shows the actual total, such as `$2,525 RAISED!` after $2,475 plus a $50 gift. A campaign-goal crossing gets `EXTRA LIFE GOAL REACHED!` and a 20-second party instead of its simultaneous milestone. Multiple crossed thresholds produce one party. New gifts during a party wait in one combined next thank-you, followed by their highest qualifying party; they never interrupt the current party. A delayed total can leave a gap after thanks, and never repeats thanks. A same-batch late goal can upgrade or resume its milestone party only within 38 seconds of the original start, retaining its dance attempts. An upgrade after that bound or while a newer phase owns the display is discarded. No donor name is linked to a Twitch avatar.
-
-The renderer reads current canvas bounds, including resizing and negative coordinates. Its budgets are 101 hearts, 32 confetti objects, 48 caption objects and 128 pending image loads. Larger crowds report `density-limit`. The supplied art uses 40-unit avatar-top spacing; check other avatar sizes visually. Images stay inside the game canvas; OBS cropping is separate.
-
-Expiry, disconnect, generation/campaign change, reload and shutdown clear owned effects. Layer failures leave other available visuals and the heartbeat running. A failed host callback can retain an invisible pending object until F5; repair missing assets and reload. Local jump, hug and dance commands are quiet and fixed. Hug pairs are shuffled among eligible Idle/Wander avatars, including the caster, with one initiator per pair. Unmatched avatars jump; busy avatars are preserved and may participate if they become eligible during the window. Only validated native internal IDs are command targets. Each avatar participates once per recognition window. Hugs finish under native control; clearing visuals never forcibly exits either partner. Native access settings/cooldowns or a target leaving/changing state during travel can prevent a hug. The host command returns no success result, so silent native rejection is not retried. Native animation access/cooldowns can affect actions; another active minigame/state is preserved during dance admission and cleanup. Dancing admits both Idle and ordinary Wander states. Mapped/tween dances follow native animation settings because the API cannot distinguish their sprite from another custom action; configure them to return to idle. A looping mapped dance can outlast the party or clear and needs manual stopping. Donation effects leave theme scenery and chapter decorations untouched. Game changes update scenery and request a crowd jump without displaying game/theme titles. The theme companion does not assign or modify avatar gear.
-
-Each eligible avatar receives at most one dance request per party, including milestone-to-goal upgrades. The companion remembers its dance/hug requests across clears, reconnects and reloads, using real time independently of game speed. During a hug cooldown, the pair jumps instead; a dance waits until its cooldown expires if the party is still running. Both cooldown guards default to ten seconds. If you customize Stream Avatars' per-user timers, add `"danceCooldownSeconds": 10` and/or `"hugCooldownSeconds": 10` to the companion's private JSON, replacing ten with at least the corresponding native duration. Values must be numbers from 0 to 86400. Allow up to one extra second for clock precision. The Lua API cannot inspect native timers or observe every manual command, so a viewer's recent manual dance/hug can still make the first companion request hit the native cooldown. The companion never retries that rejected request within the same party/window.
-
-## Temporary development integration test
-
-This replaces interactive rehearsal. Run a temporary instance of the donation/campaign/avatar and theme-preview subsystems; fixtures pass through the same source normalization, persistence and composer used in production. It starts no Discord, Twitch, Extra Life network or stream-marker clients, and creates its own removable OS temp directory. `STREAM_AVATARS_STATE_DIR` and production credentials are not used. Physical Hue is opt-in.
-
-On the Linux bot computer (or locally), set the token and listener only. Use another port while production remains running:
-
-```sh
-STREAM_AVATARS_TOKEN='<matching-private-token>' WEB_PORT=3010 npm run sa:integration -- --scenario all --crowd 20
-```
-
-The bridge listens on `WEB_HOST` (default `0.0.0.0`) and prints its address. Set the companion's private address to `BOT_LAN_IP:3010` and matching token. Select **Custom Lua** in Stream Avatars' Login Details, spawning **Everyone / In Chat**, and allow **101 avatars** for 100 viewers plus the caster. The runner waits up to 60 seconds for an authenticated ready v3 companion, then plays six independent donation scenarios at their real durations, followed by all six themes, Raft, PEAK, the Minecraft Bedrock alias, and neutral. Runs containing themes require a themes-capable companion and a matching imported theme ZIP; focused donation-only runs remain compatible with older donation-capable v3 companions. Names `sa_integration_1`–`sa_integration_100` and IDs 900001–900100 are reserved; cleanup removes only companion-owned viewers. The Custom Lua caster is restored by returning to your normal streaming service afterwards.
-
-Use `--scenario ordinary|anonymous|batch|milestone|large|goal|all|themes`, `--crowd 0..100`, and `--recognition random|jump|hug` (default `random`). The forced action is developer-only; it adds no production setting. For example, `WEB_PORT=3010 npm run sa:integration -- --scenario all --crowd 20 --recognition hug` forces hugs outside parties. Use `--crowd 0` to check caster-only jump fallback and `--crowd 100` for the 101-avatar budget. Milestone and goal scenarios always retain dancing. For physical lights, add `--hue` and supply only `HUE_USERNAME`, `HUE_IPADDRESS`, and `HUE_GROUPID`; the existing Hue donation effect and restoration path run. Without that flag, Hue settings in `.env` never initialize lights. Logs describe expected visuals and successful dispatch, rather than asserting that rendering passed.
-
-For a container, use the feature image with no production-state volume. The image includes the mappings and artwork; `all` and `themes` need no extra pack mount:
-
-```sh
-docker run --rm -it -p 3010:3000 -e STREAM_AVATARS_TOKEN='<matching-private-token>' IMAGE_WITH_THIS_CHANGE npm run sa:integration -- --scenario ordinary --crowd 20
-```
-
-SIGINT/SIGTERM sends a final clear, allows up to two seconds for the socket queue to drain, stops optional Hue, and removes only its owned temporary directory. An occupied port fails without stopping the existing bot. Restore the companion address/normal streaming service and reconnect when done.
-
-## Production admin controls
-
-Only configured Twitch admin logins in `TWITCH_CHANNEL` can use these controls. Moderator/broadcaster badges alone do not grant access; forwarded, duplicate or expired chat messages are refused. The `sa` namespace remains reserved.
-
-| Command | Behavior |
+| Value | Connection |
 | --- | --- |
-| `!sa status` | Campaign total/goal, next milestone, companion connectivity and state health |
-| `!sa campaign recover confirm` | Restore the validated production backup and silently rebaseline current donations/totals |
-| `!sa campaign reset confirm` | Archive/reset campaign progress and silently establish new baselines |
-| `!sa game recover confirm` | Restore the validated game-state backup after a fresh offline Twitch observation |
-| `!sa game reset confirm` | Archive/reset game state after a fresh offline Twitch observation |
+| `192.168.1.42` | Port 3000, path `/sa/socket` |
+| `127.0.0.1` | Same-computer connection |
+| `192.168.1.42:4444` | Custom listener port |
+| `[::1]` | IPv6 loopback |
+| `wss://bridge.example/sa/socket` | TLS reverse proxy |
 
-Recovery/reset needs explicit confirmation and admin authorization, with no Twitch offline requirement.
+The legacy `url` companion setting remains accepted.
+The bot's legacy voice-overlay listener settings remain fallbacks when corresponding `WEB_*` settings are absent.
 
-Rehearsal, crowd, hearts and clear controls now direct developers to `npm run sa:integration`.
+## Donation and scenery behavior
 
-## Production persistence
+| Event | Display |
+| --- | --- |
+| Fresh donation, including matching | Five seconds of hearts, amount/thank-you caption, and a random jump or paired hug |
+| Nearby donations | Combined recognition lasting at most ten seconds from its original start |
+| Campaign interval crossed | Recognition first, then an 18-second confetti and dance party |
+| Campaign goal reached | Recognition first, then a distinct 20-second goal party |
+| Later live game identity change | Mapped scenery and one welcoming jump; no game-title text |
 
-Production campaign progress is in `./data/stream-avatars/production/campaign.json`. The Compose example mounts `stream-avatars-state` at `/usr/src/app/data/stream-avatars`; uncomment its port 3000 mapping when enabling the bridge. A direct container run needs `-p 3000:3000 -v stream-avatars-state:/usr/src/app/data/stream-avatars`. Bind mounts must be writable by the unprivileged `node` user (UID/GID 1000). Do not share a state directory between instances or use `docker compose down -v` when preserving progress.
+The default milestone interval is $500 of cumulative campaign progress.
+Change it with `STREAM_AVATARS_DONATION_INTERVAL_CENTS`; values are cents, not dollars.
+Crossing multiple intervals produces one party.
+A simultaneous goal crossing takes priority over its milestone.
+New donations during a party wait for the next combined recognition.
 
-`STREAM_AVATARS_STATE_DIR` defaults to `./data/stream-avatars`. `STREAM_AVATARS_DONATION_INTERVAL_CENTS` defaults to 50000 ($500) and accepts integer cents from 1 to 100000000; changing it establishes a silent milestone baseline. The retired offline-grace variable is ignored.
+Campaign totals come from Extra Life, independently of Twitch stream status.
+Hidden donation amounts use a generic thank-you caption.
+The bot does not associate donor names with Twitch avatars.
+Startup, restart, and reset silently establish current baselines.
+Reconnect restores current state without replaying missed effects or entrances.
+Donation parties do not add an extra Hue celebration.
 
-Writes are serialized, fsynced and atomically renamed, with a previous good `.backup`. Corrupt state creates a durable `.recovery-required` gate: use confirmed recovery/reset explicitly. Ordinary bot notifications continue if campaign accounting is unavailable. The new schema is participant-bound; changing participant archives old progress and starts independent baselines. The independent game subsystem migrates legacy `production/state.json` and its backups in place, retaining legacy money fields only as inert migration data. Preserve an external state backup before upgrading for rollback. Never rename legacy state to `campaign.json` or treat its stream money as campaign totals. Upgrade bot and v3 companion together; no private settings are included in the package.
+Production scenery follows the confirmed Twitch category.
+Game updates require a confirmed online sample no older than two viewer sampling intervals.
+The first Twitch reconciliation restores scenery silently.
+Fifteen minutes of continuously confirmed offline observations clear game scenery.
+Donation recognition and campaign milestones remain independent of Twitch status.
 
-Fresh participant API `sumDonations` and `fundraisingGoal` supply authoritative totals, never a sum of acknowledged gifts. Donation IDs and handled thresholds persist. Startup/restart/reset independently baseline current donations and the first successful total without historical animation. Until a total is available, new gifts can still receive thanks. Crossing confirmation requires a fresh accepted gift within 120 seconds; old amount revelations and unexplained historical corrections advance accounting silently. Decreases never rearm handled thresholds; goal edits silently rebase and never rearm a handled goal.
+Detailed timing, native action limitations, and cleanup behavior are in the [renderer reference](stream-avatars-reference.md#renderer-behavior).
 
-Eligibility uses explicitly zoned donation timestamps and the monitoring checkpoint, with no Twitch online/offline or broadcast-window requirement. Donations remain newest first: ordinary discovery uses one page; bounded catch-up follows additional pages only when count growth or missing metadata requires it. Normal notifications and recognition proceed before the separately paced total refresh. Partial accepted gift IDs are persisted for retry, while census/count checkpoints advance only on a completed scan. Matching donation records follow exactly the ordinary path.
+## State and recovery
 
-When the last ready companion disconnects, active effects, pending batches, phase timers and delayed correlations are discarded. Accounting continues; reconnect shows current totals without replay. No extra Hue call is made for the party. Viewer monitoring, markers and their own live-stream requirements remain independent.
+The default state directory is `./data/stream-avatars`.
+Campaign progress uses `production/campaign.json`; independent game state uses `production/state.json`.
+Each file has an exclusive lock and a previous valid `.backup`.
+Keep external backups private and outside Git.
+Do not share a state directory between running instances.
 
-Each state file has an exclusive `.lock`. After a crash, confirm that no process/container owns the directory before removing a stale lock. Keep backups private and outside Git. Old rehearsal state files are no longer read and can be archived separately.
-
-## Real LAN and OBS acceptance run
-
-1. Import the latest v3 ZIP and restore private address/token. Launch the temporary runner on port 3010; select Custom Lua on the gaming computer.
-2. Run the commands below. Ordinary/anonymous gifts show `$25 - THANK YOU!`; a $10+$15 batch shows `$25 FROM 2 DONATIONS - THANK YOU!`. Milestone: a $10 thank-you first, then `$2,500 RAISED!` for 18 seconds. Large: a $1,060 thank-you, then one `$3,550 RAISED!` party. Goal: a $10 thank-you, then `EXTRA LIFE GOAL REACHED!` for 20 seconds, winning its simultaneous milestone. Whole dollars have no `.00`. Matching-equivalent gifts use this same input path.
-3. Repeat solo and with 100 viewers. Check the moving caster, heart following, hug pairs/odd-avatar jumps, late joins/leaves, native partner release and dense frame rate. A late eligible avatar participates once per phase.
-4. Keep existing avatar gear and independent decorations visible. Resize the window and check full-image clamping, transparent alpha, OBS crop and readable captions.
-5. Check no repeated cooldown clocks or `dance is on UserCD` warnings for companion requests across nearby parties, reconnects and F5. Mirror customized native Dance/Hug timers in private companion settings. Recent manual commands remain outside the API's timer visibility. Busy states must be preserved.
-6. Disconnect/reconnect and stop with SIGINT. Confirm owned cleanup and no transient replay. Default tests leave lights alone; optional `--hue` must restore them. Confirm no real chat, markers or production-state writes. Restore production address/token and normal streaming service afterwards.
-
-With your private token already set and companion address pointing to `BOT_LAN_IP:3010`:
+For Docker, publish the listener and mount persistent state:
 
 ```sh
-WEB_PORT=3010 npm run sa:integration -- --scenario all --crowd 20 --recognition hug
-WEB_PORT=3010 npm run sa:integration -- --scenario all --crowd 20 --recognition jump
-WEB_PORT=3010 npm run sa:integration -- --scenario ordinary --crowd 0 --recognition hug
-WEB_PORT=3010 npm run sa:integration -- --scenario ordinary --crowd 100 --recognition hug
+docker run --rm -it --env-file .env -p 3000:3000 \
+  -v stream-avatars-state:/usr/src/app/data/stream-avatars \
+  ghcr.io/stjohnjohnson/extralife-helper-bot:latest
 ```
 
-The ordinary poll cadence is 30 seconds. Automated clock-injected tests exercise API lag and overlapping batches even when normal deployment polls keep parties apart. Dispatch logs do not establish native visual acceptance; record LAN/OBS, platform, capacity and optional Hue results separately.
+The Compose example already mounts this volume; uncomment its port mapping when enabling a web integration.
+Bind mounts must be writable by the container's `node` user, UID/GID 1000.
+Do not run `docker compose down -v` when you need to preserve progress.
 
-### Preview themes and games
+Corrupt state creates a durable recovery gate.
+Normal donation notifications continue if campaign accounting is unavailable.
+Use [Twitch admin commands](commands.md#command-reference) for explicit recovery or reset:
 
-`--scenario all` runs all six donation fixtures and then the complete theme cycle: block-world, kitchen, outdoor, puzzle, space-salvage, party, Raft, PEAK, Minecraft Bedrock, and neutral. Each theme step lasts 6.5 seconds. `--scenario themes` runs only that cycle; add a specific `--theme` or `--game` for one focused theme preview. Use `--theme kitchen` or `--game "Keep Talking and Nobody Explodes"` with a focused donation scenario to inspect the two owners together. With `all`, a specific selector applies to the donation phase and the complete theme cycle still follows. `--theme all` is accepted with `all` or `themes`.
+| Command group | Requirement and effect |
+| --- | --- |
+| `!sa campaign recover confirm` | Restore the validated backup; silently establish current donation and total baselines |
+| `!sa campaign reset confirm` | Archive and reset campaign progress; silently establish new baselines |
+| `!sa game recover confirm` | Restore the game backup after a fresh confirmed offline Twitch observation |
+| `!sa game reset confirm` | Archive and reset game state after a fresh confirmed offline Twitch observation |
 
-The runner uses the checked-in bundled pack by default, even in a fresh checkout without local artwork history. For deliberate art iteration, `--candidate-pack <directory>` uses a validated review candidate; `--theme-pack <directory>` accepts an externally promoted pack. Explicit missing/corrupt packs fail before state/listener/Hue startup and never fall back. These development overrides are optional, not normal bot setup.
+Campaign commands have no offline requirement.
+Game commands require an offline observation no older than two viewer sampling intervals.
+Game commands preserve campaign progress and active donation effects.
+Campaign commands do not reset game state.
+Moderator or broadcaster badges alone do not grant access; configure `TWITCH_ADMIN_USERS`.
 
-Preview state is isolated in the runner's temporary directory and removed on exit. It sends no Twitch category updates, chat, markers, or production game observations. Reconnect restores current state without an entrance. Each changed game identity gets one six-second entrance; repeated identities retain scenery. Dispatch logs do not prove native graphics or LAN/OBS acceptance.
+Changing participants archives old campaign progress and establishes independent baselines.
+Changing the interval or goal does not replay historical effects.
+Decreased totals do not reenable handled thresholds.
+Legacy game state migrates in place; never rename `state.json` to `campaign.json`.
+Back up state before upgrading if you need rollback.
+Upgrade the bot and companion together.
 
-### Bundled import and matching integration runner
+After a crash, confirm that no process owns the state directory before removing a stale lock.
+See [persistence details](stream-avatars-reference.md#campaign-accounting-details) for donation checkpoints and recovery behavior.
 
-Build `npm run sa:package`, import `dist/stream-avatars/sa-helper-bridge.zip`, restore the private connection settings, then run `npm run sa:integration -- --scenario all --crowd 20`. Use `--scenario themes` for only the theme cycle or `--scenario ordinary --theme kitchen` for donation interaction. Both use the same shipped art/revision. Repeat with `--crowd 0`, `1`, `20` and `100`; stop with SIGINT and restore the normal streaming service afterwards. Explicit candidate review commands are documented in the [artwork workflow](stream-avatars-artwork.md#explicit-candidate-review-pack).
+## Verify the installation
 
-The archive contains placeholder credentials. Back up private settings before any operator import and restore the private address/token afterwards. Scenery-only exports contain no gear entries, avatar definitions, permissions or frame pivots. Follow the [six-theme acceptance matrix](stream-avatars-theme-verification.md#acceptance-evidence), and [artwork promotion gates](stream-avatars-artwork.md#explicit-candidate-review-pack). The bundled art reflects the user’s reviewed scenery; future external candidates retain their approval gate. The package does not apply private avatar settings.
+1. Import the latest companion ZIP.
+2. Restore its private connection settings.
+3. Run `!sa status` as a configured Twitch administrator.
+4. Check that the companion reports connected and no recovery requirement.
+5. Follow the [temporary integration procedure](stream-avatars-reference.md#temporary-development-integration-test) for synthetic donations and scenery previews.
+6. Check the result in Stream Avatars and OBS on the destination computer.
 
-### Persistent game state and v3 compatibility
+Automated tests and dispatch logs do not establish native visual acceptance.
+Check small and dense crowds, image ordering, transparent tile joins, resize behavior, native cooldowns, and OBS cropping.
+The temporary runner uses separate state and no Discord, Twitch, Extra Life, or marker network clients.
+Physical Hue testing requires the explicit `--hue` option.
+Restore the production companion address and normal streaming service after testing.
 
-`src/gameSession` owns category freshness, offline grace, current game and legacy state migration independently of campaign progress. Successful Twitch category writes order at confirmation, while viewer polls order at request start. A game read older than the latest accepted stream status is ignored. Restart and the first Twitch reconciliation restore only snapshots; campaign resets leave the game intact. Its file is `<STREAM_AVATARS_STATE_DIR>/production/state.json`; campaign progress uses `production/campaign.json`. Corrupt game state is recovery-gated independently of campaign accounting and appears as `game recovery required` in `!sa status`. An administrator can use `!sa game recover confirm` to restore `state.json.backup`, or `!sa game reset confirm` to archive/reset the game state. Both require a confirmed offline Twitch observation no older than two viewer polling intervals. They leave campaign bytes, campaign checkpoints and active donation effects unchanged, and restore no entrance. Campaign recovery/reset never resets the game.
-
-The server sends the original exact v3 snapshot until a companion advertises `themes`, then supplies its current theme and capability-gated entrances. Donation-only v3 companions continue to work. Native donation recognition/party actions take priority over entrance jumps arriving in the same frame; donation captions and scenery remain independently owned. The historical portable metadata names `previewOnly`/`rehearsalOnly` stay unchanged to preserve catalog hashes, while runtime preview admission uses integration mode.
+See [current scenery acceptance](stream-avatars-theme-verification.md) and [historical verification evidence](stream-avatars-verification.md).
+For custom sprites or artwork, use the [technical reference](stream-avatars-reference.md#image-catalog) and [artwork workflow](stream-avatars-artwork.md).
