@@ -118,6 +118,7 @@ return function()
     end
     -- Separate registries contain only objects created by this companion.
     local recognition, celebration = nil, nil
+    local recognitionWindowStartedAt, recognitionWindowSuppressed = nil, false
     local heartLayer, particleLayer, captionLayer, dancing, handled, actionAttempts = {}, {}, {}, {}, {}, {}
     local pendingDances = {}
     local reported = {}; local lastCelebrationIssuedAt=-1
@@ -162,7 +163,7 @@ return function()
     end
     clearCelebration=function()
         clearLayer(heartLayer); clearLayer(particleLayer); clearLayer(captionLayer); stopDances()
-        heartLayer={}; particleLayer={}; captionLayer={}; handled={}; actionAttempts={}; recognition=nil; celebration=nil; reported={}; lastCelebrationIssuedAt=-1
+        heartLayer={}; particleLayer={}; captionLayer={}; handled={}; actionAttempts={}; recognition=nil; celebration=nil; recognitionWindowStartedAt=nil; recognitionWindowSuppressed=false; reported={}; lastCelebrationIssuedAt=-1
     end
     local function imageEntry(layer,id,asset)
         local entry=layer[id]
@@ -243,10 +244,15 @@ return function()
         lastCelebrationIssuedAt=value.issuedAtMs
         seen[value.id]=true; seenOrder[#seenOrder+1]=value.id; if #seenOrder>256 then seen[table.remove(seenOrder,1)]=nil end
         local partyActive=celebration and celebration.ends>elapsed and celebration.untilMs>serverNow
-        local sameWindow=recognition and recognition.startedAtMs==value.recognitionStartedAtMs
-        local suppressed=(sameWindow and recognition.suppressed) or partyActive or value.partyUntilMs>serverNow
-        if not sameWindow then handled={} end
-        if not sameWindow or recognition.amount~=value.donationTotalCents or recognition.count~=value.donationCount or recognition.suppressed~=suppressed then clearLayer(captionLayer); captionLayer={} end
+        -- A valid extension can arrive after the previous visible hearts expired.
+        -- Keep window history independently until a fresh start or explicit clear.
+        local sameWindow=value.donationCount>0 and recognitionWindowStartedAt==value.recognitionStartedAtMs
+        local suppressed=(sameWindow and recognitionWindowSuppressed) or partyActive or value.partyUntilMs>serverNow
+        if value.donationCount>0 then
+            if not sameWindow then handled={} end
+            recognitionWindowStartedAt=value.recognitionStartedAtMs; recognitionWindowSuppressed=suppressed
+        end
+        if not recognition or not sameWindow or recognition.amount~=value.donationTotalCents or recognition.count~=value.donationCount or recognition.suppressed~=suppressed then clearLayer(captionLayer); captionLayer={} end
         recognition=value.donationCount>0 and value.heartsUntilMs>serverNow and {
             ends=elapsed+(value.heartsUntilMs-serverNow)/1000,untilMs=value.heartsUntilMs,
             startedAtMs=value.recognitionStartedAtMs,count=value.donationCount,amount=value.donationTotalCents,

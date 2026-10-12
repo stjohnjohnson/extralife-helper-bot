@@ -173,7 +173,24 @@ local function timedGift(now,id,kind)
     if kind=="goal" then v.partyUntilMs=now+20000 elseif kind=="milestone" then v.partyUntilMs=now+18000 end
     return v
 end
-if scenario=="native-null-hidden" or scenario=="native-null-goal-only" then
+if scenario=="recognition-delayed-extension" or scenario=="recognition-delayed-hug" then
+    local hug=scenario=="recognition-delayed-hug"
+    addUser(1);if hug then addUser(2) end;send(snapshot());local original=celebration();original.recognitionAction=hug and "hug" or "jump";send(original);tick()
+    for i=1,35 do tick() end
+    assert((hug and #hugs==1 and jumps==0) or (not hug and jumps==1))
+    send({version=2,type="heartbeat",serverNowMs=6100});tick();assert(count()==0)
+    local extension=celebration("donation","delayed");extension.issuedAtMs=5900;extension.expiresAtMs=15900;extension.heartsUntilMs=10900;extension.donationCount=2;extension.donationTotalCents=5000
+    extension.recognitionAction=hug and "hug" or "jump"
+    send(extension);tick();assert((hug and #hugs==1 and jumps==0) or (not hug and jumps==1),"delayed extension must retain handled avatars")
+    assert(captionText()=="$50 FROM 2 DONATIONS - THANK YOU!" and assetCount("sa_heart")== (hug and 2 or 1))
+elseif scenario=="recognition-delayed-suppression" then
+    addUser(1);send(snapshot());send(celebration("goal"))
+    send(timedGift(17000,"party-gift"));tick();assert(jumps==0)
+    send({version=2,type="heartbeat",serverNowMs=22100});tick();assert(count()==0)
+    local extension=celebration("donation","delayed-party-gift");extension.issuedAtMs=21900;extension.expiresAtMs=31900;extension.recognitionStartedAtMs=17000;extension.heartsUntilMs=26900;extension.donationCount=2;extension.donationTotalCents=5000
+    send(extension);tick();assert(jumps==0 and captionText()=="" and assetCount("sa_heart")==1,"delayed extension must retain party suppression")
+    send(timedGift(30000,"actually-fresh"));tick();assert(jumps==1 and captionText()=="$25 - THANK YOU!")
+elseif scenario=="native-null-hidden" or scenario=="native-null-goal-only" then
     addUser(1);send(snapshot());local v=celebration(scenario=="native-null-goal-only" and "goal" or "donation")
     if scenario=="native-null-hidden" then v.donationTotalCents=codec.null
     else v.donationCount=0;v.donationTotalCents=0;v.recognitionStartedAtMs=codec.null;v.recognitionAction=codec.null;v.heartsUntilMs=0 end
