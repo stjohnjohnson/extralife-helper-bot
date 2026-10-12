@@ -29,11 +29,15 @@ describe('portable Stream Avatars packages', () => {
     test('contains the shipped script, placeholder settings, and native looping animation metadata', () => {
         const result = buildPackage({ integrationDir });
         const entries = decode(result.archive);
-        expect(result.imageCount).toBe(22);
+        expect(result.imageCount).toBe(52);
         expect(Object.keys(entries).sort()).toEqual([
-            'data.txt', ...fs.readdirSync(path.join(shipped, 'assets')).filter(name => name.endsWith('.json')).map(name => `${commandPath}${JSON.parse(fs.readFileSync(path.join(shipped, 'assets', name))).name}.png`), `${commandPath}sa_helper_bridge.lua`, `${commandPath}sa_helper_bridge_settings.json`
+            'data.txt', ...require('../src/streamAvatars/themeRelease').loadThemePack({ directory: require('../src/streamAvatars/themeRelease').BUNDLED_THEME_PACK_DIR }).catalog.assets.map(asset => `${commandPath}${asset.image}.png`), ...fs.readdirSync(path.join(shipped, 'assets')).filter(name => name.endsWith('.json')).map(name => `${commandPath}${JSON.parse(fs.readFileSync(path.join(shipped, 'assets', name))).name}.png`), `${commandPath}sa_helper_bridge.lua`, `${commandPath}sa_helper_bridge_settings.json`
         ].sort());
-        expect(Buffer.from(entries[`${commandPath}sa_helper_bridge.lua`])).toEqual(fs.readFileSync(path.join(shipped, 'companion.lua')));
+        const lua = strFromU8(entries[`${commandPath}sa_helper_bridge.lua`]);
+        const catalog = JSON.parse(lua.match(/local THEME_CATALOG_JSON = \[\[([^]*?)\]\]/)[1]);
+        expect(catalog.previewOnly).toBe(false);
+        expect(Object.keys(catalog.themes)).toHaveLength(6);
+        expect(lua.replace(/local THEME_CATALOG_JSON = \[\[([^]*?)\]\]/, 'local THEME_CATALOG_JSON = nil')).toBe(fs.readFileSync(path.join(shipped, 'companion.lua'), 'utf8'));
         expect(Buffer.from(entries[`${commandPath}sa_heart.png`])).toEqual(fs.readFileSync(path.join(shipped, 'assets/heart.png')));
         const data = json(entries, 'data.txt');
         expect(Object.keys(data).sort()).toEqual(['avatar', 'gear', 'backgrounds', 'backgroundObj', 'boss', 'playerClass', 'nametags', 'commands', 'languages'].sort());
@@ -83,7 +87,7 @@ describe('portable Stream Avatars packages', () => {
         fs.writeFileSync(path.join(integrationDir, 'assets/second.json'), JSON.stringify({ ...manifest, name: 'sa_second', framesPerSecond: 24, loop: false }));
         const result = buildPackage({ integrationDir });
         const entries = decode(result.archive);
-        expect(result.imageCount).toBe(23);
+        expect(result.imageCount).toBe(53);
         expect(entries[`${commandPath}sa_second.png`]).toEqual(entries[`${commandPath}sa_heart.png`]);
         expect(json(entries, 'data.txt').commands.sa_helper_bridge.scriptImages.sa_second.details)
             .toMatchObject({ fps: 24, fpsPerFrame: Array(8).fill(24), loopTotal: 1 });
@@ -143,7 +147,7 @@ describe('portable Stream Avatars packages', () => {
 
     test('includes manifests with an uppercase extension on every OS', () => {
         fs.renameSync(path.join(integrationDir, 'assets/heart.json'), path.join(integrationDir, 'assets/heart.JSON'));
-        expect(buildPackage({ integrationDir }).imageCount).toBe(22);
+        expect(buildPackage({ integrationDir }).imageCount).toBe(52);
     });
 
     test('rejects corrupt or truncated PNG chunks', () => {
@@ -234,13 +238,13 @@ describe('portable Stream Avatars packages', () => {
             cwd: directory, encoding: 'utf8', env: { ...process.env, STREAM_AVATARS_TOKEN: 'PRIVATE_CLI_SENTINEL' }
         });
         expect(result.status).toBe(0);
-        expect(result.stdout).toContain('22 images');
+        expect(result.stdout).toContain('52 images');
         expect(result.stdout).toContain(output);
         const entries = decode(fs.readFileSync(output));
         expect(json(entries, `${commandPath}sa_helper_bridge_settings.json`).token).toBe('REPLACE_WITH_PRIVATE_TOKEN');
     });
 
-    test.each([['--unknown'], ['--output'], ['--output', 'no-extension'], ['--output', 'a.zip', 'extra']])('CLI rejects invalid arguments %j', (...args) => {
+    test.each([['--unknown'], ['--output'], ['--output', 'no-extension'], ['--output', 'a.zip', 'extra'], ['--theme-pack', ''], ['--candidate-pack', '']])('CLI rejects invalid arguments %j', (...args) => {
         const result = spawnSync(process.execPath, [path.resolve(__dirname, '../scripts/sa-package.js'), ...args], { cwd: directory, encoding: 'utf8' });
         expect(result.status).toBe(1);
         expect(result.stderr).toContain('Usage:');

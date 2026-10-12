@@ -4,8 +4,7 @@ const { createSessionStore } = require('../gameSession/store');
 const { validObservation, validGameObservation } = require('../gameSession/state');
 const { loadThemeConfiguration, resolveGame, THEME_IDS } = require('./themes');
 const { createHash } = require('node:crypto');
-const { buildThemeCatalog } = require('./themeLayout');
-const { loadThemePack } = require('./themeRelease');
+const { loadThemePack, BUNDLED_THEME_PACK_DIR } = require('./themeRelease');
 const { publicCampaign } = require('./protocol');
 const { createCampaignCelebrationComposer } = require('./celebrations');
 const { createCampaignProgress } = require('./campaignProgress');
@@ -16,8 +15,8 @@ async function startStreamAvatars({ config, logger = { warn() {} }, signal, webS
     const settings = config.streamAvatars.config, mode = integration ? 'integration' : 'production';
     if (candidatePackDir && !integration) throw new Error('Candidate packs require integration preview');
     if (candidatePackDir && themePackDir) throw new Error('Choose one theme pack');
-    const directory = candidatePackDir || themePackDir || settings.themePackDir;
-    const catalog = directory ? loadThemePack({ directory, previewOnly: Boolean(candidatePackDir && integration) }).catalog : buildThemeCatalog();
+    const directory = candidatePackDir || themePackDir || BUNDLED_THEME_PACK_DIR;
+    const catalog = loadThemePack({ directory, previewOnly: Boolean(candidatePackDir && integration) }).catalog;
     const crowdIds = integration ? [...integration.crowdIds] : [], participantId = String(config.participantId), intervalCents = settings.donationIntervalCents ?? 50000;
     const progress = await createCampaignProgress({ store: createCampaignStore({ path: join(settings.stateDir, mode, 'campaign.json'), mode, participantId, intervalCents }),
         clock: realClock, mode, participantId, intervalCents });

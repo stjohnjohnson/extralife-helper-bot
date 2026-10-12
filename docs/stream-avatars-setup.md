@@ -18,7 +18,7 @@ The existing shared listener settings are `WEB_HOST=0.0.0.0` and `WEB_PORT=3000`
 
 ## Generate and import the ZIP
 
-The default package preserves all 22 campaign images, including the animated heart, confetti and donation captions. Six-theme artwork is currently an explicit **integration-preview candidate**: all 30 scenery designs are unapproved; hats and avatar fitting are retired. Follow [candidate review and acceptance](stream-avatars-theme-verification.md) before importing that ZIP. Production themes require an approved, native-proof-bound portable pack; setting `STREAM_AVATARS_THEME_PACK` to a candidate directory is rejected.
+The default package ships all 52 images: 22 campaign images, six continuous backdrop tiles and 24 props. Static game mappings are in `integrations/stream-avatars/themes.json`; the reviewed scenery pack is checked in under `integrations/stream-avatars/themes/bundled/`. Normal bot runs, Docker and integration previews use that same pack automatically. No theme environment variables or avatar fitting are needed. Import the ZIP into Stream Avatars and configure only the existing private connection address/token.
 
 ```sh
 npm run sa:package
@@ -93,7 +93,7 @@ The bridge listens on `WEB_HOST` (default `0.0.0.0`) and prints its address. Set
 
 Use `--scenario ordinary|anonymous|batch|milestone|large|goal|all|themes`, `--crowd 0..100`, and `--recognition random|jump|hug` (default `random`). The forced action is developer-only; it adds no production setting. For example, `WEB_PORT=3010 npm run sa:integration -- --scenario all --crowd 20 --recognition hug` forces hugs outside parties. Use `--crowd 0` to check caster-only jump fallback and `--crowd 100` for the 101-avatar budget. Milestone and goal scenarios always retain dancing. For physical lights, add `--hue` and supply only `HUE_USERNAME`, `HUE_IPADDRESS`, and `HUE_GROUPID`; the existing Hue donation effect and restoration path run. Without that flag, Hue settings in `.env` never initialize lights. Logs describe expected visuals and successful dispatch, rather than asserting that rendering passed.
 
-For a container, use the feature image with no production-state volume. This focused donation preview needs no theme pack; mount a matching pack read-only and pass `--candidate-pack` or `--theme-pack` to run `all`:
+For a container, use the feature image with no production-state volume. The image includes the mappings and artwork; `all` and `themes` need no extra pack mount:
 
 ```sh
 docker run --rm -it -p 3010:3000 -e STREAM_AVATARS_TOKEN='<matching-private-token>' IMAGE_WITH_THIS_CHANGE npm run sa:integration -- --scenario ordinary --crowd 20
@@ -157,15 +157,15 @@ The ordinary poll cadence is 30 seconds. Automated clock-injected tests exercise
 
 `--scenario all` runs all six donation fixtures and then the complete theme cycle: block-world, kitchen, outdoor, puzzle, space-salvage, party, Raft, PEAK, Minecraft Bedrock, and neutral. Each theme step lasts 6.5 seconds. `--scenario themes` runs only that cycle; add a specific `--theme` or `--game` for one focused theme preview. Use `--theme kitchen` or `--game "Keep Talking and Nobody Explodes"` with a focused donation scenario to inspect the two owners together. With `all`, a specific selector applies to the donation phase and the complete theme cycle still follows. `--theme all` is accepted with `all` or `themes`.
 
-Pack selection uses an explicit `--candidate-pack` or `--theme-pack` first, then the approved `STREAM_AVATARS_THEME_PACK`. Otherwise, a run containing themes uses the repository-local `reports/stream-avatars-artwork/scenery-preview-pack` as a preview-only candidate. Missing, corrupt or invalid required packs fail before listener/state/Hue startup with import guidance; an invalid explicit or environment pack never falls back. Import the ZIP built from the same directory and revision printed by the runner. Production still rejects candidates and requires approved native-proof-bound packs. A focused donation-only scenario without a theme/game selector needs no theme pack.
+The runner uses the checked-in bundled pack by default, even in a fresh checkout without local artwork history. For deliberate art iteration, `--candidate-pack <directory>` uses a validated review candidate; `--theme-pack <directory>` accepts an externally promoted pack. Explicit missing/corrupt packs fail before state/listener/Hue startup and never fall back. These development overrides are optional, not normal bot setup.
 
 Preview state is isolated in the runner's temporary directory and removed on exit. It sends no Twitch category updates, chat, markers, or production game observations. Reconnect restores current state without an entrance. Each changed game identity gets one six-second entrance; repeated identities retain scenery. Dispatch logs do not prove native graphics or LAN/OBS acceptance.
 
-### Candidate import and matching integration runner
+### Bundled import and matching integration runner
 
-Build `npm run sa:package -- --candidate-pack reports/stream-avatars-artwork/scenery-preview-pack --output reports/stream-avatars-artwork/scenery-preview.zip`, then run `npm run sa:integration -- --scenario all --crowd 20` to use that same local preview pack for every donation and theme step. Use `--scenario themes` for the theme cycle alone or explicitly pass `--candidate-pack <directory>` for another preview pack. Repeat with `--crowd 0`, `1`, `20`, and `100`; use `--scenario ordinary --theme kitchen` for donation interaction. Stop with SIGINT and restore the normal streaming service afterwards.
+Build `npm run sa:package`, import `dist/stream-avatars/sa-helper-bridge.zip`, restore the private connection settings, then run `npm run sa:integration -- --scenario all --crowd 20`. Use `--scenario themes` for only the theme cycle or `--scenario ordinary --theme kitchen` for donation interaction. Both use the same shipped art/revision. Repeat with `--crowd 0`, `1`, `20` and `100`; stop with SIGINT and restore the normal streaming service afterwards. Explicit candidate review commands are documented in the [artwork workflow](stream-avatars-artwork.md#explicit-candidate-review-pack).
 
-The archive contains placeholder credentials. Back up private settings before any operator import and restore the private address/token afterwards. Scenery-only exports contain no gear entries, avatar definitions, permissions or frame pivots. Follow the [six-theme acceptance matrix](stream-avatars-theme-verification.md#acceptance-evidence), and [artwork promotion gates](stream-avatars-artwork.md#explicit-candidate-review-pack). Candidate art remains unapproved, and the package does not apply private avatar settings.
+The archive contains placeholder credentials. Back up private settings before any operator import and restore the private address/token afterwards. Scenery-only exports contain no gear entries, avatar definitions, permissions or frame pivots. Follow the [six-theme acceptance matrix](stream-avatars-theme-verification.md#acceptance-evidence), and [artwork promotion gates](stream-avatars-artwork.md#explicit-candidate-review-pack). The bundled art reflects the user’s reviewed scenery; future external candidates retain their approval gate. The package does not apply private avatar settings.
 
 ### Persistent game state and v3 compatibility
 

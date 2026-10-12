@@ -1,14 +1,11 @@
-const { resolve } = require('node:path');
-const { loadThemePack } = require('./themeRelease');
-const localPreviewPack = resolve(__dirname, '../../reports/stream-avatars-artwork/scenery-preview-pack');
-function resolveIntegrationPack({ candidatePackDir, themePackDir, environmentPackDir, required = false, defaultPackDir = localPreviewPack } = {}) {
+const { loadThemePack, BUNDLED_THEME_PACK_DIR } = require('./themeRelease');
+function resolveIntegrationPack({ candidatePackDir, themePackDir, required = false, defaultPackDir = BUNDLED_THEME_PACK_DIR } = {}) {
     if (candidatePackDir !== undefined && themePackDir !== undefined) throw new Error('Choose one theme pack: --candidate-pack or --theme-pack');
     let previewOnly = candidatePackDir !== undefined;
     let directory = previewOnly ? candidatePackDir : themePackDir;
-    if (directory === undefined && environmentPackDir !== undefined) directory = environmentPackDir;
     if (directory === undefined) {
         if (!required) return {};
-        directory = defaultPackDir; previewOnly = true;
+        directory = defaultPackDir;
     }
     try {
         const { packRevision } = loadThemePack({ directory, previewOnly });

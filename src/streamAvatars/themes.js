@@ -1,6 +1,6 @@
 const { readFileSync } = require('node:fs');
 const { createHash } = require('node:crypto');
-const defaults = require('../../integrations/stream-avatars/themes.example.json');
+const defaults = require('../../integrations/stream-avatars/themes.json');
 const THEME_IDS = Object.freeze(['block-world', 'kitchen', 'outdoor', 'puzzle', 'space-salvage', 'party']);
 // This trusted artwork specification revision is replaced by the selected export manifest at packaging.
 const PACK_REVISION = createHash('sha256').update(JSON.stringify(require('../../integrations/stream-avatars/artwork/inventory.json')))

@@ -19,7 +19,7 @@ function buildThemeLayout({ theme, packRevision, referenceWidth = 1920 }) {
 }
 function buildThemeCatalog({ manifest, previewOnly = false } = {}) {
     // Production promotion belongs to the selected-artifact/proof gate. Booleans in an arbitrary
-    // candidate manifest are never approval. Until that gate supplies a catalog, defaults are empty.
+    // candidate manifest are never approval. Normal defaults load the checked-in bundled pack.
     if (manifest && previewOnly !== true) throw new Error('Theme production promotion is required');
     const assets = [];
     if (manifest) {

@@ -75,6 +75,20 @@ async function connectThemes() {
 }
 const observeGame = (gameName, at = now, source = 'twitch') => service.observeGame({ gameName, observedAtMs: at, source });
 const online = () => service.observeProduction({ status: 'online', observedAtMs: now, startedAtMs: now - 1000, streamId: 'stream' });
+test('default production snapshots use the same complete scenery revision as normal packaging', async () => {
+    const { catalog } = require('../src/streamAvatars/themeRelease').loadThemePack({
+        directory: require('../src/streamAvatars/themeRelease').BUNDLED_THEME_PACK_DIR
+    });
+    expect(require('../src/streamAvatars/package').buildPackage().imageCount).toBe(52);
+    await online(); await connectThemes();
+    const pending = waitFor('snapshot', value => value.theme?.gameName === 'Minecraft');
+    await observeGame('Minecraft');
+    const snapshot = await pending;
+    expect(snapshot.theme.packRevision).toBe(catalog.packRevision);
+    expect(snapshot.theme.themeId).toBe('block-world');
+    expect(catalog.themes[snapshot.theme.themeId].backdrop).toBeTruthy();
+    expect(catalog.themes[snapshot.theme.themeId].props).toHaveLength(4);
+});
 test('first reconciliation persists without entrance; a shared-theme change sends snapshot then one entrance', async () => {
     await online(); await connectThemes(); const received = []; socket.on('message', raw => received.push(JSON.parse(raw)));
     let pending = waitFor('snapshot', value => value.theme?.gameName === 'Minecraft'); await observeGame('Minecraft'); await pending;

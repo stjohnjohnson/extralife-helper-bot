@@ -1,7 +1,0 @@
-{
-  "schemaVersion": 1,
-  "assetId": "block-world.gear.mining-helmet",
-  "styleRevision": "pixel-v1",
-  "exactPrompt": "Use case: stylized-concept. Asset ID: block-world.gear.mining-helmet. Generate one isolated transparent right-facing side-view gear accessory: Squared mining helmet. Compact side-view pixel art; clear silhouette, consistent pixel grid and dark outline #202330, minimal internal detail, warm upper-left highlights. Generic original subjects. Palette revision pixel-v1: #202330, #41445B, #F4E8CE, #946B49, #66A66C, #59B8B0, #699AD9, #F0C75E, #DE884E, #D66A72; use a small subset. Entire recognizable object with 2-pixel transparent edge padding on intended 32x32 logical export canvas. Visible height at final stream scale: 16 pixels maximum. Keep generous transparent empty space; typical gear adds only 8–16 pixels above existing avatars, chef hat at most 24. Do not draw an avatar body or head. True transparent background; no text, logos, people, avatar bodies, environment, painted backdrop, ground slab, gradients outside object, detached decorations, external cast shadows, or cropping. Reference inputs, when supplied, provide style only; preserve this subject. Intended canvas is export guidance, not a guaranteed model output resolution.",
-  "referenceIds": []
-}

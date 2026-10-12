@@ -1,0 +1,363 @@
+{
+  "schemaVersion": 1,
+  "previewOnly": false,
+  "packRevision": "5e17bac3e480d569591640a6127bf21cb2b6a8384144c1a6076d9a4ebbf037dc",
+  "manifestSha256": "64076d81f48ef224c9c5f752f8a718d692e952c0fef812e015e7e44c31bd14db",
+  "assets": {
+    "block-world.backdrop.minimal-strip": {
+      "assetId": "block-world.backdrop.minimal-strip",
+      "attemptId": "block-world.backdrop.minimal-strip-60286675-980a-4a19-8228-396ea10d4404",
+      "sha256": "f51304432507352d5cbc07a7746c50ac9f15dece238a01fdaf13c75132cbb0d9",
+      "sourceSha256": "345840c9743ea20daedb16ed10b783a9f4dc599b8d854672d849e01969604ac2",
+      "recipeHash": "f23b257799141a467a3f4c459352adcd9b4dc4ad27b7b4a5f3780ac0ba3946b9",
+      "promptSha256": "f829970e2c1e0dde93ffaf6b99bd6c9a6249eaa9bc121628b3f4b8dafd3be4fb",
+      "referenceSha256": [
+        "7ed5655b3ec000768ceb8f6ce5679b975dc4ee3d8d992ca6762aa78adc1895f9",
+        "ec7b87278e678d00bd777575ae6c8e74b73f4a62503899f0ac8f7189646fb3a4"
+      ]
+    },
+    "block-world.scenery.block-planter": {
+      "assetId": "block-world.scenery.block-planter",
+      "attemptId": "block-world.scenery.block-planter-0ff076e0-d3bd-4309-8422-4276bad46d40",
+      "sha256": "859ddaa4d18818b245543bb387291ed7de616b0dea84d849fb08ee2cca15f14f",
+      "sourceSha256": "7ed5655b3ec000768ceb8f6ce5679b975dc4ee3d8d992ca6762aa78adc1895f9",
+      "recipeHash": "79354d6ef7f82b1f48e97adbaf1f4b46c3ef900983f92b4da83c6765f5c2bfca",
+      "promptSha256": "796cb25509bfb4ed609b6c27fabad940434fc8b0fc76c4f8d6d98b16fc021465",
+      "referenceSha256": [
+        "57efb3bcea0070a5a4bab0932f3319755f7dede5fa144a61fe1d80a404f85d5d"
+      ]
+    },
+    "block-world.scenery.grass-tuft": {
+      "assetId": "block-world.scenery.grass-tuft",
+      "attemptId": "block-world.scenery.grass-tuft-181b43b5-10ef-419c-9450-28cb00c1ec06",
+      "sha256": "3c496da03602339f4e081871a0a5eb359f76e9f4297f0f70cb0f3f9f94b56576",
+      "sourceSha256": "73219c0a60bef5d4a1adddc7c4b94dc4c4443f7bb591d040949a037404f549c3",
+      "recipeHash": "c9e229d2fc999900f9db45ea14883ec6b6e276b150419256cb8d0f355783f3b5",
+      "promptSha256": "b51839d6b5bf36393bfaa2bf9b0c1cb040187e5295a3185189e32844fec91fc6",
+      "referenceSha256": [
+        "27c3289f0374b31c664f4d878aaa560fea3216d46137844ecb1cbc7d76d45bb8",
+        "37383f888fdb4b616112f5a2e3a1d31523e415f4efbc143d84e8c969c4564cbb"
+      ]
+    },
+    "block-world.scenery.ore-cube": {
+      "assetId": "block-world.scenery.ore-cube",
+      "attemptId": "block-world.scenery.ore-cube-1cffabfb-7b85-4615-8c6f-acf88dd25bb9",
+      "sha256": "6c67459c126d22253dfde36a6c6aa6306180a6b38a9247650b6ec543672e85de",
+      "sourceSha256": "ec7b87278e678d00bd777575ae6c8e74b73f4a62503899f0ac8f7189646fb3a4",
+      "recipeHash": "68eb6bdce44dfe22bf6409a159720051b6be6d8365159668be1a868f2b78b52e",
+      "promptSha256": "4b2573645ce2cd34e4c7cd4d8c8f66223514efc8e2ca628d55fcee4b81b59528",
+      "referenceSha256": [
+        "27c3289f0374b31c664f4d878aaa560fea3216d46137844ecb1cbc7d76d45bb8",
+        "37383f888fdb4b616112f5a2e3a1d31523e415f4efbc143d84e8c969c4564cbb"
+      ]
+    },
+    "block-world.scenery.torch-post": {
+      "assetId": "block-world.scenery.torch-post",
+      "attemptId": "block-world.scenery.torch-post-a76a23e1-ab5d-4309-9d6e-65ac8d1dc33a",
+      "sha256": "eb2ab18d8054642398778a9a1facd922ce46839a9ffcb6d9804ee5c9e4b38970",
+      "sourceSha256": "27c3289f0374b31c664f4d878aaa560fea3216d46137844ecb1cbc7d76d45bb8",
+      "recipeHash": "34d9b8ec35db542c264b6a913d030f3df5d13b54bb20af667a358251b74b2e29",
+      "promptSha256": "38cd6460d682775521c8da6deebb50c11371c131be0ac2e6e5a36eb9ef60a37e",
+      "referenceSha256": []
+    },
+    "kitchen.backdrop.minimal-strip": {
+      "assetId": "kitchen.backdrop.minimal-strip",
+      "attemptId": "kitchen.backdrop.minimal-strip-3cd6aef2-1323-46e8-bca2-f4b9241b61c8",
+      "sha256": "7a1e0d6c3e2fbceda06d5d90a021499d80b83084eb9c4a922ce416f2d5c1b9f0",
+      "sourceSha256": "0b347ec400f88544cc0ceb24c12c3f3cf196f98e42e9e154c2b3b1f7127f7a44",
+      "recipeHash": "74b4360dd5a0c981172bb1dac92444db3735fd2a3d24a12dd63920cc526afef8",
+      "promptSha256": "363e8233659a34ddaae0cbd08c558da665a4a1002ddca088500e01e8e088b053",
+      "referenceSha256": [
+        "5b59004318d1397cd0a7c0e64b5a39523e1182e5cdf224b71f03014298a998af",
+        "4a0a3c82666d69d343b314c1271c56aaa6b5ebafdf92bb30f0839331d62ccee2",
+        "905ddd2fa27ae2eae6f64046416cc843284092dc691d7b5db80210e4dd07ea46"
+      ]
+    },
+    "kitchen.scenery.pot-utensils": {
+      "assetId": "kitchen.scenery.pot-utensils",
+      "attemptId": "kitchen.scenery.pot-utensils-6073c7ab-9c18-4d79-8a46-1780cb0b8a67",
+      "sha256": "1481ab91cbc13b8161954b6b7ddf1042d52b18083ec50303962a3b5ad110757a",
+      "sourceSha256": "905ddd2fa27ae2eae6f64046416cc843284092dc691d7b5db80210e4dd07ea46",
+      "recipeHash": "1f27a4ebfa9614803c674d0a91c670b0b7d6225c7c3c8613b777474c7a0df914",
+      "promptSha256": "a3b482e57cafdbe4333742737c7a1e37f8faa21bac2277017668df590bdc86b0",
+      "referenceSha256": [
+        "5b59004318d1397cd0a7c0e64b5a39523e1182e5cdf224b71f03014298a998af"
+      ]
+    },
+    "kitchen.scenery.prep-counter": {
+      "assetId": "kitchen.scenery.prep-counter",
+      "attemptId": "kitchen.scenery.prep-counter-42ced16a-f0aa-41db-aeba-ab82274bc692",
+      "sha256": "28e2e76d8265d38da2c47dda9a0a17140b7baa9fbe2999c003f1165ddc7614cc",
+      "sourceSha256": "4a0a3c82666d69d343b314c1271c56aaa6b5ebafdf92bb30f0839331d62ccee2",
+      "recipeHash": "b32a95549dca9dc337eb2a0543b2ad7790995b5fb73218c1bc3fb3a2632735fa",
+      "promptSha256": "9f415f144f504dbb593aec13a766fd941b9f8634f523b551ecc428c733d9c80f",
+      "referenceSha256": [
+        "5b59004318d1397cd0a7c0e64b5a39523e1182e5cdf224b71f03014298a998af"
+      ]
+    },
+    "kitchen.scenery.tomato-herb": {
+      "assetId": "kitchen.scenery.tomato-herb",
+      "attemptId": "kitchen.scenery.tomato-herb-b1c938bb-2f29-4b5d-b767-2e990aa84e3c",
+      "sha256": "2e96bb3048a103f1ef022fb47ec8771a635c21cc0c0a04736e71d0e090d6cb0f",
+      "sourceSha256": "74453daf8831be4df7f077e8a8fe60f2ffbf542f47130310729b66a3ff2fd2e7",
+      "recipeHash": "fc2e2ecbaeedbd03d2e52bc73752a1ce791171a344525ca9590f4e1c53d98b32",
+      "promptSha256": "f566980c0f4d07eaccf8d67f319fffc06019a7767debd41846c0484a100fb900",
+      "referenceSha256": [
+        "5b59004318d1397cd0a7c0e64b5a39523e1182e5cdf224b71f03014298a998af"
+      ]
+    },
+    "kitchen.scenery.utensil-stand": {
+      "assetId": "kitchen.scenery.utensil-stand",
+      "attemptId": "kitchen.scenery.utensil-stand-66afd31c-3592-4786-9993-eff4122a6062",
+      "sha256": "47569a61b40d95461bb8e7865ec9e6ea371e121a13e24f32b107db614ddc7801",
+      "sourceSha256": "6d8360465c423624fcbb9081ec60bd8afa5508ac2277326e830526a51e5a8817",
+      "recipeHash": "a07e4358af50be727abb32a43e02c446680948348de84a3210dd28ad038c12c0",
+      "promptSha256": "fe35774cc205af7f6404a53acb71668ef783e7ea9d6a1360c9d62c1b8639f45f",
+      "referenceSha256": [
+        "5b59004318d1397cd0a7c0e64b5a39523e1182e5cdf224b71f03014298a998af"
+      ]
+    },
+    "outdoor.backdrop.minimal-strip": {
+      "assetId": "outdoor.backdrop.minimal-strip",
+      "attemptId": "outdoor.backdrop.minimal-strip-8b5c9db1-0d24-4ead-831e-4ccd246c8703",
+      "sha256": "554a503783b3a1b6e65099faa3974d8e79909c5f9c841f5545dae44a55a141ac",
+      "sourceSha256": "8980c22aa5ffbe5a54fbe69a533920cb083bbe03abf43512278404a5f99222c8",
+      "recipeHash": "e2750ab9b6d172661b974ed51abadaab38bd6a7d6f9559e28cf105e3c2ca8134",
+      "promptSha256": "3fe16ff108af1f7af8816abefacc66bb2f5a1da33e662672936b79b4a2d0065e",
+      "referenceSha256": [
+        "7739661d1a0c2ae2a9c859d2cd06971d0518c1c52c3b329b9862f4525a2a8d1e",
+        "345840c9743ea20daedb16ed10b783a9f4dc599b8d854672d849e01969604ac2"
+      ]
+    },
+    "outdoor.scenery.boulder-fern": {
+      "assetId": "outdoor.scenery.boulder-fern",
+      "attemptId": "outdoor.scenery.boulder-fern-32ea3489-264e-4d48-809d-89a6690dd635",
+      "sha256": "3fbd947eb51c23132a7a63bca25e664429f47365af0827be2454f60295f7f661",
+      "sourceSha256": "40f2e1960774e8bddd210d3d7a1174ae3e3ad6b047dd0139f01dd797a1e49fb3",
+      "recipeHash": "bd9f4e12137a48c092033b1ed1fe620a42154ff6889716e1729bea678b318f2a",
+      "promptSha256": "db698f5cf768f654b64b6ce73a4c85c915713410c037c9023da59a4c8e75915e",
+      "referenceSha256": [
+        "360aaab6a045051b40f7a602ddd027d5093bd0562d5dae494911b1048f80b94e"
+      ]
+    },
+    "outdoor.scenery.camp-supplies": {
+      "assetId": "outdoor.scenery.camp-supplies",
+      "attemptId": "outdoor.scenery.camp-supplies-2298dc2d-40bb-4142-bcfc-760fbfa7b85a",
+      "sha256": "44288914ecf6423967452675b9a68cdea27daec17da7bb609b3ef7407a509f52",
+      "sourceSha256": "34e02cc1d5e1562121d3ce5425304e8b8666a4622653faa9a0d879f2b06a7a5a",
+      "recipeHash": "9c6a062586fb9c29d7e39dc09d9f71cb2dd42499a1a471ef429d8a248e2c4287",
+      "promptSha256": "f5fd3870782f54d5cd774a6d4416c86fb2d7c64b32d3f69f4be50ccc92f12432",
+      "referenceSha256": [
+        "905ddd2fa27ae2eae6f64046416cc843284092dc691d7b5db80210e4dd07ea46"
+      ]
+    },
+    "outdoor.scenery.pebble-grass": {
+      "assetId": "outdoor.scenery.pebble-grass",
+      "attemptId": "outdoor.scenery.pebble-grass-0aa7c84c-4952-4461-a899-34efb15f64c9",
+      "sha256": "3cdc08eea586f186b4c853a746c1f27422e57350224093247ded0fafb8032d1e",
+      "sourceSha256": "ad9871cd45d4d73336b156f9d9f37a2d41126e194729bc542db1ff7a3d541cf8",
+      "recipeHash": "a566028ce182321f283abfc63f51a50649a56b969e6042f44aeb1146bd8a9765",
+      "promptSha256": "8c1f552aecf0c6a2a2d8bc9e201af4b2b76f9557f4f7aebdd3275eb70df04ce8",
+      "referenceSha256": [
+        "5b59004318d1397cd0a7c0e64b5a39523e1182e5cdf224b71f03014298a998af"
+      ]
+    },
+    "outdoor.scenery.trail-sign": {
+      "assetId": "outdoor.scenery.trail-sign",
+      "attemptId": "outdoor.scenery.trail-sign-cc8c863e-04a1-4b36-8735-d1d213d68913",
+      "sha256": "7aa5e633071cb2afffeea3f4c5c1c018761340f28ec5d5901b8bda5332eabcdb",
+      "sourceSha256": "496b706bd303f27996fcb3ceaf79162ae7c35d02240120271361736f3f0d07e5",
+      "recipeHash": "b595b58cf5ed60d4ebd9438f2e23037a83291f1c933b49c1b6bb11e08748b3a9",
+      "promptSha256": "0efc8eb5b011b29f726ce1a1230e23d3ecc0ec8f4550e812582acb6e5b05585e",
+      "referenceSha256": [
+        "5b59004318d1397cd0a7c0e64b5a39523e1182e5cdf224b71f03014298a998af"
+      ]
+    },
+    "party.backdrop.minimal-strip": {
+      "assetId": "party.backdrop.minimal-strip",
+      "attemptId": "party.backdrop.minimal-strip-621dca58-e7d9-44ac-8343-058356342ea7",
+      "sha256": "cb32adfb168da1360738936216908bd81d2d2c3c8a1bb593a720c91d85bc25e5",
+      "sourceSha256": "47a598504581a3574d5aa20c97c69a180d118b882a8f87324d5a2521e9a6ecd8",
+      "recipeHash": "ad208d6c8de1d6170f0ab8f53d5eb371bad4450f0fd0360f0b7abce6829228ba",
+      "promptSha256": "054d735d9d749bededa5566c57046b4348373e0cb98455997044360305a21f1c",
+      "referenceSha256": [
+        "345840c9743ea20daedb16ed10b783a9f4dc599b8d854672d849e01969604ac2",
+        "0b347ec400f88544cc0ceb24c12c3f3cf196f98e42e9e154c2b3b1f7127f7a44",
+        "7a4927cbf8fb3f55047b58ed5714c2523a54179eb55d13b311f3fd6743ed0f0c"
+      ]
+    },
+    "party.scenery.pennant-pole": {
+      "assetId": "party.scenery.pennant-pole",
+      "attemptId": "party.scenery.pennant-pole-6c36e3f2-b504-4d57-956a-75e5b9dbfb27",
+      "sha256": "2e49d28b2cac7d0e5ec933e3738dc7eecf5ed4a6fa6ae9a2988682e34ad6fa84",
+      "sourceSha256": "02202dc8866041885d8bbb0f0adf2af661ec737ea18ceefe2235ad18d957d167",
+      "recipeHash": "41710ce2432d41410a00965544f3921fc7a3a178be657906141c1529ad5c1327",
+      "promptSha256": "e67e0e3809b43be727c3787c938be276ee4e48640573f37cbc5d1412622a9253",
+      "referenceSha256": [
+        "5b59004318d1397cd0a7c0e64b5a39523e1182e5cdf224b71f03014298a998af",
+        "905ddd2fa27ae2eae6f64046416cc843284092dc691d7b5db80210e4dd07ea46"
+      ]
+    },
+    "party.scenery.pinwheel": {
+      "assetId": "party.scenery.pinwheel",
+      "attemptId": "party.scenery.pinwheel-0f6acce2-9880-42a0-aebb-819b5728866f",
+      "sha256": "37316b9f97321cc7c365cc8a9868f61f7a8e6a0f9560bcd329e5494c5196b5ab",
+      "sourceSha256": "158a3665c49a1e37ad502ac26725a3ad86cc6870709bfdb7cb034bf14c5a85ba",
+      "recipeHash": "b3c4317143ac214ef5551643f30e1ed828430cb0d686b8c49b7964c3ef1ecdb9",
+      "promptSha256": "2d3ebe2c4709726de73913f7fcdfaaa44b9964ae458f04f858cbe38dae038983",
+      "referenceSha256": [
+        "5b59004318d1397cd0a7c0e64b5a39523e1182e5cdf224b71f03014298a998af",
+        "905ddd2fa27ae2eae6f64046416cc843284092dc691d7b5db80210e4dd07ea46"
+      ]
+    },
+    "party.scenery.play-blocks": {
+      "assetId": "party.scenery.play-blocks",
+      "attemptId": "party.scenery.play-blocks-3dd423e7-5ea2-47ea-a4bb-573d6de4190e",
+      "sha256": "51a4d3ad3eace512c2262449dbc03242bf6ee60d40e500077623c39fe6ec984b",
+      "sourceSha256": "7a4927cbf8fb3f55047b58ed5714c2523a54179eb55d13b311f3fd6743ed0f0c",
+      "recipeHash": "ad81408be4dca1ca2c03266cb2529c10f61d967f67ca35b5bf71819df2112a06",
+      "promptSha256": "cb5ba015e6d9b47299d115ba0753a33fc156d3d0fcd57671de5e7a05efc01bd5",
+      "referenceSha256": [
+        "5b59004318d1397cd0a7c0e64b5a39523e1182e5cdf224b71f03014298a998af",
+        "905ddd2fa27ae2eae6f64046416cc843284092dc691d7b5db80210e4dd07ea46"
+      ]
+    },
+    "party.scenery.toy-ball": {
+      "assetId": "party.scenery.toy-ball",
+      "attemptId": "party.scenery.toy-ball-8722ec40-5d60-4b71-99d0-76f5260196ac",
+      "sha256": "2a90fb1c54b52de19c3617019b4c9bba73b821e6418241c313d988b7dca79425",
+      "sourceSha256": "97e5044080482901eaf18e06c88f263cc925e0d5e39790293e44b24a9a472e5d",
+      "recipeHash": "8109fff310e9d7d83a67b6e1cbd35e0f39fca63ff3b1f1c3bf949aa20644b3a9",
+      "promptSha256": "603b560b6d5cbe4c010caec9c8ce67445e04cfa8a55ec76f909957bd6afd28af",
+      "referenceSha256": [
+        "5b59004318d1397cd0a7c0e64b5a39523e1182e5cdf224b71f03014298a998af",
+        "905ddd2fa27ae2eae6f64046416cc843284092dc691d7b5db80210e4dd07ea46"
+      ]
+    },
+    "puzzle.backdrop.minimal-strip": {
+      "assetId": "puzzle.backdrop.minimal-strip",
+      "attemptId": "puzzle.backdrop.minimal-strip-16ba8eaa-62b9-4a22-8ccc-aaea69893738",
+      "sha256": "99359c091778d016aef2a7a3b6cb1ee4b63f71701f8e3c375ccfeb3072f14da2",
+      "sourceSha256": "33695d918f2fa4cf555f90a7c91e6006f86a0aa3e74dbbadae50dfa59ce03ab4",
+      "recipeHash": "8364636ecae405955ba192bc89e96c54cc1fc412eeb240177ac897444d6f89d2",
+      "promptSha256": "7dbead705aca3b1d199312be56b60688508285a002633ba06c6a9e85ec5341c8",
+      "referenceSha256": [
+        "345840c9743ea20daedb16ed10b783a9f4dc599b8d854672d849e01969604ac2",
+        "0b347ec400f88544cc0ceb24c12c3f3cf196f98e42e9e154c2b3b1f7127f7a44"
+      ]
+    },
+    "puzzle.scenery.chunky-key": {
+      "assetId": "puzzle.scenery.chunky-key",
+      "attemptId": "puzzle.scenery.chunky-key-35b6a342-c89d-4efb-9f35-90999af34964",
+      "sha256": "1a39d4bb3b3c1c05c4121176e688262129d26d7ef5f45bfe03c2a758f7242cd9",
+      "sourceSha256": "d634b5bb9506da9c21db8746467c0299650df2524d33fa27c4d5adf4ec6447de",
+      "recipeHash": "9f1297711fcd61e74b7609f19f66e3407238e0879581eb7143f08ff8b64c693d",
+      "promptSha256": "fa0dfe471254f313b16f1f1e17bfc296ab3069f00e27ef2b0b668f62e036f166",
+      "referenceSha256": [
+        "5b59004318d1397cd0a7c0e64b5a39523e1182e5cdf224b71f03014298a998af",
+        "905ddd2fa27ae2eae6f64046416cc843284092dc691d7b5db80210e4dd07ea46"
+      ]
+    },
+    "puzzle.scenery.key-rack": {
+      "assetId": "puzzle.scenery.key-rack",
+      "attemptId": "puzzle.scenery.key-rack-8cfa8c2f-92c9-4fad-bd3a-e72b311a65c9",
+      "sha256": "008f38bd251ee3604f88e93849199f4cd39632a4b47948d0242e471e643a303b",
+      "sourceSha256": "aaf324a64f772266b14e8dff7fdf6217d8df99b9b047fb7e9228a42b70714df8",
+      "recipeHash": "95e1024f720bfeee6ce9d016f4de026f9b25507df055b020cce874d3c4e575ac",
+      "promptSha256": "59623d2aed9e8cf76e561dc7df0306d3819f52088301a278f42c52baa28fabc3",
+      "referenceSha256": [
+        "5b59004318d1397cd0a7c0e64b5a39523e1182e5cdf224b71f03014298a998af",
+        "905ddd2fa27ae2eae6f64046416cc843284092dc691d7b5db80210e4dd07ea46"
+      ]
+    },
+    "puzzle.scenery.lock-dial": {
+      "assetId": "puzzle.scenery.lock-dial",
+      "attemptId": "puzzle.scenery.lock-dial-a0b0a1b2-47d4-46e3-bc8e-8ecfd4ff1033",
+      "sha256": "1f9c1fc1f1f3992faa14c36d120b5f11aae0ae736e8fe381c1a22b909c18a6c1",
+      "sourceSha256": "0ba2f457d36e876492a134b7172a47dea9560f6b468d2ef27c179161c3ff5f0f",
+      "recipeHash": "39f064d5c445905628f208b4d2c8b9ba1e8cf20b639594e10f12e1ba8af9357f",
+      "promptSha256": "f1516b6c823f4dc8bf012a9cc8b489f0eda7de6897282df3d65ba894373d2f4b",
+      "referenceSha256": [
+        "5b59004318d1397cd0a7c0e64b5a39523e1182e5cdf224b71f03014298a998af",
+        "905ddd2fa27ae2eae6f64046416cc843284092dc691d7b5db80210e4dd07ea46"
+      ]
+    },
+    "puzzle.scenery.puzzle-workbench": {
+      "assetId": "puzzle.scenery.puzzle-workbench",
+      "attemptId": "puzzle.scenery.puzzle-workbench-9832a38e-a887-419a-b683-2ba3cf6b2ce1",
+      "sha256": "9aafe00f2228e16bd21b7b4271495bd43aef78181b9384f3e1051a5a255c3790",
+      "sourceSha256": "af43bd5c574707f45907588b3d36ab192bbcfc5c019598952e63de084baf4a25",
+      "recipeHash": "622e1929e93d19fed538fdb739b3745dfa04ac2db2a88ab02b41880476c0d013",
+      "promptSha256": "7f03da02f8c474078cff1989ccd16540f9005b6354ce48b90221db5ed57ecafd",
+      "referenceSha256": [
+        "5b59004318d1397cd0a7c0e64b5a39523e1182e5cdf224b71f03014298a998af",
+        "905ddd2fa27ae2eae6f64046416cc843284092dc691d7b5db80210e4dd07ea46"
+      ]
+    },
+    "space-salvage.backdrop.minimal-strip": {
+      "assetId": "space-salvage.backdrop.minimal-strip",
+      "attemptId": "space-salvage.backdrop.minimal-strip-dfe91002-a296-4926-bc0b-692dc555423f",
+      "sha256": "c1531f9f3ff1e3b46eaf048a7608e681b6137004a58460222c1541837c171b36",
+      "sourceSha256": "603345ac9301a971f2119465047d2eea5af6541c3a665d7131bb7ae91bd33a7c",
+      "recipeHash": "7081c8cd86c6607e11eb302cfea92525282dba5cde729163e1e03d2ccc18111e",
+      "promptSha256": "6f4b56c69949c0d97a228ca4047a6e203e78ae222d0540847d4bc6714703d307",
+      "referenceSha256": [
+        "2f3f578f7d04be5ad828855127feeda92584e0e9630070c9ea10d11bcca29e1c",
+        "2f3f578f7d04be5ad828855127feeda92584e0e9630070c9ea10d11bcca29e1c"
+      ]
+    },
+    "space-salvage.scenery.bolt-tools": {
+      "assetId": "space-salvage.scenery.bolt-tools",
+      "attemptId": "space-salvage.scenery.bolt-tools-3d6cc960-1d23-4fa7-9859-b916a79745cc",
+      "sha256": "c898bc5fdabec5b546a3273c0d5e892dfcd043b554a28a9d1f8398668a2a161f",
+      "sourceSha256": "14bd7dca8dfe164a57bccf6d9da18df3cab11e86ca0173d1f84f3a3ad0ddf885",
+      "recipeHash": "050771f12a44ecd4bee50e24f40512a90556a0b2cfc8235ce1edb251765589cb",
+      "promptSha256": "372af2afa866e7f26558da2dc7966c31bcb1d4d7792c301dafd2fd0b3e437cc9",
+      "referenceSha256": [
+        "5b59004318d1397cd0a7c0e64b5a39523e1182e5cdf224b71f03014298a998af",
+        "905ddd2fa27ae2eae6f64046416cc843284092dc691d7b5db80210e4dd07ea46"
+      ]
+    },
+    "space-salvage.scenery.cargo-crate": {
+      "assetId": "space-salvage.scenery.cargo-crate",
+      "attemptId": "space-salvage.scenery.cargo-crate-e87a84bd-438b-475c-9aea-3aac4ed68ed9",
+      "sha256": "aec71c715bb662f6327d7fd0b65621706f34817400210f3661ae956cf039e187",
+      "sourceSha256": "ec744801e11748b7dccf909f87da3a0328cef68f806d060035798469ebc78cee",
+      "recipeHash": "1e5611aa8ee93ffaa74265c66324a271c8a5a19cf3a773356ad188e7914186ba",
+      "promptSha256": "c03de28389767cc156ed9ea441f667c5f9ddaec365cb0f0b4b51e01b5c45d438",
+      "referenceSha256": [
+        "5b59004318d1397cd0a7c0e64b5a39523e1182e5cdf224b71f03014298a998af",
+        "905ddd2fa27ae2eae6f64046416cc843284092dc691d7b5db80210e4dd07ea46"
+      ]
+    },
+    "space-salvage.scenery.salvage-machine": {
+      "assetId": "space-salvage.scenery.salvage-machine",
+      "attemptId": "space-salvage.scenery.salvage-machine-72bc1e73-1fb2-46f6-be97-1811d97331e9",
+      "sha256": "046efab5bb85efe9f3243eeb160943a855044893b584c27b1e0554bfc7f26d72",
+      "sourceSha256": "9554770582b014cfef24f03314dd12b91ed581776331b65e943ea0cde10525b4",
+      "recipeHash": "87f45d1689ff67f112169e957eff9f32becf7ebe48b98992e54465abeb6b7183",
+      "promptSha256": "78a5891fd932856cbe4d52c653c6fc590a2f29c4f9a145a23f8866c383622a70",
+      "referenceSha256": [
+        "5b59004318d1397cd0a7c0e64b5a39523e1182e5cdf224b71f03014298a998af",
+        "905ddd2fa27ae2eae6f64046416cc843284092dc691d7b5db80210e4dd07ea46"
+      ]
+    },
+    "space-salvage.scenery.warning-beacon": {
+      "assetId": "space-salvage.scenery.warning-beacon",
+      "attemptId": "space-salvage.scenery.warning-beacon-c3eac18f-7329-46b4-b8c3-a25285972d9c",
+      "sha256": "151607e53560ee59f0f1687da411c6e393984f64a6d5f87ea147a6eeed1e1458",
+      "sourceSha256": "95aa44abe6c2d0dfb55556127d933ba130e7ca5315986603cbea98f68c4840ed",
+      "recipeHash": "5bcb316dccc2b031e8b86446f7af144909e981afb6529a95064ef16acd53ed6b",
+      "promptSha256": "94958a1f0dd384f7bba9f38db9b826824b5ce9c47cc3c2ffa5dc2e39abe4a8ca",
+      "referenceSha256": [
+        "5b59004318d1397cd0a7c0e64b5a39523e1182e5cdf224b71f03014298a998af",
+        "905ddd2fa27ae2eae6f64046416cc843284092dc691d7b5db80210e4dd07ea46"
+      ]
+    }
+  },
+  "review": {
+    "decision": "Bundled by user request after local scenery review",
+    "trackingIssue": "https://github.com/stjohnjohnson/extralife-helper-bot/issues/66",
+    "nativeAcceptance": "Local preview evidence only; no per-image native proof is claimed"
+  }
+}

@@ -17,6 +17,7 @@ class ArtworkWorkflow {
         this.spec = path.resolve(spec);
         this.style = readJson(path.join(this.spec, 'style.json'));
         this.inventory = readJson(path.join(this.spec, 'inventory.json'));
+        this.retiredSpec = this.local('history/retired-spec');
         // Refuse symlink components, including existing ancestors of the workspace.
         this.safePath(this.workspace, this.workspace);
         fs.mkdirSync(this.workspace, { recursive: true });
@@ -49,30 +50,36 @@ class ArtworkWorkflow {
         const expected = themes.length * Object.values(requiredKinds).reduce((sum, n) => sum + n, 0);
         if (!Array.isArray(assets) || assets.length !== expected) throw new Error(`Inventory must contain ${expected} assets (duplicate or missing IDs)`);
         if (assets.some(a => !themes.includes(a.theme) || !(a.kind in requiredKinds) || a.required !== true) || themes.some(theme => Object.entries(requiredKinds).some(([kind, count]) => assets.filter(a => a.theme === theme && a.kind === kind).length !== count))) throw new Error('Inventory theme/kind contract mismatch');
-        const retiredAssets = this.inventory.retiredAssets || [];
-        if (!Array.isArray(retiredAssets) || retiredAssets.some(a => !themes.includes(a.theme) || !['scenery', 'backdrop', 'gear'].includes(a.kind))) throw new Error('Malformed retired inventory');
+        const inputs = assets.map(asset => ({ asset, spec: this.spec, style: this.style, retired: false }));
+        // Retired specification inputs are optional local history, never shipped prompts.
+        if (includeRetired && fs.existsSync(this.safePath(this.retiredSpec, path.join(this.retiredSpec, 'inventory.json')))) {
+            const retiredAssets = readJson(path.join(this.retiredSpec, 'inventory.json')).retiredAssets;
+            if (!Array.isArray(retiredAssets) || retiredAssets.some(a => !['scenery', 'backdrop', 'gear'].includes(a.kind))) throw new Error('Malformed retired inventory');
+            const style = readJson(this.safePath(this.retiredSpec, path.join(this.retiredSpec, 'style.json')));
+            inputs.push(...retiredAssets.map(asset => ({ asset, spec: this.retiredSpec, style, retired: true })));
+        }
         const seen = new Set();
-        const briefs = [...assets, ...retiredAssets].map(asset => {
+        const briefs = inputs.map(({ asset, spec, style, retired }) => {
             identifier(asset.id);
             if (seen.has(asset.id)) throw new Error('duplicate inventory ID');
             seen.add(asset.id);
-            const recipe = readJson(this.safePath(this.spec, path.join(this.spec, 'recipes', `${asset.id}.json`)));
-            if (recipe.assetId !== asset.id || recipe.styleRevision !== this.style.revision || typeof recipe.exactPrompt !== 'string') throw new Error('stale or malformed recipe');
+            const recipe = readJson(this.safePath(spec, path.join(spec, 'recipes', `${asset.id}.json`)));
+            if (recipe.assetId !== asset.id || recipe.styleRevision !== style.revision || typeof recipe.exactPrompt !== 'string') throw new Error('stale or malformed recipe');
             const references = (recipe.referenceIds || []).map(id => {
-                const ref = this.style.references.find(r => r.id === id);
+                const ref = style.references.find(r => r.id === id);
                 if (!ref || !/^[a-f0-9]{64}$/.test(ref.sha256)) throw new Error('Invalid reference checksum');
-                const file = this.safePath(this.spec, path.resolve(this.spec, ref.file));
+                const file = this.safePath(spec, path.resolve(spec, ref.file));
                 if (hash(fs.readFileSync(file)) !== ref.sha256) throw new Error('Changed reference checksum');
                 return { id, file: ref.file, sha256: ref.sha256 };
             });
-            const brief = { ...asset, styleRevision: this.style.revision, exactPrompt: recipe.exactPrompt, references, recipeHash: hash(JSON.stringify({ asset, recipe, style: this.style, references })) };
+            const brief = { ...asset, styleRevision: style.revision, exactPrompt: recipe.exactPrompt, references, recipeHash: hash(JSON.stringify({ asset, recipe, style, references })) };
             // Retirement is review metadata, never part of a historical recipe hash.
-            return retiredAssets.includes(asset) ? { ...brief, retired: true } : brief;
+            return retired ? { ...brief, retired: true } : brief;
         });
         return includeRetired ? briefs : briefs.filter(b => !b.retired);
     }
     brief(id) {
-        const brief = this.briefs({ includeRetired: true }).find(b => b.id === id);
+        const brief = this.briefs().find(b => b.id === id) || this.briefs({ includeRetired: true }).find(b => b.id === id);
         if (!brief) throw new Error(`Unknown asset ${id}`);
         return brief;
     }
@@ -135,7 +142,7 @@ class ArtworkWorkflow {
         identifier(jobId);
         const job = this.jobs().find(j => j.jobId === jobId);
         if (!job) throw new Error('Unknown job');
-        if (job.recipeHash !== this.brief(job.assetId).recipeHash) throw new Error('stale job');
+        if (job.recipeHash !== this.activeBrief(job.assetId).recipeHash) throw new Error('stale job');
         const prior = this.records().filter(r => r.jobId === jobId);
         if (prior.some(r => r.status === 'generated')) throw new Error('Job already has successful output');
         if (!['generated', 'failed', 'uncertain'].includes(status)) throw new Error('Invalid attempt status');
@@ -170,6 +177,7 @@ class ArtworkWorkflow {
     validate(id) {
         const record = this.attempt(id);
         const brief = this.brief(record.assetId);
+        const spec = brief.retired ? this.retiredSpec : this.spec;
         const errors = [];
         let pixels = {};
         const sourceWarnings = [];
@@ -196,7 +204,7 @@ class ArtworkWorkflow {
         const job = this.jobs().find(j => j.jobId === record.jobId);
         for (const ref of [...(record.actualReferences || []), ...(record.references || [])]) {
             try {
-                const file = ref.scope === 'workspace' || (record.actualReferences || []).includes(ref) ? this.local(ref.file) : this.safePath(this.spec, path.resolve(this.spec, ref.file));
+                const file = ref.scope === 'workspace' || (record.actualReferences || []).includes(ref) ? this.local(ref.file) : this.safePath(spec, path.resolve(spec, ref.file));
                 if (hash(fs.readFileSync(file)) !== ref.sha256) errors.push('reference checksum mismatch');
             } catch (error) { errors.push(`reference checksum/read failed: ${error.message}`); }
         }

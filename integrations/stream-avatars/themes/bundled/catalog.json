@@ -1,0 +1,735 @@
+{
+  "schemaVersion": 1,
+  "previewOnly": false,
+  "profile": {
+    "referenceWidth": 1920,
+    "bandHeight": 120,
+    "baselineOffset": 4
+  },
+  "packRevision": "5e17bac3e480d569591640a6127bf21cb2b6a8384144c1a6076d9a4ebbf037dc",
+  "themes": {
+    "block-world": {
+      "themeId": "block-world",
+      "backdrop": {
+        "id": "block-world.backdrop.minimal-strip",
+        "themeId": "block-world",
+        "kind": "backdrop",
+        "image": "sa_block_world_backdrop_minimal_strip",
+        "width": 480,
+        "height": 64,
+        "anchorX": 240,
+        "anchorY": 64,
+        "sha256": "f51304432507352d5cbc07a7746c50ac9f15dece238a01fdaf13c75132cbb0d9"
+      },
+      "props": [
+        {
+          "id": "block-world.scenery.block-planter",
+          "themeId": "block-world",
+          "kind": "scenery",
+          "image": "sa_block_world_scenery_block_planter",
+          "width": 96,
+          "height": 64,
+          "anchorX": 48,
+          "anchorY": 60,
+          "sha256": "859ddaa4d18818b245543bb387291ed7de616b0dea84d849fb08ee2cca15f14f"
+        },
+        {
+          "id": "block-world.scenery.grass-tuft",
+          "themeId": "block-world",
+          "kind": "scenery",
+          "image": "sa_block_world_scenery_grass_tuft",
+          "width": 32,
+          "height": 32,
+          "anchorX": 16,
+          "anchorY": 28,
+          "sha256": "3c496da03602339f4e081871a0a5eb359f76e9f4297f0f70cb0f3f9f94b56576"
+        },
+        {
+          "id": "block-world.scenery.ore-cube",
+          "themeId": "block-world",
+          "kind": "scenery",
+          "image": "sa_block_world_scenery_ore_cube",
+          "width": 64,
+          "height": 64,
+          "anchorX": 32,
+          "anchorY": 60,
+          "sha256": "6c67459c126d22253dfde36a6c6aa6306180a6b38a9247650b6ec543672e85de"
+        },
+        {
+          "id": "block-world.scenery.torch-post",
+          "themeId": "block-world",
+          "kind": "scenery",
+          "image": "sa_block_world_scenery_torch_post",
+          "width": 32,
+          "height": 64,
+          "anchorX": 16,
+          "anchorY": 60,
+          "sha256": "eb2ab18d8054642398778a9a1facd922ce46839a9ffcb6d9804ee5c9e4b38970"
+        }
+      ]
+    },
+    "kitchen": {
+      "themeId": "kitchen",
+      "backdrop": {
+        "id": "kitchen.backdrop.minimal-strip",
+        "themeId": "kitchen",
+        "kind": "backdrop",
+        "image": "sa_kitchen_backdrop_minimal_strip",
+        "width": 480,
+        "height": 64,
+        "anchorX": 240,
+        "anchorY": 64,
+        "sha256": "7a1e0d6c3e2fbceda06d5d90a021499d80b83084eb9c4a922ce416f2d5c1b9f0"
+      },
+      "props": [
+        {
+          "id": "kitchen.scenery.pot-utensils",
+          "themeId": "kitchen",
+          "kind": "scenery",
+          "image": "sa_kitchen_scenery_pot_utensils",
+          "width": 64,
+          "height": 64,
+          "anchorX": 32,
+          "anchorY": 60,
+          "sha256": "1481ab91cbc13b8161954b6b7ddf1042d52b18083ec50303962a3b5ad110757a"
+        },
+        {
+          "id": "kitchen.scenery.prep-counter",
+          "themeId": "kitchen",
+          "kind": "scenery",
+          "image": "sa_kitchen_scenery_prep_counter",
+          "width": 96,
+          "height": 64,
+          "anchorX": 48,
+          "anchorY": 60,
+          "sha256": "28e2e76d8265d38da2c47dda9a0a17140b7baa9fbe2999c003f1165ddc7614cc"
+        },
+        {
+          "id": "kitchen.scenery.tomato-herb",
+          "themeId": "kitchen",
+          "kind": "scenery",
+          "image": "sa_kitchen_scenery_tomato_herb",
+          "width": 32,
+          "height": 32,
+          "anchorX": 16,
+          "anchorY": 28,
+          "sha256": "2e96bb3048a103f1ef022fb47ec8771a635c21cc0c0a04736e71d0e090d6cb0f"
+        },
+        {
+          "id": "kitchen.scenery.utensil-stand",
+          "themeId": "kitchen",
+          "kind": "scenery",
+          "image": "sa_kitchen_scenery_utensil_stand",
+          "width": 32,
+          "height": 64,
+          "anchorX": 16,
+          "anchorY": 60,
+          "sha256": "47569a61b40d95461bb8e7865ec9e6ea371e121a13e24f32b107db614ddc7801"
+        }
+      ]
+    },
+    "outdoor": {
+      "themeId": "outdoor",
+      "backdrop": {
+        "id": "outdoor.backdrop.minimal-strip",
+        "themeId": "outdoor",
+        "kind": "backdrop",
+        "image": "sa_outdoor_backdrop_minimal_strip",
+        "width": 480,
+        "height": 64,
+        "anchorX": 240,
+        "anchorY": 64,
+        "sha256": "554a503783b3a1b6e65099faa3974d8e79909c5f9c841f5545dae44a55a141ac"
+      },
+      "props": [
+        {
+          "id": "outdoor.scenery.boulder-fern",
+          "themeId": "outdoor",
+          "kind": "scenery",
+          "image": "sa_outdoor_scenery_boulder_fern",
+          "width": 96,
+          "height": 64,
+          "anchorX": 48,
+          "anchorY": 60,
+          "sha256": "3fbd947eb51c23132a7a63bca25e664429f47365af0827be2454f60295f7f661"
+        },
+        {
+          "id": "outdoor.scenery.camp-supplies",
+          "themeId": "outdoor",
+          "kind": "scenery",
+          "image": "sa_outdoor_scenery_camp_supplies",
+          "width": 64,
+          "height": 64,
+          "anchorX": 32,
+          "anchorY": 60,
+          "sha256": "44288914ecf6423967452675b9a68cdea27daec17da7bb609b3ef7407a509f52"
+        },
+        {
+          "id": "outdoor.scenery.pebble-grass",
+          "themeId": "outdoor",
+          "kind": "scenery",
+          "image": "sa_outdoor_scenery_pebble_grass",
+          "width": 32,
+          "height": 32,
+          "anchorX": 16,
+          "anchorY": 28,
+          "sha256": "3cdc08eea586f186b4c853a746c1f27422e57350224093247ded0fafb8032d1e"
+        },
+        {
+          "id": "outdoor.scenery.trail-sign",
+          "themeId": "outdoor",
+          "kind": "scenery",
+          "image": "sa_outdoor_scenery_trail_sign",
+          "width": 32,
+          "height": 64,
+          "anchorX": 16,
+          "anchorY": 60,
+          "sha256": "7aa5e633071cb2afffeea3f4c5c1c018761340f28ec5d5901b8bda5332eabcdb"
+        }
+      ]
+    },
+    "puzzle": {
+      "themeId": "puzzle",
+      "backdrop": {
+        "id": "puzzle.backdrop.minimal-strip",
+        "themeId": "puzzle",
+        "kind": "backdrop",
+        "image": "sa_puzzle_backdrop_minimal_strip",
+        "width": 480,
+        "height": 64,
+        "anchorX": 240,
+        "anchorY": 64,
+        "sha256": "99359c091778d016aef2a7a3b6cb1ee4b63f71701f8e3c375ccfeb3072f14da2"
+      },
+      "props": [
+        {
+          "id": "puzzle.scenery.chunky-key",
+          "themeId": "puzzle",
+          "kind": "scenery",
+          "image": "sa_puzzle_scenery_chunky_key",
+          "width": 32,
+          "height": 32,
+          "anchorX": 16,
+          "anchorY": 28,
+          "sha256": "1a39d4bb3b3c1c05c4121176e688262129d26d7ef5f45bfe03c2a758f7242cd9"
+        },
+        {
+          "id": "puzzle.scenery.key-rack",
+          "themeId": "puzzle",
+          "kind": "scenery",
+          "image": "sa_puzzle_scenery_key_rack",
+          "width": 32,
+          "height": 64,
+          "anchorX": 16,
+          "anchorY": 60,
+          "sha256": "008f38bd251ee3604f88e93849199f4cd39632a4b47948d0242e471e643a303b"
+        },
+        {
+          "id": "puzzle.scenery.lock-dial",
+          "themeId": "puzzle",
+          "kind": "scenery",
+          "image": "sa_puzzle_scenery_lock_dial",
+          "width": 64,
+          "height": 64,
+          "anchorX": 32,
+          "anchorY": 60,
+          "sha256": "1f9c1fc1f1f3992faa14c36d120b5f11aae0ae736e8fe381c1a22b909c18a6c1"
+        },
+        {
+          "id": "puzzle.scenery.puzzle-workbench",
+          "themeId": "puzzle",
+          "kind": "scenery",
+          "image": "sa_puzzle_scenery_puzzle_workbench",
+          "width": 96,
+          "height": 64,
+          "anchorX": 48,
+          "anchorY": 60,
+          "sha256": "9aafe00f2228e16bd21b7b4271495bd43aef78181b9384f3e1051a5a255c3790"
+        }
+      ]
+    },
+    "space-salvage": {
+      "themeId": "space-salvage",
+      "backdrop": {
+        "id": "space-salvage.backdrop.minimal-strip",
+        "themeId": "space-salvage",
+        "kind": "backdrop",
+        "image": "sa_space_salvage_backdrop_minimal_strip",
+        "width": 480,
+        "height": 64,
+        "anchorX": 240,
+        "anchorY": 64,
+        "sha256": "c1531f9f3ff1e3b46eaf048a7608e681b6137004a58460222c1541837c171b36"
+      },
+      "props": [
+        {
+          "id": "space-salvage.scenery.bolt-tools",
+          "themeId": "space-salvage",
+          "kind": "scenery",
+          "image": "sa_space_salvage_scenery_bolt_tools",
+          "width": 32,
+          "height": 32,
+          "anchorX": 16,
+          "anchorY": 28,
+          "sha256": "c898bc5fdabec5b546a3273c0d5e892dfcd043b554a28a9d1f8398668a2a161f"
+        },
+        {
+          "id": "space-salvage.scenery.cargo-crate",
+          "themeId": "space-salvage",
+          "kind": "scenery",
+          "image": "sa_space_salvage_scenery_cargo_crate",
+          "width": 64,
+          "height": 64,
+          "anchorX": 32,
+          "anchorY": 60,
+          "sha256": "aec71c715bb662f6327d7fd0b65621706f34817400210f3661ae956cf039e187"
+        },
+        {
+          "id": "space-salvage.scenery.salvage-machine",
+          "themeId": "space-salvage",
+          "kind": "scenery",
+          "image": "sa_space_salvage_scenery_salvage_machine",
+          "width": 96,
+          "height": 64,
+          "anchorX": 48,
+          "anchorY": 60,
+          "sha256": "046efab5bb85efe9f3243eeb160943a855044893b584c27b1e0554bfc7f26d72"
+        },
+        {
+          "id": "space-salvage.scenery.warning-beacon",
+          "themeId": "space-salvage",
+          "kind": "scenery",
+          "image": "sa_space_salvage_scenery_warning_beacon",
+          "width": 32,
+          "height": 64,
+          "anchorX": 16,
+          "anchorY": 60,
+          "sha256": "151607e53560ee59f0f1687da411c6e393984f64a6d5f87ea147a6eeed1e1458"
+        }
+      ]
+    },
+    "party": {
+      "themeId": "party",
+      "backdrop": {
+        "id": "party.backdrop.minimal-strip",
+        "themeId": "party",
+        "kind": "backdrop",
+        "image": "sa_party_backdrop_minimal_strip",
+        "width": 480,
+        "height": 64,
+        "anchorX": 240,
+        "anchorY": 64,
+        "sha256": "cb32adfb168da1360738936216908bd81d2d2c3c8a1bb593a720c91d85bc25e5"
+      },
+      "props": [
+        {
+          "id": "party.scenery.pennant-pole",
+          "themeId": "party",
+          "kind": "scenery",
+          "image": "sa_party_scenery_pennant_pole",
+          "width": 32,
+          "height": 64,
+          "anchorX": 16,
+          "anchorY": 60,
+          "sha256": "2e49d28b2cac7d0e5ec933e3738dc7eecf5ed4a6fa6ae9a2988682e34ad6fa84"
+        },
+        {
+          "id": "party.scenery.pinwheel",
+          "themeId": "party",
+          "kind": "scenery",
+          "image": "sa_party_scenery_pinwheel",
+          "width": 32,
+          "height": 32,
+          "anchorX": 16,
+          "anchorY": 28,
+          "sha256": "37316b9f97321cc7c365cc8a9868f61f7a8e6a0f9560bcd329e5494c5196b5ab"
+        },
+        {
+          "id": "party.scenery.play-blocks",
+          "themeId": "party",
+          "kind": "scenery",
+          "image": "sa_party_scenery_play_blocks",
+          "width": 96,
+          "height": 64,
+          "anchorX": 48,
+          "anchorY": 60,
+          "sha256": "51a4d3ad3eace512c2262449dbc03242bf6ee60d40e500077623c39fe6ec984b"
+        },
+        {
+          "id": "party.scenery.toy-ball",
+          "themeId": "party",
+          "kind": "scenery",
+          "image": "sa_party_scenery_toy_ball",
+          "width": 64,
+          "height": 64,
+          "anchorX": 32,
+          "anchorY": 60,
+          "sha256": "2a90fb1c54b52de19c3617019b4c9bba73b821e6418241c313d988b7dca79425"
+        }
+      ]
+    }
+  },
+  "assets": [
+    {
+      "id": "block-world.backdrop.minimal-strip",
+      "themeId": "block-world",
+      "kind": "backdrop",
+      "image": "sa_block_world_backdrop_minimal_strip",
+      "width": 480,
+      "height": 64,
+      "anchorX": 240,
+      "anchorY": 64,
+      "sha256": "f51304432507352d5cbc07a7746c50ac9f15dece238a01fdaf13c75132cbb0d9",
+      "exportFile": "assets/block-world.backdrop.minimal-strip.png"
+    },
+    {
+      "id": "block-world.scenery.block-planter",
+      "themeId": "block-world",
+      "kind": "scenery",
+      "image": "sa_block_world_scenery_block_planter",
+      "width": 96,
+      "height": 64,
+      "anchorX": 48,
+      "anchorY": 60,
+      "sha256": "859ddaa4d18818b245543bb387291ed7de616b0dea84d849fb08ee2cca15f14f",
+      "exportFile": "assets/block-world.scenery.block-planter.png"
+    },
+    {
+      "id": "block-world.scenery.grass-tuft",
+      "themeId": "block-world",
+      "kind": "scenery",
+      "image": "sa_block_world_scenery_grass_tuft",
+      "width": 32,
+      "height": 32,
+      "anchorX": 16,
+      "anchorY": 28,
+      "sha256": "3c496da03602339f4e081871a0a5eb359f76e9f4297f0f70cb0f3f9f94b56576",
+      "exportFile": "assets/block-world.scenery.grass-tuft.png"
+    },
+    {
+      "id": "block-world.scenery.ore-cube",
+      "themeId": "block-world",
+      "kind": "scenery",
+      "image": "sa_block_world_scenery_ore_cube",
+      "width": 64,
+      "height": 64,
+      "anchorX": 32,
+      "anchorY": 60,
+      "sha256": "6c67459c126d22253dfde36a6c6aa6306180a6b38a9247650b6ec543672e85de",
+      "exportFile": "assets/block-world.scenery.ore-cube.png"
+    },
+    {
+      "id": "block-world.scenery.torch-post",
+      "themeId": "block-world",
+      "kind": "scenery",
+      "image": "sa_block_world_scenery_torch_post",
+      "width": 32,
+      "height": 64,
+      "anchorX": 16,
+      "anchorY": 60,
+      "sha256": "eb2ab18d8054642398778a9a1facd922ce46839a9ffcb6d9804ee5c9e4b38970",
+      "exportFile": "assets/block-world.scenery.torch-post.png"
+    },
+    {
+      "id": "kitchen.backdrop.minimal-strip",
+      "themeId": "kitchen",
+      "kind": "backdrop",
+      "image": "sa_kitchen_backdrop_minimal_strip",
+      "width": 480,
+      "height": 64,
+      "anchorX": 240,
+      "anchorY": 64,
+      "sha256": "7a1e0d6c3e2fbceda06d5d90a021499d80b83084eb9c4a922ce416f2d5c1b9f0",
+      "exportFile": "assets/kitchen.backdrop.minimal-strip.png"
+    },
+    {
+      "id": "kitchen.scenery.pot-utensils",
+      "themeId": "kitchen",
+      "kind": "scenery",
+      "image": "sa_kitchen_scenery_pot_utensils",
+      "width": 64,
+      "height": 64,
+      "anchorX": 32,
+      "anchorY": 60,
+      "sha256": "1481ab91cbc13b8161954b6b7ddf1042d52b18083ec50303962a3b5ad110757a",
+      "exportFile": "assets/kitchen.scenery.pot-utensils.png"
+    },
+    {
+      "id": "kitchen.scenery.prep-counter",
+      "themeId": "kitchen",
+      "kind": "scenery",
+      "image": "sa_kitchen_scenery_prep_counter",
+      "width": 96,
+      "height": 64,
+      "anchorX": 48,
+      "anchorY": 60,
+      "sha256": "28e2e76d8265d38da2c47dda9a0a17140b7baa9fbe2999c003f1165ddc7614cc",
+      "exportFile": "assets/kitchen.scenery.prep-counter.png"
+    },
+    {
+      "id": "kitchen.scenery.tomato-herb",
+      "themeId": "kitchen",
+      "kind": "scenery",
+      "image": "sa_kitchen_scenery_tomato_herb",
+      "width": 32,
+      "height": 32,
+      "anchorX": 16,
+      "anchorY": 28,
+      "sha256": "2e96bb3048a103f1ef022fb47ec8771a635c21cc0c0a04736e71d0e090d6cb0f",
+      "exportFile": "assets/kitchen.scenery.tomato-herb.png"
+    },
+    {
+      "id": "kitchen.scenery.utensil-stand",
+      "themeId": "kitchen",
+      "kind": "scenery",
+      "image": "sa_kitchen_scenery_utensil_stand",
+      "width": 32,
+      "height": 64,
+      "anchorX": 16,
+      "anchorY": 60,
+      "sha256": "47569a61b40d95461bb8e7865ec9e6ea371e121a13e24f32b107db614ddc7801",
+      "exportFile": "assets/kitchen.scenery.utensil-stand.png"
+    },
+    {
+      "id": "outdoor.backdrop.minimal-strip",
+      "themeId": "outdoor",
+      "kind": "backdrop",
+      "image": "sa_outdoor_backdrop_minimal_strip",
+      "width": 480,
+      "height": 64,
+      "anchorX": 240,
+      "anchorY": 64,
+      "sha256": "554a503783b3a1b6e65099faa3974d8e79909c5f9c841f5545dae44a55a141ac",
+      "exportFile": "assets/outdoor.backdrop.minimal-strip.png"
+    },
+    {
+      "id": "outdoor.scenery.boulder-fern",
+      "themeId": "outdoor",
+      "kind": "scenery",
+      "image": "sa_outdoor_scenery_boulder_fern",
+      "width": 96,
+      "height": 64,
+      "anchorX": 48,
+      "anchorY": 60,
+      "sha256": "3fbd947eb51c23132a7a63bca25e664429f47365af0827be2454f60295f7f661",
+      "exportFile": "assets/outdoor.scenery.boulder-fern.png"
+    },
+    {
+      "id": "outdoor.scenery.camp-supplies",
+      "themeId": "outdoor",
+      "kind": "scenery",
+      "image": "sa_outdoor_scenery_camp_supplies",
+      "width": 64,
+      "height": 64,
+      "anchorX": 32,
+      "anchorY": 60,
+      "sha256": "44288914ecf6423967452675b9a68cdea27daec17da7bb609b3ef7407a509f52",
+      "exportFile": "assets/outdoor.scenery.camp-supplies.png"
+    },
+    {
+      "id": "outdoor.scenery.pebble-grass",
+      "themeId": "outdoor",
+      "kind": "scenery",
+      "image": "sa_outdoor_scenery_pebble_grass",
+      "width": 32,
+      "height": 32,
+      "anchorX": 16,
+      "anchorY": 28,
+      "sha256": "3cdc08eea586f186b4c853a746c1f27422e57350224093247ded0fafb8032d1e",
+      "exportFile": "assets/outdoor.scenery.pebble-grass.png"
+    },
+    {
+      "id": "outdoor.scenery.trail-sign",
+      "themeId": "outdoor",
+      "kind": "scenery",
+      "image": "sa_outdoor_scenery_trail_sign",
+      "width": 32,
+      "height": 64,
+      "anchorX": 16,
+      "anchorY": 60,
+      "sha256": "7aa5e633071cb2afffeea3f4c5c1c018761340f28ec5d5901b8bda5332eabcdb",
+      "exportFile": "assets/outdoor.scenery.trail-sign.png"
+    },
+    {
+      "id": "party.backdrop.minimal-strip",
+      "themeId": "party",
+      "kind": "backdrop",
+      "image": "sa_party_backdrop_minimal_strip",
+      "width": 480,
+      "height": 64,
+      "anchorX": 240,
+      "anchorY": 64,
+      "sha256": "cb32adfb168da1360738936216908bd81d2d2c3c8a1bb593a720c91d85bc25e5",
+      "exportFile": "assets/party.backdrop.minimal-strip.png"
+    },
+    {
+      "id": "party.scenery.pennant-pole",
+      "themeId": "party",
+      "kind": "scenery",
+      "image": "sa_party_scenery_pennant_pole",
+      "width": 32,
+      "height": 64,
+      "anchorX": 16,
+      "anchorY": 60,
+      "sha256": "2e49d28b2cac7d0e5ec933e3738dc7eecf5ed4a6fa6ae9a2988682e34ad6fa84",
+      "exportFile": "assets/party.scenery.pennant-pole.png"
+    },
+    {
+      "id": "party.scenery.pinwheel",
+      "themeId": "party",
+      "kind": "scenery",
+      "image": "sa_party_scenery_pinwheel",
+      "width": 32,
+      "height": 32,
+      "anchorX": 16,
+      "anchorY": 28,
+      "sha256": "37316b9f97321cc7c365cc8a9868f61f7a8e6a0f9560bcd329e5494c5196b5ab",
+      "exportFile": "assets/party.scenery.pinwheel.png"
+    },
+    {
+      "id": "party.scenery.play-blocks",
+      "themeId": "party",
+      "kind": "scenery",
+      "image": "sa_party_scenery_play_blocks",
+      "width": 96,
+      "height": 64,
+      "anchorX": 48,
+      "anchorY": 60,
+      "sha256": "51a4d3ad3eace512c2262449dbc03242bf6ee60d40e500077623c39fe6ec984b",
+      "exportFile": "assets/party.scenery.play-blocks.png"
+    },
+    {
+      "id": "party.scenery.toy-ball",
+      "themeId": "party",
+      "kind": "scenery",
+      "image": "sa_party_scenery_toy_ball",
+      "width": 64,
+      "height": 64,
+      "anchorX": 32,
+      "anchorY": 60,
+      "sha256": "2a90fb1c54b52de19c3617019b4c9bba73b821e6418241c313d988b7dca79425",
+      "exportFile": "assets/party.scenery.toy-ball.png"
+    },
+    {
+      "id": "puzzle.backdrop.minimal-strip",
+      "themeId": "puzzle",
+      "kind": "backdrop",
+      "image": "sa_puzzle_backdrop_minimal_strip",
+      "width": 480,
+      "height": 64,
+      "anchorX": 240,
+      "anchorY": 64,
+      "sha256": "99359c091778d016aef2a7a3b6cb1ee4b63f71701f8e3c375ccfeb3072f14da2",
+      "exportFile": "assets/puzzle.backdrop.minimal-strip.png"
+    },
+    {
+      "id": "puzzle.scenery.chunky-key",
+      "themeId": "puzzle",
+      "kind": "scenery",
+      "image": "sa_puzzle_scenery_chunky_key",
+      "width": 32,
+      "height": 32,
+      "anchorX": 16,
+      "anchorY": 28,
+      "sha256": "1a39d4bb3b3c1c05c4121176e688262129d26d7ef5f45bfe03c2a758f7242cd9",
+      "exportFile": "assets/puzzle.scenery.chunky-key.png"
+    },
+    {
+      "id": "puzzle.scenery.key-rack",
+      "themeId": "puzzle",
+      "kind": "scenery",
+      "image": "sa_puzzle_scenery_key_rack",
+      "width": 32,
+      "height": 64,
+      "anchorX": 16,
+      "anchorY": 60,
+      "sha256": "008f38bd251ee3604f88e93849199f4cd39632a4b47948d0242e471e643a303b",
+      "exportFile": "assets/puzzle.scenery.key-rack.png"
+    },
+    {
+      "id": "puzzle.scenery.lock-dial",
+      "themeId": "puzzle",
+      "kind": "scenery",
+      "image": "sa_puzzle_scenery_lock_dial",
+      "width": 64,
+      "height": 64,
+      "anchorX": 32,
+      "anchorY": 60,
+      "sha256": "1f9c1fc1f1f3992faa14c36d120b5f11aae0ae736e8fe381c1a22b909c18a6c1",
+      "exportFile": "assets/puzzle.scenery.lock-dial.png"
+    },
+    {
+      "id": "puzzle.scenery.puzzle-workbench",
+      "themeId": "puzzle",
+      "kind": "scenery",
+      "image": "sa_puzzle_scenery_puzzle_workbench",
+      "width": 96,
+      "height": 64,
+      "anchorX": 48,
+      "anchorY": 60,
+      "sha256": "9aafe00f2228e16bd21b7b4271495bd43aef78181b9384f3e1051a5a255c3790",
+      "exportFile": "assets/puzzle.scenery.puzzle-workbench.png"
+    },
+    {
+      "id": "space-salvage.backdrop.minimal-strip",
+      "themeId": "space-salvage",
+      "kind": "backdrop",
+      "image": "sa_space_salvage_backdrop_minimal_strip",
+      "width": 480,
+      "height": 64,
+      "anchorX": 240,
+      "anchorY": 64,
+      "sha256": "c1531f9f3ff1e3b46eaf048a7608e681b6137004a58460222c1541837c171b36",
+      "exportFile": "assets/space-salvage.backdrop.minimal-strip.png"
+    },
+    {
+      "id": "space-salvage.scenery.bolt-tools",
+      "themeId": "space-salvage",
+      "kind": "scenery",
+      "image": "sa_space_salvage_scenery_bolt_tools",
+      "width": 32,
+      "height": 32,
+      "anchorX": 16,
+      "anchorY": 28,
+      "sha256": "c898bc5fdabec5b546a3273c0d5e892dfcd043b554a28a9d1f8398668a2a161f",
+      "exportFile": "assets/space-salvage.scenery.bolt-tools.png"
+    },
+    {
+      "id": "space-salvage.scenery.cargo-crate",
+      "themeId": "space-salvage",
+      "kind": "scenery",
+      "image": "sa_space_salvage_scenery_cargo_crate",
+      "width": 64,
+      "height": 64,
+      "anchorX": 32,
+      "anchorY": 60,
+      "sha256": "aec71c715bb662f6327d7fd0b65621706f34817400210f3661ae956cf039e187",
+      "exportFile": "assets/space-salvage.scenery.cargo-crate.png"
+    },
+    {
+      "id": "space-salvage.scenery.salvage-machine",
+      "themeId": "space-salvage",
+      "kind": "scenery",
+      "image": "sa_space_salvage_scenery_salvage_machine",
+      "width": 96,
+      "height": 64,
+      "anchorX": 48,
+      "anchorY": 60,
+      "sha256": "046efab5bb85efe9f3243eeb160943a855044893b584c27b1e0554bfc7f26d72",
+      "exportFile": "assets/space-salvage.scenery.salvage-machine.png"
+    },
+    {
+      "id": "space-salvage.scenery.warning-beacon",
+      "themeId": "space-salvage",
+      "kind": "scenery",
+      "image": "sa_space_salvage_scenery_warning_beacon",
+      "width": 32,
+      "height": 64,
+      "anchorX": 16,
+      "anchorY": 60,
+      "sha256": "151607e53560ee59f0f1687da411c6e393984f64a6d5f87ea147a6eeed1e1458",
+      "exportFile": "assets/space-salvage.scenery.warning-beacon.png"
+    }
+  ],
+  "rehearsalOnly": false
+}

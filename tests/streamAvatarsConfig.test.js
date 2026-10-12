@@ -27,12 +27,9 @@ test('donation intervals use bounded integer cents', () => {
 });
 
 test('retired offline grace values have no effect on campaign integration',()=>{const r=parseStreamAvatarsConfiguration({...enabled,STREAM_AVATARS_OFFLINE_GRACE_SECONDS:'invalid'});expect(r.enabled).toBe(true);expect(r.config).not.toHaveProperty('graceMs');});
-test('invalid theme override keeps listener and heart configuration enabled with no path disclosure', () => {
-    const result = parseStreamAvatarsConfiguration({ ...enabled, STREAM_AVATARS_THEME_CONFIG: '/missing/FAKE_SECRET/config.json' });
-    expect(result).toMatchObject({ enabled: true, errors: [], config: { themes: { enabled: false, config: null, errors: ['Invalid Stream Avatars theme configuration'] } } });
-    expect(JSON.stringify(result)).not.toContain('FAKE_SECRET');
-});
-test('production accepts a configured trusted local pack directory and rejects URL-like paths', () => {
-    expect(parseStreamAvatarsConfiguration({ ...enabled, STREAM_AVATARS_THEME_PACK: '/private/tmp/approved-pack' }).config.themePackDir).toBe('/private/tmp/approved-pack');
-    expect(parseStreamAvatarsConfiguration({ ...enabled, STREAM_AVATARS_THEME_PACK: 'https://example.com/pack' }).enabled).toBe(false);
+test('shipped theme mapping does not require external environment configuration', () => {
+    const normal = parseStreamAvatarsConfiguration(enabled);
+    expect(normal.config.themes.enabled).toBe(true);
+    expect(normal.config).not.toHaveProperty('themePackDir');
+    expect(parseStreamAvatarsConfiguration({ ...enabled, STREAM_AVATARS_THEME_CONFIG: '/missing/FAKE_SECRET/config.json', STREAM_AVATARS_THEME_PACK: 'https://invalid.test/pack' })).toEqual(normal);
 });

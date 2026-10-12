@@ -516,38 +516,50 @@ test('artWorkflowRetainsFoundationScriptsAndCatalog', () => {
         .toEqual(fs.readFileSync(path.join(integrationDir, 'assets/heart.png')));
 });
 
-const retiredHats = [
-    ['outdoor.gear.backpack', 'outdoor.gear.trail-cap', '96ca30540cde7d6e22e6443a6b9455ea1895ebd2fc357bf828311e364be861bf'],
-    ['puzzle.gear.technician-goggles', 'puzzle.gear.technician-cap', '634ed0e1276aefe5eb3a352ec59ea3846fc84f36b99430022f0521816ab53491'],
-    ['space-salvage.gear.work-goggles', 'space-salvage.gear.utility-hardhat', '3613b4e481ab6ea93287318c82546a25fa59dc8d4fb5661ab415881791d0cfb8']
-];
-function historicalHat(select = false) {
-    const current = workflow.inventory; const oldId = retiredHats[0][0];
-    const replaced = retiredHats.map(([id]) => id);
-    const hats = current.retiredAssets.filter(a => !replaced.includes(a.id)).map(a => a.id === retiredHats[0][1] ? current.retiredAssets.find(r => r.id === oldId) : a);
-    const active = [...current.assets, ...hats]; const activeIds = new Set(active.map(a => a.id));
-    workflow.inventory = { ...current, requiredKinds: { ...current.requiredKinds, gear: 2 }, assets: active, retiredAssets: current.retiredAssets.filter(a => !activeIds.has(a.id)) };
-    const record = candidate(oldId, { fit: true });
-    if (select) workflow.select({ asset: oldId, attempt: record.attemptId, approve: true });
-    workflow.inventory = current;
-    return record;
+const retiredId = 'kitchen.scenery.previous-counter';
+function historicalScenery(select = false) {
+    const currentSpec = workflow.spec;
+    const oldSpec = path.join(root, 'old-spec');
+    fs.cpSync(currentSpec, oldSpec, { recursive: true });
+    const inventory = JSON.parse(fs.readFileSync(path.join(oldSpec, 'inventory.json')));
+    delete inventory.retiredAssets;
+    const definition = inventory.assets.find(a => a.id === asset);
+    definition.id = retiredId;
+    const recipe = JSON.parse(fs.readFileSync(path.join(oldSpec, 'recipes', asset + '.json')));
+    recipe.assetId = retiredId;
+    recipe.exactPrompt = 'TEST FIXTURE ONLY: transparent retired scenery counter';
+    const recipeBytes = JSON.stringify(recipe, null, 2) + '\n';
+    fs.writeFileSync(path.join(oldSpec, 'inventory.json'), JSON.stringify(inventory));
+    fs.writeFileSync(path.join(oldSpec, 'recipes', retiredId + '.json'), recipeBytes);
+    workflow = new ArtworkWorkflow({ workspace: workflow.workspace, spec: oldSpec });
+    const record = candidate(retiredId);
+    if (select) workflow.select({ asset: retiredId, attempt: record.attemptId, approve: true });
+    const pending = workflow.createJob(workflow.brief(retiredId));
+    const archive = workflow.local('history/retired-spec');
+    fs.mkdirSync(path.join(archive, 'recipes'), { recursive: true });
+    fs.writeFileSync(path.join(archive, 'inventory.json'), JSON.stringify({ schemaVersion: 1, retiredAssets: [definition] }));
+    fs.copyFileSync(path.join(oldSpec, 'style.json'), path.join(archive, 'style.json'));
+    fs.writeFileSync(path.join(archive, 'recipes', retiredId + '.json'), recipeBytes);
+    workflow = new ArtworkWorkflow({ workspace: workflow.workspace, spec: currentSpec });
+    return { ...record, pendingJobId: pending.jobId, archive, recipeBytes };
 }
-test('all hats retain exact retired brief hashes and definitions while active jobs are scenery only', () => {
-    expect(workflow.inventory.retiredAssets).toHaveLength(15);
+test('shipped specification exposes only scenery and backdrop briefs', () => {
+    expect(workflow.briefs({ includeRetired: true })).toHaveLength(30);
+    expect(workflow.briefs().every(b => ['scenery', 'backdrop'].includes(b.kind))).toBe(true);
+    expect(workflow.prepare()).toHaveLength(30);
+});
+test('local archived scenery preserves historical recipe hash and original bytes', () => {
+    const record = historicalScenery();
+    expect(workflow.brief(retiredId)).toMatchObject({ retired: true, recipeHash: record.recipeHash });
+    expect(fs.readFileSync(path.join(record.archive, 'recipes', retiredId + '.json'), 'utf8')).toBe(record.recipeBytes);
+    expect(workflow.validate(record.attemptId).valid).toBe(true);
+    expect(fs.readFileSync(workflow.local(record.sourceFile))).toEqual(fs.readFileSync(fixture()));
     expect(workflow.briefs()).toHaveLength(30);
-    for (const [oldId, newId, originalHash] of retiredHats) {
-        expect(workflow.brief(oldId)).toMatchObject({ id: oldId, retired: true, recipeHash: originalHash });
-        expect(workflow.inventory.retiredAssets.find(a => a.id === oldId)).not.toHaveProperty('retired');
-        expect(workflow.briefs().map(b => b.id)).not.toContain(oldId);
-        expect(workflow.brief(newId)).toMatchObject({ gearSlot: 'head', retired: true });
-        expect(() => workflow.prepare({ asset: oldId })).toThrow(/retired/i);
-        expect(() => workflow.prepare({ asset: newId })).toThrow(/retired/i);
-    }
-    expect(workflow.briefs().filter(b => b.kind === 'gear')).toHaveLength(0);
-    expect(workflow.prepare()).toHaveLength(30); expect(workflow.selections()).toEqual({});
+    expect(workflow.prepare().some(j => j.assetId === retiredId)).toBe(false);
+    expect(() => workflow.prepare({ asset: retiredId })).toThrow(/retired/i);
 });
 test('historical candidates remain valid and labeled in review but cannot be selected', () => {
-    const record = historicalHat();
+    const record = historicalScenery();
     expect(workflow.validate(record.attemptId).valid).toBe(true);
     expect(() => workflow.select({ asset: record.assetId, attempt: record.attemptId, approve: true })).toThrow(/retired/i);
     const { JSDOM } = require('jsdom');
@@ -558,7 +570,7 @@ test('historical candidates remain valid and labeled in review but cannot be sel
     expect(doc.querySelector('.strip').innerHTML).not.toContain(record.assetId);
 });
 test('historical selections cannot satisfy or count toward the active release gate', () => {
-    const record = historicalHat(true);
+    const record = historicalScenery(true);
     expect(workflow.selections()[record.assetId].attemptId).toBe(record.attemptId);
     const result = workflow.releaseCheck();
     expect(result.requiredAssets).toBe(30);
@@ -568,8 +580,9 @@ test('historical selections cannot satisfy or count toward the active release ga
     expect(result.errors.join(' ')).toContain('outdoor.scenery.camp-supplies: missing selection');
 });
 test('rejects duplicate IDs across active and retired history', () => {
-    workflow.inventory.retiredAssets = [workflow.inventory.assets[0]];
-    expect(() => workflow.briefs()).toThrow(/duplicate/i);
+    const record = historicalScenery();
+    fs.writeFileSync(path.join(record.archive, 'inventory.json'), JSON.stringify({ retiredAssets: [workflow.inventory.assets[0]] }));
+    expect(() => workflow.briefs({ includeRetired: true })).toThrow(/duplicate/i);
 });
 test('composition excludes retired scenery even when its historical export is valid', () => {
     const { sceneLayout } = require('../scripts/artwork/composition');
@@ -577,10 +590,11 @@ test('composition excludes retired scenery even when its historical export is va
     const card = { ...record, brief: { ...workflow.brief(asset), retired: true }, validation: workflow.validate(record.attemptId) };
     expect(sceneLayout([card])).toEqual({ scenery: [], backdrops: [] });
 });
-test('retired hat history cannot create new revision or export jobs', () => {
-    const record = historicalHat(); const jobs = workflow.jobs().length;
-    expect(() => workflow.revise({ asset: record.assetId, feedback: [{ assetId: record.assetId, attemptId: record.attemptId, feedback: 'change hat' }] })).toThrow(/retired/i);
+test('retired scenery history cannot create new revision, export or generation jobs', () => {
+    const record = historicalScenery(); const jobs = workflow.jobs().length;
+    expect(() => workflow.revise({ asset: record.assetId, feedback: [{ assetId: record.assetId, attemptId: record.attemptId, feedback: 'simplify old scenery' }] })).toThrow(/retired/i);
     expect(() => workflow.record({ fromAttempt: record.attemptId, fit: true })).toThrow(/retired/i);
+    expect(() => workflow.record({ job: record.pendingJobId, file: fixture() })).toThrow(/retired/i);
     expect(workflow.jobs()).toHaveLength(jobs); expect(workflow.validate(record.attemptId).valid).toBe(true);
 });
 test('stream-scale mockup switches between light and dark test scenes', () => {
@@ -612,7 +626,7 @@ function completeActiveReleaseFixture(skipAsset = null) {
     }
 }
 test('complete active release ignores retained retired approvals without changing their history', () => {
-    const retired = historicalHat(true);
+    const retired = historicalScenery(true);
     const history = workflow.selections()[retired.assetId];
     const historyFile = workflow.local('selections/' + history.selectionId + '.json');
     const historyBytes = fs.readFileSync(historyFile);
@@ -624,14 +638,14 @@ test('complete active release ignores retained retired approvals without changin
     expect(() => workflow.select({ asset: retired.assetId, attempt: retired.attemptId, approve: true })).toThrow(/retired/i);
 });
 test('complete active release still rejects unknown selection IDs alongside retired history', () => {
-    const retired = historicalHat(true);
+    const retired = historicalScenery(true);
     completeActiveReleaseFixture();
     const old = workflow.selections()[retired.assetId];
-    workflow.immutable('selections/unknown-fixture.json', { ...old, selectionId: 'unknown-fixture', assetId: 'unknown.gear.stranger', sequence: 999 });
-    expect(workflow.releaseCheck()).toEqual({ valid: false, requiredAssets: 30, selectedAssets: 30, errors: ['unknown.gear.stranger: unknown selection cannot enter release'] });
+    workflow.immutable('selections/unknown-fixture.json', { ...old, selectionId: 'unknown-fixture', assetId: 'unknown.scenery.stranger', sequence: 999 });
+    expect(workflow.releaseCheck()).toEqual({ valid: false, requiredAssets: 30, selectedAssets: 30, errors: ['unknown.scenery.stranger: unknown selection cannot enter release'] });
 });
 test('retired approval cannot fill a missing active replacement in an otherwise complete release', () => {
-    const retired = historicalHat(true);
+    const retired = historicalScenery(true);
     const replacement = 'outdoor.scenery.camp-supplies';
     completeActiveReleaseFixture(replacement);
     expect(workflow.releaseCheck()).toEqual({ valid: false, requiredAssets: 30, selectedAssets: 29, errors: [replacement + ': missing selection (unapproved)'] });

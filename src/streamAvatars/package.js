@@ -5,6 +5,7 @@ const path = require('node:path');
 const { crc32, inflateSync } = require('node:zlib');
 const { zipSync } = require('fflate');
 const { PNG } = require('pngjs');
+const { BUNDLED_THEME_PACK_DIR } = require('./themeRelease');
 
 const SCRIPT_NAME = 'sa_helper_bridge';
 const DEFAULT_INTEGRATION_DIR = path.resolve(__dirname, '../../integrations/stream-avatars');
@@ -86,6 +87,8 @@ function animationSettings(manifest) {
 }
 
 function buildPackage({ integrationDir = DEFAULT_INTEGRATION_DIR, themeManifest, themeAssetsDir, themePackDir, previewOnly = false } = {}) {
+    if (themePackDir !== undefined && (typeof themePackDir !== 'string' || !themePackDir)) throw new Error('Local pack directory required');
+    if (themePackDir === undefined && !themeManifest && !themeAssetsDir) themePackDir = BUNDLED_THEME_PACK_DIR;
     if (themePackDir && (themeManifest || themeAssetsDir)) throw new Error('Use one trusted local theme pack');
     const catalog = themePackDir ? require('./themeRelease').loadThemePack({ directory: themePackDir, previewOnly }).catalog : buildThemeCatalog({ manifest: themeManifest, previewOnly });
     if (themePackDir) themeAssetsDir = themePackDir;

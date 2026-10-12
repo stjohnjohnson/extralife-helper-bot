@@ -9,6 +9,7 @@ const USAGE = 'Usage: npm run sa:package -- [--output path/to/package.zip] [--ca
 function run(args = process.argv.slice(2)) {
     let values;
     try { ({ values } = parseArgs({ args, options: { output: { type: 'string' }, 'candidate-pack': { type: 'string' }, 'theme-pack': { type: 'string' } } })); } catch { throw new Error(USAGE); }
+    if (['candidate-pack', 'theme-pack'].some(key => values[key] !== undefined && !values[key])) throw new Error(USAGE);
     if ((values.output && !values.output.toLowerCase().endsWith('.zip')) || (values['candidate-pack'] && values['theme-pack'])) throw new Error(USAGE);
     const output = values.output ? path.resolve(values.output) : DEFAULT_OUTPUT;
     const { archive, imageCount, packRevision } = buildPackage({ themePackDir: values['candidate-pack'] || values['theme-pack'], previewOnly: !!values['candidate-pack'] });
