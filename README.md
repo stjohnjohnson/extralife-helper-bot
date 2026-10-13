@@ -45,6 +45,8 @@ npm ci
 npm start
 ```
 
+The companion bundles seven family voice recordings. Donations cycle through four options, milestones alternate between two, and goals use one recording. Run `npm run sa:package`, then import all seven Oggs from `dist/stream-avatars/sounds/` through Stream Avatars' **Sounds** screen. Each new celebration plays one clip; updates and reconnects do not repeat it. Set native volume or configure custom single names, ordered lists, or disabled kinds. See [sound setup](docs/stream-avatars-setup.md#celebration-sounds) for imports and configuration.
+
 ## Documentation
 
 | Task | Guide |

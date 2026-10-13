@@ -12,10 +12,13 @@ function run(args = process.argv.slice(2)) {
     if (['candidate-pack', 'theme-pack'].some(key => values[key] !== undefined && !values[key])) throw new Error(USAGE);
     if ((values.output && !values.output.toLowerCase().endsWith('.zip')) || (values['candidate-pack'] && values['theme-pack'])) throw new Error(USAGE);
     const output = values.output ? path.resolve(values.output) : DEFAULT_OUTPUT;
-    const { archive, imageCount, packRevision } = buildPackage({ themePackDir: values['candidate-pack'] || values['theme-pack'], previewOnly: !!values['candidate-pack'] });
+    const { archive, imageCount, packRevision, soundCount, sounds } = buildPackage({ themePackDir: values['candidate-pack'] || values['theme-pack'], previewOnly: !!values['candidate-pack'] });
     fs.mkdirSync(path.dirname(output), { recursive: true });
     fs.writeFileSync(output, archive);
-    console.log(`Created ${output} (${imageCount} image${imageCount === 1 ? '' : 's'}, revision ${packRevision}). Configure the private address/token after import.`);
+    const soundsDir = path.join(path.dirname(output), 'sounds');
+    fs.mkdirSync(soundsDir, { recursive: true });
+    for (const [name, bytes] of Object.entries(sounds)) fs.writeFileSync(path.join(soundsDir, name), bytes);
+    console.log(`Created ${output} (${imageCount} image${imageCount === 1 ? '' : 's'}, revision ${packRevision}, ${soundCount} sounds). Configure the private address/token after import. Import the bundled Oggs through Stream Avatars Sounds: ${soundsDir}`);
 }
 
 if (require.main === module) {

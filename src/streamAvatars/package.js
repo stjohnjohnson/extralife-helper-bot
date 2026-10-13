@@ -5,6 +5,7 @@ const path = require('node:path');
 const { crc32, inflateSync } = require('node:zlib');
 const { zipSync } = require('fflate');
 const { PNG } = require('pngjs');
+const { loadSounds, DEFAULT_SOUNDS } = require('./sounds');
 const { BUNDLED_THEME_PACK_DIR } = require('./themeRelease');
 
 const SCRIPT_NAME = 'sa_helper_bridge';
@@ -106,7 +107,7 @@ function buildPackage({ integrationDir = DEFAULT_INTEGRATION_DIR, themeManifest,
     const scriptPath = `scripts/${SCRIPT_NAME}/`;
     let source = readFile(path.join(integrationDir, 'companion.lua'), 1024 * 1024).toString('utf8');
     add(`${scriptPath}${SCRIPT_NAME}_settings.json`, Buffer.from(JSON.stringify({
-        address: 'BOT_LAN_IP', token: 'REPLACE_WITH_PRIVATE_TOKEN'
+        address: 'BOT_LAN_IP', token: 'REPLACE_WITH_PRIVATE_TOKEN', sounds: DEFAULT_SOUNDS
     }, null, 2) + '\n'));
     for (const filename of manifests) {
         const manifest = readJson(path.join(assetsDir, filename));
@@ -151,6 +152,10 @@ function buildPackage({ integrationDir = DEFAULT_INTEGRATION_DIR, themeManifest,
     }
     add(`${scriptPath}${SCRIPT_NAME}.lua`, Buffer.from(lua));
 
+    // Native content import extracts script files but cannot register its sound library.
+    const sounds = loadSounds(integrationDir);
+    for (const [name, bytes] of Object.entries(sounds)) add(`${scriptPath}sounds/${name}`, bytes);
+
     const command = {
         name: SCRIPT_NAME, scriptName: SCRIPT_NAME, enabled: true, showInEditor: true,
         restriction: { type: '' }, restrictionType: 0, advancedSettings: true, runMode: 1,
@@ -161,7 +166,7 @@ function buildPackage({ integrationDir = DEFAULT_INTEGRATION_DIR, themeManifest,
         avatar: {}, gear: {}, backgrounds: {}, backgroundObj: {}, boss: {}, playerClass: {}, nametags: {},
         commands: { [SCRIPT_NAME]: command }, languages: {}
     }, null, 2) + '\n'));
-    return { archive: zipSync(entries, { level: 6 }), imageCount: manifests.length + catalog.assets.length, packRevision: catalog.packRevision };
+    return { archive: zipSync(entries, { level: 6 }), imageCount: manifests.length + catalog.assets.length, packRevision: catalog.packRevision, soundCount: Object.keys(sounds).length, sounds };
 }
 
 module.exports = { buildPackage };
