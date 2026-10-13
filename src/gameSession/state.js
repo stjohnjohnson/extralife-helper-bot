@@ -62,14 +62,14 @@ function reduceObservation(state, observation, { graceMs, cadenceMs, newSessionI
     if (observation.status === 'online') {
         if (!next.sessionId || next.endedAtMs !== null || graceReached) {
             Object.assign(next, createInitialState({ mode: state.mode, channel: state.channel }),
-                { sessionId: newSessionId(), startedAtMs: observation.startedAtMs, recoveryBaselineMs: time });
+                { game: next.game, sessionId: newSessionId(), startedAtMs: observation.startedAtMs, recoveryBaselineMs: time });
         }
         next.offlineSinceMs = null;
         next.lastOfflineAtMs = null;
     } else if (observation.status === 'offline' && next.sessionId && next.endedAtMs === null) {
         if (!continuous) next.offlineSinceMs = time;
         next.lastOfflineAtMs = time;
-        if (graceReached) { next.endedAtMs = time; next.game = null; }
+        if (graceReached) next.endedAtMs = time;
     } else {
         next.offlineSinceMs = null;
         next.lastOfflineAtMs = null;

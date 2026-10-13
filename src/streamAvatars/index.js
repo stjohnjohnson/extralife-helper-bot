@@ -109,10 +109,9 @@ async function startStreamAvatars({ config, logger = { warn() {} }, signal, webS
             if (!gameSession.getStatus().recoveryRequired) await gameSession.observe(observation);
         }); },
         observeGame(observation) { return enqueueObservation(async () => {
-            if (integration || gameSession.getStatus().recoveryRequired || !themes.enabled || !validGameObservation(observation) || lastRealObservation?.status !== 'online' ||
-                (observation.confirmedAtMs ?? observation.observedAtMs) < lastRealObservation.observedAtMs ||
-                realClock.nowMs() - lastRealObservation.observedAtMs > 2 * cadenceMs) return;
-            await gameSession.observeGame(observation, { announce: reconciledGame && currentGame() !== null });
+            if (integration || gameSession.getStatus().recoveryRequired || !themes.enabled || !validGameObservation(observation) ||
+                (lastRealObservation && (observation.confirmedAtMs ?? observation.observedAtMs) < lastRealObservation.observedAtMs)) return;
+            await gameSession.observeGame(observation, { announce: (reconciledGame || observation.source === 'discord-category') && currentGame() !== null });
             if (observation.source === 'twitch') reconciledGame = true;
         }); },
         async acceptObservation(input) {
