@@ -40,6 +40,15 @@ describe('analyzer integration', () => {
         });
     });
 
+    test('preserves the filesystem error when a log cannot be read', () => {
+        const inputPath = path.join(directory, 'missing.log');
+
+        expect(() => runAnalysis({ inputPath })).toThrow(expect.objectContaining({
+            message: expect.stringContaining('Unable to read log file'),
+            cause: expect.objectContaining({ code: 'ENOENT', path: inputPath })
+        }));
+    });
+
     test('CLI returns nonzero for unreadable input', () => {
         const script = path.resolve(__dirname, '../../scripts/analyze.js');
         const result = spawnSync(process.execPath, [script, path.join(directory, 'missing.log')], { encoding: 'utf8' });

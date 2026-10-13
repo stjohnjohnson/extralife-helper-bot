@@ -64,7 +64,7 @@ function loadSounds(integrationDir) {
     if (!fs.lstatSync(directory).isDirectory()) throw new Error('Sounds must be a regular directory');
     let catalog;
     try { catalog = JSON.parse(read(path.join(directory, 'catalog.json'), 64 * 1024)); }
-    catch (error) { if (error instanceof SyntaxError) throw new Error('Sound catalog contains invalid JSON'); throw error; }
+    catch (error) { if (error instanceof SyntaxError) throw new Error('Sound catalog contains invalid JSON', { cause: error }); throw error; }
     if (!Array.isArray(catalog) || !catalog.length || catalog.length > 16) throw new Error('Invalid sound catalog');
     const names = new Set(), files = Object.create(null);
     for (const entry of catalog) {

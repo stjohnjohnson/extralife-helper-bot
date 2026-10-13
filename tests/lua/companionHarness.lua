@@ -2,6 +2,13 @@ local script, scenario = arg[1], arg[2]
 local shared, packets, users, objects, callbacks = {}, {}, {}, {}, {}
 local codec = dofile("tests/lua/vendor/json.lua")
 local logs = {}
+local statusScenario = scenario:match("^status%-")
+local statusHost
+local statusCreateFailure = scenario=="status-create-error"
+local statusCreateCalls = 0
+local themeScenario = scenario:match("^theme%-") or scenario:match("^entrance%-")
+local themeRevision = themeScenario and arg[3] or string.rep("a",64)
+if not themeRevision then themeRevision=string.rep("a",64) end
 -- Stream Avatars bundles a MoonSharp codec whose serializer emits \/,
 -- but whose Lua lexer rejects it. get() round-trips tables through that codec.
 local function hostParse(text)
@@ -34,6 +41,10 @@ if scenario=="address-wss" then config={address="wss://bridge.example/sa/socket"
 if scenario=="address-ipv6" then config={address="[::1]",token=config.token}; expectedUrl="ws://[::1]:3000/sa/socket" end
 if scenario=="invalid-address" then config={address=" ",token=config.token} end
 local app = {}
+app.getStreamerUser = function()
+    if scenario=="status-host-error" then error("private host lookup failure") end
+    return statusHost
+end
 app.playSound=function(name,loop)
     assert(type(name)=="string" and loop==false,"must request a named non-looping cue")
     soundPlays[#soundPlays+1]=name
@@ -59,14 +70,16 @@ app.platformServiceSettings = {
     SetUserLeave = function(id) assert(type(id)=="number" and id>=900001 and id<=900100); users[tostring(id)] = nil; leaves = leaves+1 end
 }
 app.createGameObject = function()
-    local ob; ob = { removed = false, scale = 1, image = { anchor = function(where,dimensions) assert(where=="center" and dimensions==true); ob.anchored=true end } }
-    ob.setScale = function(x,y) assert(x==y); ob.scale=x end
-    ob.setPosition = function(x,y) assert(not ob.removed and type(x)=="number" and type(y)=="number" and x==x and y==y and math.abs(x)<math.huge and math.abs(y)<math.huge); ob.x=x; ob.y=y end
+    if statusCreateFailure then statusCreateCalls=statusCreateCalls+1; error("private object creation failure") end
+    local ob; ob = { removed = false, scale = 1, image = { anchor = function(where,dimensions) assert(where=="center" and dimensions==true); ob.anchored=true end, sorting = function(value,layer) assert(value==0 or value==1 or value==2); assert(layer=="behindBackground" or layer=="background" or (ob.name and ob.name:match("^sa_bridge_") and layer=="afterForeground")); if scenario=="theme-prop-sorting-error" and ob.name:find("scenery_one") then error("private native sorting failure") end; ob.layer=layer; ob.order=value end }, text = { setText = function(value) assert(type(value)=="string"); ob.caption=value end, setSize = function(value) assert(type(value)=="number" and value>0); ob.fontSize=value end } }
+    local initialScaleFailure=scenario=="theme-prop-initial-scale-error" and #objects==4
+    ob.setScale = function(x,y) assert(x==y); if initialScaleFailure and x==0 and not ob.name then error("private initial scale failure") end; if scenario=="theme-prop-scale-error" and x>0 and ob.name and ob.name:find("scenery_one") then error("private native scale failure") end; ob.scale=x end
+    ob.setPosition = function(x,y) if scenario=="theme-prop-position-error" and ob.name and ob.name:find("scenery_one") then error("private native position failure") end; assert(not ob.removed and type(x)=="number" and type(y)=="number" and x==x and y==y and math.abs(x)<math.huge and math.abs(y)<math.huge); ob.x=x; ob.y=y end
     ob.destroy = function() ob.removed=true end
     objects[#objects+1]=ob; return ob
 end
 local loaders, loaderSequence = {}, 0
-local allowImageCompletion = scenario~="pending-image-stop"
+local allowImageCompletion = scenario~="pending-image-stop" and scenario~="theme-stale-load" and scenario~="status-delayed-image"
 local env; env = {
     getApp = function() return app end,
     get = function(key)
@@ -75,7 +88,20 @@ local env; env = {
     end, set = function(key,value) shared[key]=clone(value) end,
     load = function() shared.data = config end,
     getUsers = function() local list={} for _,user in pairs(users) do list[#list+1]=user end return list end,
-    applyImage = function(ob,name) assert(type(name)=="string" and name:match("^sa_") and not ob.removed); ob.asset=name; if (scenario=="celebration-missing-confetti" and name=="sa_confetti") or (scenario=="celebration-missing-heart" and name=="sa_heart") then error("missing layer") end; if scenario=="missing-image" then error("missing image") end
+    applyImage = function(ob,name) assert(type(name)=="string" and name:match("^sa_") and not ob.removed); ob.asset=name; ob.name=name; if themeScenario and name~="sa_heart" then assert(ob.scale==0, "pending theme must be invisible") end; if (scenario=="celebration-missing-confetti" and name=="sa_confetti") or (scenario=="celebration-missing-heart" and name=="sa_heart") then error("missing layer") end; if scenario=="missing-image" then error("missing image") end
+        if statusScenario and name:match("^sa_bridge_") then
+            assert(ob.scale==0, "pending status images must be invisible")
+            if scenario=="status-missing-image" and name=="sa_bridge_healthy" then error("private missing status image") end
+            if scenario=="status-delayed-image" and name=="sa_bridge_healthy" then while not allowImageCompletion do coroutine.yield() end end
+            if scenario=="status-image-timeout" then while true do coroutine.yield() end end
+        end
+        if scenario=="theme-missing-backdrop" and name:find("backdrop") then error("missing backdrop") end
+        if scenario=="theme-missing-prop" and name:find("scenery_one") then error("missing prop") end
+        if scenario=="theme-backdrop-timeout" and name:find("backdrop") then
+            while not allowImageCompletion do coroutine.yield() end
+        end
+        if (scenario=="theme-load-timeout" or scenario=="theme-pending-cap") and name~="sa_heart" then while true do coroutine.yield() end end
+        if scenario=="theme-stale-load" and name~="sa_heart" then ob.imageLoaded=true; coroutine.yield() end; if scenario=="missing-image" then error("missing image") end
         if (scenario=="missing-image-host" or scenario=="image-pending-cap") then error("CLR missing image") end
         if scenario=="celebration-delay-cancel" or scenario=="image-load-delay" or scenario=="pending-image-stop" or scenario=="image-loaded-before-clear" then
             -- The real callback plays the image before it resumes the worker.
@@ -84,17 +110,32 @@ local env; env = {
         if scenario=="celebration-pending-cap" or scenario=="image-load-timeout" then while true do coroutine.yield() end end
         ob.imageLoaded=true
     end,
-    log = function(message) logs[#logs+1]=message; assert(not message:find(config.token,1,true)) end,
+    log = function(message)
+        logs[#logs+1]=message
+        if type(config)=="table" and type(config.token)=="string" then assert(not message:find(config.token,1,true)) end
+    end,
     yield = function() return coroutine.yield() end,
     json = { null=codec.null, serialize = scenario=="host-json-escapes" and hostSerialize or codec.encode, parse = scenario=="host-json-escapes" and hostParse or codec.decode }
 }
 -- MoonSharp json.null is a function; parsed JSON null is special userdata.
 local nativeNull
-if scenario=="native-null-donation" or scenario=="native-null-goal" or scenario=="native-null-hidden" or scenario=="native-null-goal-only" then
+if scenario:find("native-null",1,true) or scenario=="native-null-donation" or scenario=="native-null-goal" or scenario=="native-null-hidden" or scenario=="native-null-goal-only" then
     nativeNull=assert(io.tmpfile())
     env.json.null=function() return nativeNull end
     env.json.isnull=function(value) return value==nil or value==nativeNull end
-    env.json.parse=function(text) local value=codec.decode(text);for key,item in pairs(value) do if item==codec.null then value[key]=nativeNull end end;return value end
+    if scenario:find("-native-null-",1,true) then
+        local originalMetatable=debug.getmetatable(nativeNull)
+        local metatable={};for key,value in pairs(originalMetatable) do metatable[key]=value end
+        local close=nativeNull.close
+        metatable.__index=function(_,key) if key=="close" then return function(value) debug.setmetatable(value,originalMetatable);return close(value) end end error("cannot index native JsonNull: "..tostring(key)) end
+        debug.setmetatable(nativeNull,metatable)
+    end
+    local function nativeDecode(value)
+        if value==codec.null then return nativeNull end
+        if type(value)=="table" then for key,item in pairs(value) do value[key]=nativeDecode(item) end end
+        return value
+    end
+    env.json.parse=function(text) return nativeDecode(codec.decode(text)) end
 end
 -- Only the host-documented wall clock is exposed; no filesystem, shell, package
 -- or dynamic-code access. Native cooldowns do not follow scaled game time.
@@ -107,7 +148,7 @@ setmetatable(app, { __index=function(_,key) error("Undocumented app API: "..tost
 -- addEvent must resolve only explicitly exported callbacks, never main-coroutine locals.
 env.addEvent = function(name, callback) callbacks[name] = function(...) return env[callback](...) end end
 env.async = function(name, ...)
-    assert((name=="sa_load_heart" or name=="sa_sound_operation") and type(env[name])=="function")
+    assert((name=="sa_load_heart" or name=="sa_load_theme" or name=="sa_sound_operation") and type(env[name])=="function")
     loaderSequence=loaderSequence+1
     local worker=coroutine.create(env[name]); loaders[loaderSequence]=worker
     local ok=coroutine.resume(worker,...)
@@ -189,13 +230,110 @@ if scenario=="host-json-escapes" then
     config.token="private/test\\path/token"
     local ok=pcall(hostParse,hostSerialize(config)); assert(not ok, "must reproduce embedded codec failure")
 end
+if statusScenario then statusHost=addUser("host",50,20); addUser("viewer",700,20) end
+if scenario=="status-settings-missing" then config=nil end
+if scenario=="status-settings-invalid" then config="invalid settings" end
+if scenario=="status-token-missing" then config.token=nil end
+if scenario=="status-token-short" then config.token="short" end
+if scenario=="status-address-missing" then config.url=nil end
+if scenario=="status-address-empty" then config.url="" end
+if scenario=="status-address-whitespace" then config.url=" " end
 if scenario=="invalid-settings" then config.url=42 end
 if scenario=="invalid-token" then config.token=math.huge end
 if scenario=="reload" then shared.sa_owned_ids={900001,900002}; users["900001"]={id=900001}; users["900002"]={id=900002} end
 if scenario=="invalid-settings" or scenario=="invalid-token" or scenario=="invalid-address" or scenario=="cooldown-invalid" then
-    local ok,err=coroutine.resume(runner); assert(ok,err); assert(coroutine.status(runner)=="dead" and connectedCount==0); if nativeNull then nativeNull:close() end;print("OK "..scenario); return
+    local ok,err=coroutine.resume(runner); assert(ok,err); assert(coroutine.status(runner)=="suspended" and connectedCount==0, "invalid settings must retain rendering without opening a connection"); if nativeNull then nativeNull:close() end;print("OK "..scenario); return
 end
 tick()
+if statusScenario then
+    local function visible(name)
+        local list={}; for _,ob in ipairs(objects) do if not ob.removed and ob.scale>0 and ob.name==name then list[#list+1]=ob end end
+        return list
+    end
+    local function status(healthy)
+        assert(#visible("sa_bridge_healthy")== (healthy and 1 or 0), "healthy logo must match authenticated fresh bridge state")
+        assert(#visible("sa_bridge_unknown")== (healthy and 0 or 1), "question mark must cover unconfirmed bridge state")
+        local indicator=visible(healthy and "sa_bridge_healthy" or "sa_bridge_unknown")[1]
+        assert(indicator.scale==0.5, "both indicators must display at half size")
+    end
+    if scenario:match("^status%-settings%-") or scenario:match("^status%-token%-") or scenario:match("^status%-address%-") then
+        status(false)
+        for i=1,100 do tick(0,1) end
+        status(false)
+        assert(connectedCount==0 and #packets==0, "invalid settings must never attempt a connection or send authentication")
+        assert(#objects==2 and shared.sa_pending_images==0, "unconfigured status must use a bounded pair of images")
+        callbacks.websocket("sa_helper_bridge","OnOpen","",""); tick(); status(false)
+        assert(#packets==0, "a late open callback must not authenticate with invalid settings")
+        statusHost.isActive=false; tick(); assert(#visible("sa_bridge_unknown")==0, "unconfigured indicator must hide for an inactive host")
+        statusHost=nil; tick(); assert(#visible("sa_bridge_unknown")==0, "unconfigured indicator must hide for an absent host")
+    elseif scenario=="status-create-error" then
+        for i=1,100 do tick() end
+        assert(statusCreateCalls==1 and (shared.sa_pending_images or 0)==0, "status allocation failure must not retry or consume other image budgets")
+        statusCreateFailure=false; send(snapshot()); send(celebration()); assert(#visible("sa_heart")==2, "status allocation failure must preserve donation rendering")
+    elseif scenario=="status-host-error" then
+        send(snapshot()); send(celebration()); assert(#visible("sa_heart")==2, "host lookup failure must preserve donation rendering")
+    elseif scenario=="status-image-timeout" then
+        send(snapshot()); tick(0,3); for i=1,100 do tick(0,1) end
+        assert(#objects==2 and #visible("sa_bridge_healthy")==0 and #visible("sa_bridge_unknown")==0, "failed status loads must remain bounded and hidden")
+        send(celebration()); assert(#visible("sa_heart")==2, "status image timeout must preserve donation rendering")
+    elseif scenario=="status-missing-image" then
+        send(snapshot()); status(false); send(celebration()); assert(#visible("sa_heart")==1, "question-mark fallback must replace only the host heart")
+    elseif scenario=="status-delayed-image" then
+        send(snapshot()); status(false); callbacks.websocket("sa_helper_bridge","OnClose","",""); tick(); allowImageCompletion=true; tick(); status(false)
+    else
+        status(false)
+        if scenario=="status-startup" then
+            send({version=3,type="heartbeat",serverNowMs=1000}); status(false)
+            local bad=snapshot(); bad.campaign.totalCents=-1; send(bad); status(false)
+        else
+            send(snapshot()); tick(); status(true)
+            if scenario=="status-timeout" then
+                tick(0,31); status(false)
+                send({version=3,type="heartbeat",serverNowMs=32000}); status(true)
+            elseif scenario=="status-reconnect" or scenario=="status-close-open-race" then
+                callbacks.websocket("sa_helper_bridge","OnClose","","")
+                if scenario=="status-close-open-race" then callbacks.websocket("sa_helper_bridge","OnOpen","","") end
+                tick(); status(false)
+                if scenario=="status-reconnect" then tick(1.1); tick(); status(false) end
+                send({version=3,type="heartbeat",serverNowMs=2000}); status(false)
+                send(snapshot()); tick(); status(true)
+            elseif scenario=="status-host-movement" then
+                local ob=visible("sa_bridge_healthy")[1]; assert(ob.x==50 and ob.y==76 and ob.layer=="afterForeground", "compact logo must use the host's heart position")
+                statusHost.x=400; tick(); assert(visible("sa_bridge_healthy")[1].x==400, "logo must follow the actual host")
+                statusHost.isActive=false; tick(); assert(#visible("sa_bridge_healthy")==0 and #visible("sa_bridge_unknown")==0, "inactive host must hide status")
+                statusHost=nil; tick(); assert(#visible("sa_bridge_healthy")==0 and #visible("sa_bridge_unknown")==0, "missing host must not attach status to a viewer")
+                statusHost=users.host; statusHost.isActive=true; tick(); status(true)
+                app.convertPercentToPosition=function(x,y) return {x=-200+x*400,y=y*100} end
+                tick(); ob=visible("sa_bridge_healthy")[1]; assert(ob.x==184 and ob.y==76, "displayed status frame must stay inside resized bounds")
+                app.convertPercentToPosition=function(x,y) return {x=x*40,y=y*40} end
+                tick(); status(true); ob=visible("sa_bridge_healthy")[1]
+                assert(ob.x==24 and ob.y==24, "compact status must fit a canvas smaller than the source frame")
+                app.convertPercentToPosition=function(x,y) return {x=x*31,y=y*31} end
+                tick(); assert(#visible("sa_bridge_healthy")==0 and #visible("sa_bridge_unknown")==0, "status must hide when the displayed frame cannot fit")
+            elseif scenario=="status-clear" then
+                send({version=3,type="clear",mode="integration",generation=2}); status(false)
+                send(snapshot("integration",2)); status(true)
+                assert(#objects==2, "campaign clears must reuse the two status assets")
+            elseif scenario=="status-donation" or scenario=="status-legacy-hearts" then
+                send(scenario=="status-donation" and celebration() or hearts()); tick(); status(true)
+                local viewerHeart=visible("sa_heart")
+                assert(#viewerHeart==1 and viewerHeart[1].x==700 and viewerHeart[1].scale==1, "indicator must replace only the host heart and preserve the viewer heart")
+                if scenario=="status-donation" then assert(jumps==2, "host must retain its donation action") end
+                statusHost=nil; tick(); assert(#visible("sa_heart")==2, "unavailable indicator must retain normal donation hearts")
+                statusHost=users.host; tick(0,1); status(true); assert(#visible("sa_heart")==1, "returning host indicator must hide its existing heart while paused")
+                statusHost=users.viewer; tick(0,1); status(true); viewerHeart=visible("sa_heart")
+                assert(#viewerHeart==1 and viewerHeart[1].x==50 and visible("sa_bridge_healthy")[1].x==700, "replacement must follow the actual native host identity")
+                statusHost=nil; tick(0,1); assert(#visible("sa_heart")==2, "indicator loss must restore the host heart while paused")
+                statusHost=users.host; tick(0,31); status(false); assert(#visible("sa_heart")==1, "question mark must also replace the host heart")
+                callbacks.websocket("sa_helper_bridge","OnClose","",""); tick(); status(false); assert(#visible("sa_heart")==0, "disconnect must clear donations and preserve the question mark")
+            elseif scenario=="status-backward-clock" then
+                tick(0,-2); status(false)
+            end
+        end
+    end
+    for _,message in ipairs(logs) do assert(not message:find("private host",1,true) and not message:find("private missing",1,true), "status logging must not expose native exception details") end
+    print("OK "..scenario); return
+end
 local function captionText()
     local text=""
     local phrases={sa_dollar="$",sa_comma=",",sa_dot=".",sa_separator=" - ",sa_from=" FROM ",sa_donations=" DONATIONS - ",sa_thanks="THANK YOU!",sa_raised=" RAISED!",sa_goal="EXTRA LIFE GOAL REACHED!"}
@@ -218,7 +356,255 @@ local function phasePacket(phase,seq,id)
     local party=phase=="party"
     return {version=3,type="celebration",mode="integration",generation=1,campaignId="12",id=id or phase,sequenceId=seq or "sequence",issuedAtMs=1000,expiresAtMs=11000,phase=phase,kind=party and "milestone" or "donation",campaignTotalCents=252500,milestoneCents=party and 250000 or codec.null,donationCount=party and 0 or 1,donationTotalCents=party and 0 or 5000,recognitionStartedAtMs=party and codec.null or 1000,recognitionAction=party and codec.null or "jump",heartsUntilMs=party and 0 or 6000,partyStartedAtMs=party and 1000 or codec.null,partyUntilMs=party and 19000 or 0}
 end
-if scenario=="sound-rotation" or scenario=="sound-pools" or scenario=="sound-invalid-pools" or scenario=="sound-pool-missing" or scenario=="sound-pool-change" then
+if themeScenario then
+    local function themed(game, revision, theme)
+        local value=snapshot(); value.integration.active=true
+        value.theme={gameIdentity=game or string.rep("b",64),gameName="Minecraft",themeId=theme or "block-world",packRevision=revision or themeRevision}
+        return value
+    end
+    local function entranceEvent(id, value)
+        value=value or themed()
+        return {version=3,type="game-entrance",mode=value.mode,generation=value.generation,campaignId=value.campaign.campaignId,id=id or "entrance",gameIdentity=value.theme.gameIdentity,themeId=value.theme.themeId,issuedAtMs=1000,expiresAtMs=11000,durationMs=6000}
+    end
+    local function themes() local n=0 for _,ob in ipairs(objects) do if ob.layer and not ob.removed and ob.scale>0 then n=n+1 end end return n end
+    local function captions() local list={} for _,ob in ipairs(objects) do if ob.caption and not ob.removed then list[#list+1]=ob end end return list end
+    local function themeObject() for _,ob in ipairs(objects) do if ob.name and ob.name~="sa_heart" and not ob.removed and ob.scale>0 then return ob end end end
+    local worldFailure=scenario=="theme-missing-backdrop" or scenario=="theme-missing-prop" or scenario=="theme-backdrop-timeout" or scenario=="theme-load-timeout"
+    local function worldDiagnostics(expected)
+        local n=0
+        for _,packet in ipairs(packets) do if packet.type=="diagnostic" then
+            assert(packet.code=="missing-theme-image", "world failure must report a dedicated diagnostic without unrelated gear errors")
+            local fields=0; for _ in pairs(packet) do fields=fields+1 end
+            assert(fields==3 and packet.version==3, "world diagnostic must contain only bounded allowlisted vocabulary")
+            n=n+1
+        end end
+        assert(n==expected, "world failure must emit one diagnostic per cooldown without a tile/reload flood")
+    end
+    if scenario:match("^theme%-density%-") then
+        local n=tonumber(scenario:match("(%d+)$")); for i=1,n do addUser(i,i*5,20) end
+    elseif not worldFailure then addUser(1) end
+    if scenario=="theme-backdrop-timeout" then allowImageCompletion=false end
+    if scenario=="theme-native-null-auth" then
+        send(snapshot());local ready=#packets
+        local value=snapshot();value.theme=codec.null;send(value)
+        assert(#packets==ready+1 and packets[#packets].type=="ready", "native-null negotiated snapshot must be installed after base auth")
+        send(celebration());tick();assert(assetCount("sa_heart")==1 and #captions()==0 and jumps==1)
+        print("OK "..scenario);return
+    end
+    if scenario=="theme-no-game-title" then
+        local textCalls=0
+        local create=app.createGameObject
+        app.createGameObject=function()
+            local ob=create()
+            ob.text.setText=function(value) textCalls=textCalls+1; ob.caption=value end
+            return ob
+        end
+        send(themed()); tick(); local original=themeObject()
+        send(entranceEvent()); assert(themes()==8 and jumps==1 and #objects==8 and textCalls==0, "game entrance must jump without allocating or displaying title text")
+        local value=themed(string.rep("c",64)); value.theme.gameName="PlateUp! 🚀 <size=900>"; send(value); send(entranceEvent("shared",value))
+        assert(themeObject()==original and jumps==2 and #objects==8 and textCalls==0, "shared-theme game must keep scenery and jump without title text")
+        value=themed(string.rep("d",64),nil,"kitchen"); value.theme.gameName="kitchen"; send(value); tick(); send(entranceEvent("kitchen",value))
+        assert(themes()==8 and jumps==3 and #objects==16 and textCalls==0, "theme switch must replace scenery without a title object")
+        send(celebration()); tick()
+        assert(captionText()=="$25 - THANK YOU!" and assetCount("sa_heart")==1 and textCalls==0, "removing game titles must preserve bitmap donation captions and hearts")
+        value=themed(string.rep("e",64)); value.theme.themeId=nil; value.theme.gameName="Just Chatting"; send(value); send(entranceEvent("neutral",value))
+        assert(themes()==0 and #captions()==0 and textCalls==0 and captionText()=="$25 - THANK YOU!", "neutral must clear scenery without title text or clearing donation captions")
+        print("OK "..scenario);return
+    end
+    if scenario=="theme-no-native-gear" then
+        local nativeGearCalls=0
+        local function forbiddenGear()
+            nativeGearCalls=nativeGearCalls+1; error("native cosmetics must not be accessed")
+        end
+        env.getAvatar=forbiddenGear
+        local function guard(user)
+            user.avatar="small"
+            for _,method in ipairs({"getGear","getWearableGearSetPieces","setTemporaryGear","setGear","saveUserData","clearAllTemporarySelections"}) do user[method]=forbiddenGear end
+        end
+        guard(users["1"])
+        send(themed()); tick(); assert(themes()==8 and nativeGearCalls==0, "legacy gear metadata must never invoke native gear APIs")
+        send(entranceEvent()); assert(#captions()==0 and jumps==1)
+        send(celebration()); tick(); local heart
+        for _,ob in ipairs(objects) do if ob.asset=="sa_heart" and not ob.removed then heart=ob end end
+        assert(heart and assetCount("sa_heart")==1, "scenery must preserve donation recognition")
+        send(themed(nil,nil,"kitchen")); tick(); assert(themes()==8 and not heart.removed)
+        local late=addUser(2); guard(late); tick(12); tick()
+        send(snapshot()); tick(); send(themed()); tick()
+        -- F5 destroys native Lua objects before starting the replacement script.
+        for _,ob in ipairs(objects) do ob.destroy() end
+        local oldRunner=runner; runner=coroutine.create(assert(loadfile(script,"t",env))()); tick(); send(themed()); tick()
+        assert(coroutine.status(oldRunner)=="suspended" and themes()==8, "reload must restore scenery")
+        callbacks.websocket("sa_helper_bridge","OnClose","",""); tick()
+        assert(themes()==0 and nativeGearCalls==0 and users["1"].gear=="sentinel" and late.gear=="sentinel", "theme changes, late joins, reload and disconnect must preserve native cosmetics")
+        for _,packet in ipairs(packets) do assert(packet.type~="diagnostic", "ignored legacy gear must not emit gear diagnostics") end
+        print("OK "..scenario);return
+    end
+    send(themed()); tick()
+    if scenario=="theme-native-background" then
+        -- Installed TagManager order: behindBackground=1, background=2, Characters=8.
+        -- A native background sprite at background/0 must not cover our continuous band.
+        local layers={behindBackground=1,background=2,Characters=8}
+        local visibleTiles=0
+        for _,ob in ipairs(objects) do if ob.name and ob.name:find("backdrop") and not ob.removed and ob.scale>0 then
+            local aboveNative=layers[ob.layer]>2 or (layers[ob.layer]==2 and ob.order>0)
+            local belowCharacters=layers[ob.layer]<8
+            if aboveNative and belowCharacters then visibleTiles=visibleTiles+1 end
+        end end
+        assert(visibleTiles==4, "all backdrop tiles must remain visible above native background and below characters")
+    elseif scenario:match("^theme%-prop%-.+%-error$") then
+        tick(); assert(themes()==7, "one failing prop must preserve four backdrops and three props")
+        send(entranceEvent()); send(hearts()); tick()
+        assert(jumps==1 and #captions()==0 and assetCount("sa_heart")==1 and themes()==7, "component failure must preserve the entrance jump and hearts")
+        local function errors(expected)
+            local n=0; for _,packet in ipairs(packets) do if packet.type=="diagnostic" then
+                assert(packet.code=="theme-render-error", "placement failure must have its own diagnostic")
+                local fields=0; for _ in pairs(packet) do fields=fields+1 end
+                assert(fields==3, "component diagnostics must not expose native exception details")
+                n=n+1
+            end end
+            assert(n==expected, "component errors must be bounded across theme reloads")
+        end
+        errors(1)
+        if scenario=="theme-prop-initial-scale-error" then
+            assert(objects[5].removed and shared.sa_pending_images==0, "initial scale failure must destroy its object without a pending load leak")
+        else
+            send(themed(nil,nil,"kitchen")); tick(); send(themed()); tick(); errors(1)
+            tick(31); send(themed(nil,nil,"kitchen")); tick(); errors(2)
+        end
+    elseif scenario=="theme-stale-load" then
+        allowImageCompletion=false; send(themed(string.rep("c",64),string.rep("d",64))); assert(themes()==0)
+        send(themed()); assert(themes()==0); allowImageCompletion=true; tick(); tick(); assert(themes()==8)
+        for i=1,8 do assert(objects[i].removed and objects[i].scale==0, "stale theme must stay invisible and be discarded") end
+    elseif scenario=="theme-load-timeout" then
+        assert(next(users)==nil, "timeout diagnostic regression must start with zero viewers")
+        assert(themes()==0); tick(2.1); tick(); assert(themes()==0 and shared.sa_pending_images==8)
+        worldDiagnostics(1)
+        for _=1,10 do tick(0.1) end; worldDiagnostics(1)
+        send({version=3,type="heartbeat",serverNowMs=4000}); assert(packets[#packets].type=="heartbeat")
+    elseif scenario=="theme-pending-cap" then
+        for i=1,15 do send(themed(nil,string.rep("d",64))); send(themed()); tick(2.1); tick() end
+        assert(#objects==100 and shared.sa_pending_images==100, "theme must cap pending loads")
+        send({version=3,type="heartbeat",serverNowMs=4000}); assert(packets[#packets].type=="heartbeat")
+    elseif scenario=="theme-missing-backdrop" or scenario=="theme-missing-prop" or scenario=="theme-backdrop-timeout" then
+        assert(next(users)==nil, "world diagnostic regression must start with zero viewers")
+        local survivors=scenario=="theme-missing-prop" and 7 or 4
+        if scenario=="theme-backdrop-timeout" then tick(2.1) end
+        tick(); assert(themes()==survivors, "missing world image must preserve unaffected tiles/props")
+        worldDiagnostics(1)
+        for _=1,10 do tick(0.1) end; send(themed()); worldDiagnostics(1)
+        addUser(1); send(hearts()); assert(count()==survivors+1, "world image failure must preserve hearts")
+        local heart=objects[#objects]
+        -- Trigger a second set of failed loads while the heart remains active.
+        send(themed(nil,nil,"kitchen")); tick(); send(themed()); tick()
+        if scenario=="theme-backdrop-timeout" then tick(2.1); tick() end
+        assert(themes()==survivors and count()==survivors+1 and not heart.removed, "world reload failure must preserve the heart owner")
+        worldDiagnostics(1)
+        if scenario=="theme-backdrop-timeout" then
+            allowImageCompletion=true; tick(); tick()
+            assert(shared.sa_pending_images==0 and next(loaders)==nil, "cancelled callbacks must finish without leaked pending loads")
+            assert(themes()==4, "timed-out backdrop callbacks must never become visible")
+        end
+        tick(30); tick(); send(themed(nil,nil,"kitchen")); tick(); send(themed()); tick()
+        if scenario~="theme-backdrop-timeout" then worldDiagnostics(2) else worldDiagnostics(1); assert(themes()==8) end
+        send({version=3,type="heartbeat",serverNowMs=40000}); assert(packets[#packets].type=="heartbeat")
+        callbacks.websocket("sa_helper_bridge","OnClose","",""); tick(); assert(themes()==0, "missing component must not leak surviving props on disconnect")
+    elseif scenario=="theme-small-bounds" then
+        app.convertPercentToPosition=function(x,y) return {x=x*10,y=y*0.1} end; tick(); assert(themes()==0)
+        app.convertPercentToPosition=function(x,y) return {x=x*1000,y=y*200} end; tick(); assert(themes()==8)
+    else
+        assert(themes()==8, "theme must create four literal tiles and four props")
+        for _,ob in ipairs(objects) do
+            assert(ob.layer=="background" and ob.order>0 and (not ob.name:find("scenery") or ob.order>1), "theme must appear above native background with props above the backdrop")
+            if ob.name:find("backdrop") then assert(math.abs(ob.y-18.75)<0.0001, "center pivot must preserve baseline anchor") end
+        end
+        if scenario:match("^theme%-density%-") then
+            local n=tonumber(scenario:match("(%d+)$")); send(entranceEvent()); assert(jumps==n and themes()==8 and #captions()==0)
+            for _,user in pairs(users) do assert(user.x==user.id*5 and user.y==20, "world must preserve movement positions") end
+        elseif scenario=="theme-kitchen" then
+            send(themed(string.rep("c",64),nil,"kitchen")); tick(); assert(themes()==8)
+            for _,ob in ipairs(objects) do if not ob.removed then assert(ob.name:match("^sa_kitchen_"), "new world must replace only old world") end end
+        elseif scenario=="theme-shared-game" then
+            local ob=themeObject(); local x=ob.x; local value=themed(string.rep("c",64)); value.theme.gameName="Minecraft Bedrock"; send(value); assert(themeObject()==ob and ob.x==x and #objects==8)
+        elseif scenario=="theme-neutral" then
+            local value=snapshot(); value.theme=nil; send(value); assert(themes()==0); send(hearts()); assert(count()==1)
+        elseif scenario=="theme-resize" then
+            local before={}; for _,ob in ipairs(objects) do before[ob]=ob.x end
+            app.convertPercentToPosition=function(x,y) return {x=-100+x*777,y=-20+y*200} end; tick(); assert(themes()==8 and #objects==8)
+            for _,ob in ipairs(objects) do assert(math.abs(ob.x-(-100+before[ob]*777/1000))<0.0001); assert(math.abs(ob.scale-777/1920)<0.0001) end
+        elseif scenario=="theme-heart-coexistence" then
+            send(hearts()); assert(count()==9); send(entranceEvent()); assert(count()==9 and #captions()==0); tick(5.1); tick(); assert(themes()==8 and count()==8 and #captions()==0); tick(1); tick(); assert(themes()==8 and #captions()==0)
+        elseif scenario=="theme-reconnect-no-entrance" then
+            assert(jumps==0 and #captions()==0); send(entranceEvent()); assert(jumps==1); callbacks.websocket("sa_helper_bridge","OnClose","",""); tick(); assert(themes()==0 and #captions()==0); tick(1.1); send(themed()); tick(); assert(themes()==8 and jumps==1 and #captions()==0)
+        elseif scenario=="theme-native-null-recognition" or scenario=="theme-native-null-party" then
+            local party=scenario=="theme-native-null-party";send(celebration(party and "milestone" or "donation"));tick()
+            local effects={};for _,ob in ipairs(objects) do if not ob.layer and not ob.removed then effects[#effects+1]=ob end end
+            assert(#effects>0);local actions=jumps+dances;local value=snapshot();value.theme=codec.null;send(value);tick()
+            assert(themes()==0 and #captions()==0, "native-null theme must clear the world without replay")
+            for _,ob in ipairs(effects) do assert(not ob.removed, "native-null theme must preserve each donation object") end
+            assert(jumps+dances==actions and exits==0, "native-null theme must preserve donation actions")
+            for _,packet in ipairs(packets) do assert(packet.type~="diagnostic", "native null must not throw") end
+            send(entranceEvent("obsolete"));assert(#captions()==0 and jumps+dances==actions, "cleared snapshot must reject old entrance")
+        elseif scenario=="theme-native-null-repeated-neutral" then
+            local value=themed();value.theme.themeId=codec.null;value.theme.gameName="Just Chatting"
+            send(value);send(entranceEvent("neutral",value));assert(#captions()==0 and themes()==0 and jumps==1)
+            for _=1,3 do send(value);tick(0.2);assert(#captions()==0 and jumps==1, "unchanged native-null neutral snapshots must not add titles or replay the entrance") end
+            tick(6);tick();assert(#captions()==0 and jumps==1, "neutral entrance must not replay")
+        elseif scenario=="theme-wire-neutral" then
+        local value=themed(); value.theme.themeId=codec.null; send(value); assert(themes()==0, "native JSON null must clear theme")
+    elseif scenario=="theme-donation-jump" or scenario=="theme-donation-hug" or scenario=="theme-donation-party" then
+        users={}; addUser(1); addUser(2)
+        local gift=celebration(scenario=="theme-donation-party" and "milestone" or "donation")
+        if scenario=="theme-donation-hug" then gift.recognitionAction="hug" end
+        raw(codec.encode(entranceEvent())); raw(codec.encode(gift)); tick()
+        assert(themes()==8 and #captions()==0, "donation must preserve scenery without adding a game title")
+        if scenario=="theme-donation-jump" then assert(jumps==2, "same-frame entrance and donation must jump each avatar only once")
+        elseif scenario=="theme-donation-hug" then assert(jumps==0 and #hugs==1, "entrance must defer to donation hug ownership")
+        else assert(jumps==0 and dances==2, "entrance must defer to donation party ownership") end
+    elseif scenario=="theme-production-gate" then
+            local value=themed(); value.mode="production"; value.integration.active=false; send(value); assert(themes()==0, "candidate must never render in production")
+            value=themed(); value.integration.active=false; send(value); assert(themes()==0, "candidate requires active rehearsal")
+        elseif scenario=="theme-revision" then
+            send(entranceEvent()); assert(#captions()==0); send(themed(nil,string.rep("d",64))); assert(themes()==0 and #captions()==0, "theme revision must cancel entrance"); send(themed()); tick(); assert(themes()==8 and #objects==16)
+        elseif scenario=="theme-scope-cancellation" then
+            for _,change in ipairs({"clear","mode","session","disconnect"}) do
+                send(themed()); tick(); send(entranceEvent(change)); assert(#captions()==0)
+                if change=="clear" then send({version=3,type="clear",mode="integration",generation=1})
+                elseif change=="mode" then local value=snapshot("production"); send(value)
+                elseif change=="session" then local value=snapshot(); value.campaign.campaignId="next"; send(value)
+                else callbacks.websocket("sa_helper_bridge","OnClose","",""); tick() end
+                assert(themes()==0 and #captions()==0, "scope cancellation must clear theme and entrance")
+            end
+        elseif scenario=="entrance-timing" then
+            send(entranceEvent()); assert(#captions()==0 and jumps==1); send(entranceEvent()); assert(jumps==1)
+            tick(6.1); tick(); assert(#captions()==0 and themes()==8 and jumps==1)
+            -- An admitted action must not run if the native render loop resumes too late.
+            send(themed()); raw(codec.encode(entranceEvent("delayed"))); tick(0); tick(6.1)
+            assert(jumps==1, "pending entrance jump must expire after six seconds")
+            local expired=entranceEvent("expired"); expired.issuedAtMs=0; expired.expiresAtMs=10000; send({version=3,type="heartbeat",serverNowMs=20000}); send(expired); assert(jumps==1)
+        elseif scenario=="entrance-bounds-failure" then
+            send(entranceEvent()); assert(#captions()==0 and jumps==1, "entrance must jump without title text before bounds fail")
+            local convert=app.convertPercentToPosition
+            app.convertPercentToPosition=function() error("native bounds unavailable") end
+            for _=1,70 do tick(0.1) end
+            assert(#captions()==0 and jumps==1, "bounds failure must not create titles or repeat entrance actions")
+            send({version=3,type="heartbeat",serverNowMs=9000})
+            assert(packets[#packets].type=="heartbeat", "bounds failure must preserve heartbeat transport")
+            app.convertPercentToPosition=convert; send(themed()); tick()
+            assert(themes()==8 and #captions()==0 and jumps==1, "bounds recovery must restore world without replaying entrance")
+        elseif scenario=="entrance-obsolete" then
+            local value=entranceEvent(); value.gameIdentity=string.rep("c",64); send(value); assert(jumps==0)
+            value=entranceEvent(); value.themeId="kitchen"; send(value); assert(jumps==0)
+            value=entranceEvent(); value.campaignId="wrong"; send(value); assert(jumps==0)
+            value=entranceEvent(); value.generation=0; send(value); assert(jumps==0)
+        elseif scenario=="entrance-neutral" then
+            local value=themed(); value.theme.themeId=nil; value.theme.gameName="Just Chatting"; send(value); send(entranceEvent(nil,value)); assert(themes()==0 and #captions()==0 and jumps==1)
+        elseif scenario=="entrance-supersession" then
+            raw(codec.encode(entranceEvent())); local value=themed(string.rep("c",64)); value.theme.gameName="Next Game"; raw(codec.encode(value)); tick()
+            assert(#captions()==0 and jumps==0 and themes()==8, "game switch must cancel an unconsumed entrance jump")
+            send(entranceEvent("new",value)); assert(#captions()==0 and jumps==1 and themes()==8)
+        end
+    end
+elseif scenario=="sound-rotation" or scenario=="sound-pools" or scenario=="sound-invalid-pools" or scenario=="sound-pool-missing" or scenario=="sound-pool-change" then
     addUser(1);send(phaseSnapshot());assert(#soundPlays==0)
     local serial=0
     local function event(kind)

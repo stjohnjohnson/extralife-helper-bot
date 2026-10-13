@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "revision": "pixel-v1",
+  "palette": [
+    "#202330",
+    "#41445B",
+    "#F4E8CE",
+    "#946B49",
+    "#66A66C",
+    "#59B8B0",
+    "#699AD9",
+    "#F0C75E",
+    "#DE884E",
+    "#D66A72"
+  ],
+  "direction": "Compact side-view pixel art; clear silhouette, consistent pixel grid and dark outline #202330, minimal internal detail, warm upper-left highlights. Generic original subjects.",
+  "references": []
+}

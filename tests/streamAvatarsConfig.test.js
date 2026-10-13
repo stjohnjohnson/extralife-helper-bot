@@ -27,3 +27,9 @@ test('donation intervals use bounded integer cents', () => {
 });
 
 test('retired offline grace values have no effect on campaign integration',()=>{const r=parseStreamAvatarsConfiguration({...enabled,STREAM_AVATARS_OFFLINE_GRACE_SECONDS:'invalid'});expect(r.enabled).toBe(true);expect(r.config).not.toHaveProperty('graceMs');});
+test('shipped theme mapping does not require external environment configuration', () => {
+    const normal = parseStreamAvatarsConfiguration(enabled);
+    expect(normal.config.themes.enabled).toBe(true);
+    expect(normal.config).not.toHaveProperty('themePackDir');
+    expect(parseStreamAvatarsConfiguration({ ...enabled, STREAM_AVATARS_THEME_CONFIG: '/missing/FAKE_SECRET/config.json', STREAM_AVATARS_THEME_PACK: 'https://invalid.test/pack' })).toEqual(normal);
+});

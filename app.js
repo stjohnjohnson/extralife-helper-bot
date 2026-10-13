@@ -262,7 +262,10 @@ function start({ config = parseConfiguration(), donationSource } = {}) {
         state.discordClient.on('presenceUpdate', async (oldPresence, newPresence) => {
             if (!state.active) return;
             try {
-                await handlePresenceUpdate(oldPresence, newPresence, config, state.twitchClient, discordLog);
+                await handlePresenceUpdate(oldPresence, newPresence, config, state.twitchClient, discordLog, async observation => {
+                    await state.streamAvatarsStartup;
+                    if (state.active) await state.streamAvatars?.observeGame(observation);
+                });
             } catch (err) {
                 discordLog.error('Error handling Discord presence update', { err });
             }
@@ -316,7 +319,13 @@ function start({ config = parseConfiguration(), donationSource } = {}) {
     twitchLog.info('Twitch Bot connecting...');
     state.donationInterval = setInterval(() => { if (!state.donationPollBusy) state.donationTask = getLatestDonation(state); }, 30000);
     state.donationTask = getLatestDonation(state, true);
-    state.viewerCountInterval = startViewerCountMonitoring(config, twitchLog);
+    state.viewerCountInterval = startViewerCountMonitoring(config, twitchLog, { onObservation: async observation => {
+        await state.streamAvatarsStartup;
+        if (state.active) await state.streamAvatars?.observeProduction(observation);
+    }, onGameObservation: async observation => {
+        await state.streamAvatarsStartup;
+        if (state.active) await state.streamAvatars?.observeGame(observation);
+    } });
 
     return Promise.all([discordLogin, readyPromise])
         .then(() => undefined)

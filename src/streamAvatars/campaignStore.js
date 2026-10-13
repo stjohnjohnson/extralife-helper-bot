@@ -66,7 +66,7 @@ function createCampaignStore({ path, mode, participantId, intervalCents, fs = de
             if (!owned) {
                 let handle;
                 try { handle = await fs.open(lock, 'wx', 0o600); }
-                catch (error) { if (error.code === 'EEXIST') throw new Error('Campaign store already has an owner; validate stale lock before removal'); throw error; }
+                catch (error) { if (error.code === 'EEXIST') throw new Error('Campaign store already has an owner; validate stale lock before removal', { cause: error }); throw error; }
                 owned = true;
                 try { await handle.writeFile(JSON.stringify({ pid: process.pid })); } finally { await handle.close(); }
             }
@@ -94,7 +94,7 @@ function createCampaignStore({ path, mode, participantId, intervalCents, fs = de
                 try { await marker.writeFile('corrupt-state'); await marker.sync(); } finally { await marker.close(); }
                 await syncDirectory();
                 await quarantine();
-                throw new Error('Campaign state requires recovery');
+                throw new Error('Campaign state requires recovery', { cause: error });
             }
         },
         save,

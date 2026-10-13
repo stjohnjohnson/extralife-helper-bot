@@ -14,6 +14,14 @@ test.each(['phase-delayed-party-update', 'phase-ordered', 'phase-regression', 'p
 function run(script, scenario, fixture) {
     return spawnSync(process.env.LUA_BIN || 'lua', [resolve('tests/lua/companionHarness.lua'), script, scenario, ...(fixture ? [fixture] : [])], { encoding: 'utf8', timeout: 5000 });
 }
+test.each(['status-startup', 'status-auth', 'status-timeout', 'status-reconnect', 'status-close-open-race', 'status-host-movement', 'status-clear', 'status-donation', 'status-legacy-hearts', 'status-backward-clock', 'status-missing-image', 'status-delayed-image', 'status-image-timeout', 'status-host-error', 'status-create-error'])('host connection indicator: %s', scenario => {
+    const result = run(resolve('integrations/stream-avatars/companion.lua'), scenario);
+    expect({ status: result.status, stderr: result.stderr, stdout: result.stdout.trim() }).toEqual({ status: 0, stderr: '', stdout: 'OK ' + scenario });
+});
+test.each(['status-settings-missing', 'status-settings-invalid', 'status-token-missing', 'status-token-short', 'status-address-missing', 'status-address-empty', 'status-address-whitespace'])('unconfigured companion retains its unknown indicator: %s', scenario => {
+    const result = run(resolve('integrations/stream-avatars/companion.lua'), scenario);
+    expect({ status: result.status, stderr: result.stderr, stdout: result.stdout.trim() }).toEqual({ status: 0, stderr: '', stdout: 'OK ' + scenario });
+});
 test('Lua consumes the actual Node protocol JSON, including nulls and UTF-8 fields', () => {
     const directory = mkdtempSync(join(tmpdir(), 'sa-wire-'));
     try {
@@ -93,4 +101,68 @@ test.each(['donation','milestone','goal','hidden','goal-only'])('Lua renders act
         const result = run(resolve('integrations/stream-avatars/companion.lua'), 'wire-celebration', fixture);
         expect({ status: result.status, stderr: result.stderr, stdout: result.stdout.trim() }).toEqual({ status: 0, stderr: '', stdout: 'OK wire-celebration' });
     } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+
+const { buildThemeCatalog, buildThemeLayout } = require('../src/streamAvatars/themeLayout');
+const { candidate } = require('./fixtures/themeCandidates');
+const themeScenarios = ['theme-no-game-title', 'entrance-bounds-failure', 'theme-prop-initial-scale-error', 'theme-native-background', 'theme-prop-position-error', 'theme-prop-sorting-error', 'theme-prop-scale-error', 'theme-native-null-auth', 'theme-native-null-recognition', 'theme-native-null-party', 'theme-native-null-repeated-neutral', 'theme-donation-jump', 'theme-donation-hug', 'theme-donation-party', 'theme-wire-neutral', 'theme-stale-load', 'theme-shared-game', 'theme-neutral', 'theme-missing-backdrop', 'theme-missing-prop', 'theme-backdrop-timeout', 'theme-resize', 'theme-small-bounds', 'theme-heart-coexistence', 'theme-reconnect-no-entrance', 'theme-production-gate', 'theme-revision', 'theme-load-timeout', 'theme-pending-cap', 'theme-scope-cancellation', 'entrance-timing', 'entrance-obsolete', 'entrance-neutral', 'entrance-supersession', 'theme-density-0', 'theme-density-20', 'theme-density-100', 'theme-kitchen'];
+function themeSource(extraCatalog = {}) {
+    const manifest = candidate();
+    for (const asset of Object.values(manifest.assets)) {
+        const copy = { ...asset, assetId: asset.assetId.replace('block-world', 'kitchen'), theme: 'kitchen' };
+        manifest.assets[copy.assetId] = copy;
+    }
+    const catalog = buildThemeCatalog({ manifest, previewOnly: true });
+    const themes = Object.fromEntries(Object.entries(catalog.themes).map(([id, theme]) => [id, buildThemeLayout({ theme, packRevision: catalog.packRevision })]));
+    return readFileSync(resolve('integrations/stream-avatars/companion.lua'), 'utf8').replace('local THEME_CATALOG_JSON = nil', `local THEME_CATALOG_JSON = [[${JSON.stringify({ profile: catalog.profile, previewOnly: true, packRevision: 'a'.repeat(64), themes, ...extraCatalog })}]]`);
+}
+function runTheme(scenario, mutate = source => source, extraCatalog = {}) {
+    const directory = mkdtempSync(join(tmpdir(), 'sa-theme-'));
+    try {
+        const script = join(directory, 'companion.lua'); writeFileSync(script, mutate(themeSource(extraCatalog)));
+        return run(script, scenario);
+    } finally { rmSync(directory, { recursive: true, force: true }); }
+}
+test.each(themeScenarios)('lasting worlds and bounded entrances: %s', scenario => {
+    const result = runTheme(scenario);
+    expect({ status: result.status, stderr: result.stderr, stdout: result.stdout.trim() }).toEqual({ status: 0, stderr: '', stdout: 'OK ' + scenario });
+});
+
+test.each([
+    ['theme-stale-load', 'get(key)=="cancelled"', 'false'],
+    ['theme-stale-load', 'entry.object=app.createGameObject(); entry.object.setScale(0,0)', 'entry.object=app.createGameObject(); entry.object.setScale(1,1)'],
+    ['theme-shared-game', 'if key==themeKey then return end', 'if false then return end'],
+    ['theme-production-gate', 'not catalog.previewOnly or', 'true or'],
+    ['theme-production-gate', 'and snapshot.integration.active', ''],
+    ['theme-revision', 'theme.packRevision==catalog.packRevision', 'true'],
+    ['theme-native-background', 'layer="background",order=1', 'layer="behindBackground",order=0'],
+    ['theme-native-background', 'layer="background",order=1', 'layer="background",order=0'],
+    ['theme-shared-game', 'layer="background",order=2', 'layer="background",order=1'],
+    ['theme-prop-position-error', 'pcall(release,entry); entry.skipped=true; themeRenderDiagnostic()', 'clearTheme(); clearEntrance(); themeRenderDiagnostic()'],
+    ['theme-resize', 'local scale=width/REFERENCE_WIDTH', 'local scale=1000/REFERENCE_WIDTH'],
+    ['theme-pending-cap', 'if pending<100 then', 'if true then'],
+    ['theme-missing-backdrop', 'release(entry); entry.skipped=true; themeDiagnostic()', 'clearTheme(); return'],
+    ['theme-missing-backdrop', 'diagnostic("missing-theme-image")', 'do end'],
+    ['theme-missing-backdrop', 'if elapsed>=themeDiagnosticAt then', 'if true then'],
+    ['theme-backdrop-timeout', 'get(entry.key)=="failed" or elapsed>=entry.deadline then release(entry); entry.skipped=true', 'get(entry.key)=="failed" then release(entry); entry.skipped=true'],
+    ['entrance-timing', 'ends=elapsed+6', 'ends=elapsed+60'],
+    ['entrance-timing', 'value.expiresAtMs>elapsed*1000+serverOffset and value.durationMs==6000', 'true and value.durationMs==6000'],
+    ['entrance-timing', 'and not seen[value.id] and', 'and'],
+    ['entrance-obsolete', 'value.themeId==snapshot.theme.themeId', 'true'],
+    ['entrance-obsolete', 'value.gameIdentity==snapshot.theme.gameIdentity', 'true'],
+    ['entrance-supersession', 'then clearEntrance() end', 'then end']
+])('theme/entrance regression detects mutation %s / %s', (scenario, original, broken) => {
+    const result = runTheme(scenario, source => {
+        if (!source.includes(original)) throw new Error('Mutation target moved: ' + original);
+        return source.replaceAll(original, broken);
+    });
+    expect(result.error).toBeUndefined(); expect(result.status).toBe(1); expect(result.stderr).toMatch(/assertion failed|must|requires active rehearsal/);
+});
+
+test('legacy gear metadata cannot trigger native cosmetic calls during scenery lifecycle', () => {
+    const setName = 'sa_helper_theme_hats';
+    const fit = { slot: 'head', primary: { setName, pieceName: 'block_world_gear_mining_helmet' }, fitRevision: 'b'.repeat(64) };
+    const legacy = { gear: { setName, avatars: { small: { 'block-world': fit, kitchen: fit } } } };
+    const result = runTheme('theme-no-native-gear', source => source, legacy);
+    expect({ status: result.status, stderr: result.stderr, stdout: result.stdout.trim() }).toEqual({ status: 0, stderr: '', stdout: 'OK theme-no-native-gear' });
 });

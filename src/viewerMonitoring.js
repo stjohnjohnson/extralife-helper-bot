@@ -31,8 +31,9 @@ async function getStreamInfo(channelName, clientId, accessToken, signal) {
  * @param {Object} logger - Logger instance
  * @returns {Promise<void>}
  */
-async function logViewerCount(config, logger, isActive = () => true, { onObservation, nowMs = Date.now, controller = new AbortController() } = {}) {
-    let observation;
+async function logViewerCount(config, logger, isActive = () => true, { onObservation, onGameObservation, nowMs = Date.now, controller = new AbortController() } = {}) {
+    let observation; let gameObservation;
+    const observedAtMs = nowMs();
     let rejectAbort;
     const aborted = new Promise((resolve, reject) => { rejectAbort = reject; });
     const onAbort = () => rejectAbort(new Error('Twitch sample aborted'));
@@ -47,10 +48,12 @@ async function logViewerCount(config, logger, isActive = () => true, { onObserva
         const streamInfo = await Promise.race([request, aborted]);
         if (!isActive()) return;
         const intervalSeconds = config.twitch.viewerSampleIntervalSeconds || 60;
-        const observedAtMs = nowMs();
         if (streamInfo) {
             observation = { status: 'online', observedAtMs, streamId: streamInfo.id, startedAtMs: Date.parse(streamInfo.started_at) };
             if (!validObservation(observation)) observation = { status: 'unknown', observedAtMs };
+            if (observation.status === 'online' && typeof streamInfo.game_name === 'string' && streamInfo.game_name.trim()) {
+                gameObservation = { gameName: streamInfo.game_name, observedAtMs, source: 'twitch' };
+            }
             logger.info('Stream viewer count', eventMetadata('viewer_sample', {
                 online: true, intervalSeconds, channel: config.twitch.channel,
                 viewerCount: streamInfo.viewer_count, game: streamInfo.game_name, title: streamInfo.title,
@@ -64,7 +67,7 @@ async function logViewerCount(config, logger, isActive = () => true, { onObserva
         }
     } catch (err) {
         if (!isActive()) return;
-        observation = { status: 'unknown', observedAtMs: nowMs() };
+        observation = { status: 'unknown', observedAtMs };
         logger.error('Error getting viewer count', eventMetadata('service_error', {
             channel: config.twitch.channel, service: 'twitch_viewers',
             intervalSeconds: config.twitch.viewerSampleIntervalSeconds || 60, error: err.message
@@ -75,6 +78,9 @@ async function logViewerCount(config, logger, isActive = () => true, { onObserva
     }
     if (onObservation && isActive()) {
         try { await onObservation(observation); } catch { logger.error('Broadcast observer failed'); }
+    }
+    if (onGameObservation && gameObservation && isActive()) {
+        try { await onGameObservation(gameObservation); } catch { logger.error('Game observer failed'); }
     }
 }
 

@@ -1,0 +1,623 @@
+{
+  "schemaVersion": 1,
+  "assets": [
+    {
+      "id": "block-world.scenery.block-planter",
+      "theme": "block-world",
+      "kind": "scenery",
+      "subject": "Block planter with cubic sapling",
+      "sizeClass": "hero",
+      "required": true,
+      "frame": {
+        "width": 96,
+        "height": 64,
+        "padding": 4
+      },
+      "visibleHeightLimit": 56,
+      "anchor": {
+        "x": 48,
+        "y": 60
+      },
+      "gearSlot": null,
+      "referenceIds": []
+    },
+    {
+      "id": "block-world.scenery.ore-cube",
+      "theme": "block-world",
+      "kind": "scenery",
+      "subject": "Ore-studded cube",
+      "sizeClass": "medium",
+      "required": true,
+      "frame": {
+        "width": 64,
+        "height": 64,
+        "padding": 4
+      },
+      "visibleHeightLimit": 48,
+      "anchor": {
+        "x": 32,
+        "y": 60
+      },
+      "gearSlot": null,
+      "referenceIds": []
+    },
+    {
+      "id": "block-world.scenery.torch-post",
+      "theme": "block-world",
+      "kind": "scenery",
+      "subject": "Torch on short post",
+      "sizeClass": "tall",
+      "required": true,
+      "frame": {
+        "width": 32,
+        "height": 64,
+        "padding": 4
+      },
+      "visibleHeightLimit": 56,
+      "anchor": {
+        "x": 16,
+        "y": 60
+      },
+      "gearSlot": null,
+      "referenceIds": []
+    },
+    {
+      "id": "block-world.scenery.grass-tuft",
+      "theme": "block-world",
+      "kind": "scenery",
+      "subject": "Stepped grass tuft",
+      "sizeClass": "small",
+      "required": true,
+      "frame": {
+        "width": 32,
+        "height": 32,
+        "padding": 4
+      },
+      "visibleHeightLimit": 24,
+      "anchor": {
+        "x": 16,
+        "y": 28
+      },
+      "gearSlot": null,
+      "referenceIds": []
+    },
+    {
+      "id": "kitchen.scenery.prep-counter",
+      "theme": "kitchen",
+      "kind": "scenery",
+      "subject": "Compact kitchen prep counter with one cutting board and a small bowl",
+      "sizeClass": "hero",
+      "required": true,
+      "frame": {
+        "width": 96,
+        "height": 64,
+        "padding": 4
+      },
+      "visibleHeightLimit": 56,
+      "anchor": {
+        "x": 48,
+        "y": 60
+      },
+      "gearSlot": null,
+      "referenceIds": []
+    },
+    {
+      "id": "kitchen.scenery.pot-utensils",
+      "theme": "kitchen",
+      "kind": "scenery",
+      "subject": "Pot and utensil cluster",
+      "sizeClass": "medium",
+      "required": true,
+      "frame": {
+        "width": 64,
+        "height": 64,
+        "padding": 4
+      },
+      "visibleHeightLimit": 48,
+      "anchor": {
+        "x": 32,
+        "y": 60
+      },
+      "gearSlot": null,
+      "referenceIds": []
+    },
+    {
+      "id": "kitchen.scenery.utensil-stand",
+      "theme": "kitchen",
+      "kind": "scenery",
+      "subject": "Utensil stand",
+      "sizeClass": "tall",
+      "required": true,
+      "frame": {
+        "width": 32,
+        "height": 64,
+        "padding": 4
+      },
+      "visibleHeightLimit": 56,
+      "anchor": {
+        "x": 16,
+        "y": 60
+      },
+      "gearSlot": null,
+      "referenceIds": []
+    },
+    {
+      "id": "kitchen.scenery.tomato-herb",
+      "theme": "kitchen",
+      "kind": "scenery",
+      "subject": "Tomato and herb sprig",
+      "sizeClass": "small",
+      "required": true,
+      "frame": {
+        "width": 32,
+        "height": 32,
+        "padding": 4
+      },
+      "visibleHeightLimit": 24,
+      "anchor": {
+        "x": 16,
+        "y": 28
+      },
+      "gearSlot": null,
+      "referenceIds": []
+    },
+    {
+      "id": "outdoor.scenery.boulder-fern",
+      "theme": "outdoor",
+      "kind": "scenery",
+      "subject": "Boulder with small fern",
+      "sizeClass": "hero",
+      "required": true,
+      "frame": {
+        "width": 96,
+        "height": 64,
+        "padding": 4
+      },
+      "visibleHeightLimit": 56,
+      "anchor": {
+        "x": 48,
+        "y": 60
+      },
+      "gearSlot": null,
+      "referenceIds": []
+    },
+    {
+      "id": "outdoor.scenery.camp-supplies",
+      "theme": "outdoor",
+      "kind": "scenery",
+      "subject": "Rolled camp supplies",
+      "sizeClass": "medium",
+      "required": true,
+      "frame": {
+        "width": 64,
+        "height": 64,
+        "padding": 4
+      },
+      "visibleHeightLimit": 48,
+      "anchor": {
+        "x": 32,
+        "y": 60
+      },
+      "gearSlot": null,
+      "referenceIds": []
+    },
+    {
+      "id": "outdoor.scenery.trail-sign",
+      "theme": "outdoor",
+      "kind": "scenery",
+      "subject": "Trail sign",
+      "sizeClass": "tall",
+      "required": true,
+      "frame": {
+        "width": 32,
+        "height": 64,
+        "padding": 4
+      },
+      "visibleHeightLimit": 56,
+      "anchor": {
+        "x": 16,
+        "y": 60
+      },
+      "gearSlot": null,
+      "referenceIds": []
+    },
+    {
+      "id": "outdoor.scenery.pebble-grass",
+      "theme": "outdoor",
+      "kind": "scenery",
+      "subject": "Pebble and grass cluster",
+      "sizeClass": "small",
+      "required": true,
+      "frame": {
+        "width": 32,
+        "height": 32,
+        "padding": 4
+      },
+      "visibleHeightLimit": 24,
+      "anchor": {
+        "x": 16,
+        "y": 28
+      },
+      "gearSlot": null,
+      "referenceIds": []
+    },
+    {
+      "id": "puzzle.scenery.puzzle-workbench",
+      "theme": "puzzle",
+      "kind": "scenery",
+      "subject": "Small puzzle workbench",
+      "sizeClass": "hero",
+      "required": true,
+      "frame": {
+        "width": 96,
+        "height": 64,
+        "padding": 4
+      },
+      "visibleHeightLimit": 56,
+      "anchor": {
+        "x": 48,
+        "y": 60
+      },
+      "gearSlot": null,
+      "referenceIds": []
+    },
+    {
+      "id": "puzzle.scenery.lock-dial",
+      "theme": "puzzle",
+      "kind": "scenery",
+      "subject": "Lock and dial assembly",
+      "sizeClass": "medium",
+      "required": true,
+      "frame": {
+        "width": 64,
+        "height": 64,
+        "padding": 4
+      },
+      "visibleHeightLimit": 48,
+      "anchor": {
+        "x": 32,
+        "y": 60
+      },
+      "gearSlot": null,
+      "referenceIds": []
+    },
+    {
+      "id": "puzzle.scenery.key-rack",
+      "theme": "puzzle",
+      "kind": "scenery",
+      "subject": "Key rack",
+      "sizeClass": "tall",
+      "required": true,
+      "frame": {
+        "width": 32,
+        "height": 64,
+        "padding": 4
+      },
+      "visibleHeightLimit": 56,
+      "anchor": {
+        "x": 16,
+        "y": 60
+      },
+      "gearSlot": null,
+      "referenceIds": []
+    },
+    {
+      "id": "puzzle.scenery.chunky-key",
+      "theme": "puzzle",
+      "kind": "scenery",
+      "subject": "Single chunky key",
+      "sizeClass": "small",
+      "required": true,
+      "frame": {
+        "width": 32,
+        "height": 32,
+        "padding": 4
+      },
+      "visibleHeightLimit": 24,
+      "anchor": {
+        "x": 16,
+        "y": 28
+      },
+      "gearSlot": null,
+      "referenceIds": []
+    },
+    {
+      "id": "space-salvage.scenery.salvage-machine",
+      "theme": "space-salvage",
+      "kind": "scenery",
+      "subject": "Compact salvage machine",
+      "sizeClass": "hero",
+      "required": true,
+      "frame": {
+        "width": 96,
+        "height": 64,
+        "padding": 4
+      },
+      "visibleHeightLimit": 56,
+      "anchor": {
+        "x": 48,
+        "y": 60
+      },
+      "gearSlot": null,
+      "referenceIds": []
+    },
+    {
+      "id": "space-salvage.scenery.cargo-crate",
+      "theme": "space-salvage",
+      "kind": "scenery",
+      "subject": "Cargo crate",
+      "sizeClass": "medium",
+      "required": true,
+      "frame": {
+        "width": 64,
+        "height": 64,
+        "padding": 4
+      },
+      "visibleHeightLimit": 48,
+      "anchor": {
+        "x": 32,
+        "y": 60
+      },
+      "gearSlot": null,
+      "referenceIds": []
+    },
+    {
+      "id": "space-salvage.scenery.warning-beacon",
+      "theme": "space-salvage",
+      "kind": "scenery",
+      "subject": "Warning beacon",
+      "sizeClass": "tall",
+      "required": true,
+      "frame": {
+        "width": 32,
+        "height": 64,
+        "padding": 4
+      },
+      "visibleHeightLimit": 56,
+      "anchor": {
+        "x": 16,
+        "y": 60
+      },
+      "gearSlot": null,
+      "referenceIds": []
+    },
+    {
+      "id": "space-salvage.scenery.bolt-tools",
+      "theme": "space-salvage",
+      "kind": "scenery",
+      "subject": "Bolt and tool cluster",
+      "sizeClass": "small",
+      "required": true,
+      "frame": {
+        "width": 32,
+        "height": 32,
+        "padding": 4
+      },
+      "visibleHeightLimit": 24,
+      "anchor": {
+        "x": 16,
+        "y": 28
+      },
+      "gearSlot": null,
+      "referenceIds": []
+    },
+    {
+      "id": "party.scenery.play-blocks",
+      "theme": "party",
+      "kind": "scenery",
+      "subject": "Colorful play-block obstacle",
+      "sizeClass": "hero",
+      "required": true,
+      "frame": {
+        "width": 96,
+        "height": 64,
+        "padding": 4
+      },
+      "visibleHeightLimit": 56,
+      "anchor": {
+        "x": 48,
+        "y": 60
+      },
+      "gearSlot": null,
+      "referenceIds": []
+    },
+    {
+      "id": "party.scenery.toy-ball",
+      "theme": "party",
+      "kind": "scenery",
+      "subject": "Toy ball",
+      "sizeClass": "medium",
+      "required": true,
+      "frame": {
+        "width": 64,
+        "height": 64,
+        "padding": 4
+      },
+      "visibleHeightLimit": 48,
+      "anchor": {
+        "x": 32,
+        "y": 60
+      },
+      "gearSlot": null,
+      "referenceIds": []
+    },
+    {
+      "id": "party.scenery.pennant-pole",
+      "theme": "party",
+      "kind": "scenery",
+      "subject": "Short pennant pole",
+      "sizeClass": "tall",
+      "required": true,
+      "frame": {
+        "width": 32,
+        "height": 64,
+        "padding": 4
+      },
+      "visibleHeightLimit": 56,
+      "anchor": {
+        "x": 16,
+        "y": 60
+      },
+      "gearSlot": null,
+      "referenceIds": []
+    },
+    {
+      "id": "party.scenery.pinwheel",
+      "theme": "party",
+      "kind": "scenery",
+      "subject": "Pinwheel",
+      "sizeClass": "small",
+      "required": true,
+      "frame": {
+        "width": 32,
+        "height": 32,
+        "padding": 4
+      },
+      "visibleHeightLimit": 24,
+      "anchor": {
+        "x": 16,
+        "y": 28
+      },
+      "gearSlot": null,
+      "referenceIds": []
+    },
+    {
+      "id": "block-world.backdrop.minimal-strip",
+      "theme": "block-world",
+      "kind": "backdrop",
+      "subject": "Muted low stepped distant terrain and a flat earth base",
+      "sizeClass": "backdrop",
+      "required": true,
+      "frame": {
+        "width": 480,
+        "height": 64,
+        "padding": 0
+      },
+      "visibleHeightLimit": 40,
+      "anchor": {
+        "x": 240,
+        "y": 64
+      },
+      "gearSlot": null,
+      "referenceIds": [],
+      "tileAxis": "x"
+    },
+    {
+      "id": "kitchen.backdrop.minimal-strip",
+      "theme": "kitchen",
+      "kind": "backdrop",
+      "subject": "Quiet continuous kitchen baseboard with sparse low recessed backsplash panels",
+      "sizeClass": "backdrop",
+      "required": true,
+      "frame": {
+        "width": 480,
+        "height": 64,
+        "padding": 0
+      },
+      "visibleHeightLimit": 40,
+      "anchor": {
+        "x": 240,
+        "y": 64
+      },
+      "gearSlot": null,
+      "referenceIds": [],
+      "tileAxis": "x"
+    },
+    {
+      "id": "outdoor.backdrop.minimal-strip",
+      "theme": "outdoor",
+      "kind": "backdrop",
+      "subject": "Low muted grassy trail edge with distant shrub silhouettes",
+      "sizeClass": "backdrop",
+      "required": true,
+      "frame": {
+        "width": 480,
+        "height": 64,
+        "padding": 0
+      },
+      "visibleHeightLimit": 40,
+      "anchor": {
+        "x": 240,
+        "y": 64
+      },
+      "gearSlot": null,
+      "referenceIds": [],
+      "tileAxis": "x"
+    },
+    {
+      "id": "puzzle.backdrop.minimal-strip",
+      "theme": "puzzle",
+      "kind": "backdrop",
+      "subject": "Quiet low mechanical wall trim with sparse recessed shapes",
+      "sizeClass": "backdrop",
+      "required": true,
+      "frame": {
+        "width": 480,
+        "height": 64,
+        "padding": 0
+      },
+      "visibleHeightLimit": 40,
+      "anchor": {
+        "x": 240,
+        "y": 64
+      },
+      "gearSlot": null,
+      "referenceIds": [],
+      "tileAxis": "x"
+    },
+    {
+      "id": "space-salvage.backdrop.minimal-strip",
+      "theme": "space-salvage",
+      "kind": "backdrop",
+      "subject": "Low muted hull trim with sparse recessed bulkhead panels",
+      "sizeClass": "backdrop",
+      "required": true,
+      "frame": {
+        "width": 480,
+        "height": 64,
+        "padding": 0
+      },
+      "visibleHeightLimit": 40,
+      "anchor": {
+        "x": 240,
+        "y": 64
+      },
+      "gearSlot": null,
+      "referenceIds": [],
+      "tileAxis": "x"
+    },
+    {
+      "id": "party.backdrop.minimal-strip",
+      "theme": "party",
+      "kind": "backdrop",
+      "subject": "Quiet low colorful stage trim with sparse shallow geometric accents",
+      "sizeClass": "backdrop",
+      "required": true,
+      "frame": {
+        "width": 480,
+        "height": 64,
+        "padding": 0
+      },
+      "visibleHeightLimit": 40,
+      "anchor": {
+        "x": 240,
+        "y": 64
+      },
+      "gearSlot": null,
+      "referenceIds": [],
+      "tileAxis": "x"
+    }
+  ],
+  "themes": [
+    "block-world",
+    "kitchen",
+    "outdoor",
+    "puzzle",
+    "space-salvage",
+    "party"
+  ],
+  "requiredKinds": {
+    "scenery": 4,
+    "backdrop": 1
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "name": "sa_bridge_healthy",
+  "file": "sa_bridge_healthy.png",
+  "frameWidth": 64,
+  "frameHeight": 64,
+  "frames": 8,
+  "rows": 1,
+  "framesPerSecond": 5,
+  "loop": true,
+  "transparent": true
+}

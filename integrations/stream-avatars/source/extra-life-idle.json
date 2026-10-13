@@ -1,0 +1,40 @@
+{
+  "source": "extra-life-idle.gif",
+  "origin": "User-supplied Extra Life animation",
+  "sha256": "794e94b93ecf66bf5d262d455f6f64d3b5d0f9be5ee87d6931567fbb890fce57",
+  "conversion": "Original RGB values and frame order preserved. Pure black pixels have alpha 0; all other pixels have alpha 255. Frames are arranged in one horizontal row.",
+  "frames": [
+    {
+      "durationMs": 200,
+      "rgbSha256": "858698b4b32ba139b7620c8ab87e50d20652b8abf4722ab6b6c4b21dfb0da909"
+    },
+    {
+      "durationMs": 200,
+      "rgbSha256": "6b5d267a058aaca8616fbfadc1d2e3a6e23717cbb798c92ad1677af3120d8488"
+    },
+    {
+      "durationMs": 200,
+      "rgbSha256": "24910cefd463e8362c94c6b5c206b68f7af8e12d8786b1adaa7673f677938c27"
+    },
+    {
+      "durationMs": 200,
+      "rgbSha256": "2a647aeacfc787c9a5cc9d8b2ef19be48f4675eb75e5608811735a0c42d5eee7"
+    },
+    {
+      "durationMs": 200,
+      "rgbSha256": "35ed04cff7b5c7d3bf5a2fca68a7d444e0d48e38014732afa9be16cc7cd1e90f"
+    },
+    {
+      "durationMs": 200,
+      "rgbSha256": "bed0a186e1a45ba7fab17032d4c91afbf5a3324a371b4478be718d05e257803d"
+    },
+    {
+      "durationMs": 200,
+      "rgbSha256": "64f728e77c371af305557eb279b47a790885551fd2d96da4e8ae23ac3665df7a"
+    },
+    {
+      "durationMs": 200,
+      "rgbSha256": "29d325d2f81623ba52603eceb19c0e21f684c3f795c348d53105498a852e1b92"
+    }
+  ]
+}

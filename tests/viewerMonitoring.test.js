@@ -346,3 +346,19 @@ describe('typed broadcast observations', () => {
         expect(observed).toHaveLength(2);
     });
 });
+test('category and live observations retain request-start time across a late response', async () => {
+    let now = 1000; let reply; const observations = []; const games = [];
+    getValidAccessToken.mockResolvedValue('token');
+    makeTwitchApiRequest.mockImplementation(() => new Promise(resolve => { reply = resolve; }));
+    const logger = { info() {}, error() {} }; const config = { twitch: { channel: 'streamer', clientId: 'client' } };
+    const pending = logViewerCount(config, logger, () => true, { nowMs: () => now, onObservation: value => observations.push(value), onGameObservation: value => games.push(value) });
+    await Promise.resolve(); now = 3000;
+    reply({ data: [{ id: 's', started_at: '1970-01-01T00:00:00.000Z', game_name: 'Minecraft', viewer_count: 1 }] }); await pending;
+    expect(observations).toEqual([{ status: 'online', observedAtMs: 1000, streamId: 's', startedAtMs: 0 }]);
+    expect(games).toEqual([{ gameName: 'Minecraft', observedAtMs: 1000, source: 'twitch' }]);
+});
+test.each([{ data: [] }, { data: [{ id: 's', started_at: '1970-01-01T00:00:00.000Z' }] }, { data: [{ id: 's', started_at: 'invalid', game_name: 'Raft' }] }, {}])('offline, missing category and errors do not emit category clears: %j', async response => {
+    const games = []; getValidAccessToken.mockResolvedValue('token'); makeTwitchApiRequest.mockResolvedValue(response);
+    await logViewerCount({ twitch: { channel: 'streamer', clientId: 'client' } }, { info() {}, error() {} }, () => true, { nowMs: () => 1000, onGameObservation: value => games.push(value) });
+    expect(games).toEqual([]);
+});

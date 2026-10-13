@@ -1,17 +1,25 @@
 const { parseWebServerConfiguration } = require('../src/webServerConfig');
+const { cleanGameName } = require('../src/streamAvatars/themes');
+const { resolveIntegrationPack } = require('../src/streamAvatars/integrationPack');
 const { runIntegration } = require('../src/streamAvatars/integration');
 async function run(args = process.argv.slice(2), env = process.env) {
     require('dotenv').config({ quiet: true });
-    let scenario = 'all', crowdCount = 20, hue = false, recognition = 'random';
+    let scenario = 'all', crowdCount = 20, hue = false, recognition = 'random', theme, game, candidatePackDir, themePackDir;
     for (let i=0;i<args.length;i++) {
         if (args[i]==='--scenario' && args[i+1]) scenario=args[++i];
         else if (args[i]==='--crowd' && /^\d+$/.test(args[i+1] || '')) crowdCount=Number(args[++i]);
         else if (args[i]==='--recognition' && ['random','jump','hug'].includes(args[i+1])) recognition=args[++i];
+        else if (args[i]==='--theme' && args[i+1]) theme=args[++i];
+        else if (args[i]==='--game' && args[i+1]) game=args[++i];
+        else if (args[i]==='--candidate-pack' && args[i+1]) candidatePackDir=args[++i];
+        else if (args[i]==='--theme-pack' && args[i+1]) themePackDir=args[++i];
         else if (args[i]==='--hue') hue=true;
-        else throw new Error('Use --scenario ordinary|anonymous|batch|milestone|large|goal|all, --crowd 0..100, --recognition random|jump|hug, or --hue.');
+        else throw new Error('Use --scenario ordinary|anonymous|batch|milestone|large|goal|all|themes, --theme all|<theme>|neutral, --game <name>, --candidate-pack <directory> or --theme-pack <directory>, --crowd 0..100, --recognition random|jump|hug, or --hue.');
     }
+    if (game !== undefined && cleanGameName(game) === null) throw new Error('Invalid integration game name');
     const listenerConfig = parseWebServerConfiguration(env);
     if (listenerConfig.errors.length) throw new Error(listenerConfig.errors.join('; '));
+    ({ candidatePackDir, themePackDir } = resolveIntegrationPack({ candidatePackDir, themePackDir, required: scenario === 'all' || scenario === 'themes' || theme !== undefined || game !== undefined }));
     let hueOutput;
     if (hue) {
         if (!env.HUE_USERNAME?.trim() || !env.HUE_IPADDRESS?.trim() || !/^\d+$/.test(env.HUE_GROUPID || '') || !Number.isSafeInteger(Number(env.HUE_GROUPID))) throw new Error('--hue requires HUE_USERNAME, HUE_IPADDRESS and an integer HUE_GROUPID');
@@ -21,7 +29,7 @@ async function run(args = process.argv.slice(2), env = process.env) {
     const controller = new AbortController();
     const shutdown = signal => { process.exitCode=signal==='SIGINT' ? 130 : 143; controller.abort(); };
     process.once('SIGINT',shutdown); process.once('SIGTERM',shutdown);
-    try { return await runIntegration({ listenerConfig, token: env.STREAM_AVATARS_TOKEN, crowdCount, scenario, recognition, signal: controller.signal, hueOutput }); }
+    try { return await runIntegration({ listenerConfig, token: env.STREAM_AVATARS_TOKEN, crowdCount, scenario, recognition, theme, game, candidatePackDir, themePackDir, signal: controller.signal, hueOutput }); }
     catch (error) { if (!controller.signal.aborted) throw error; }
     finally { process.removeListener('SIGINT',shutdown); process.removeListener('SIGTERM',shutdown); }
 }

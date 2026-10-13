@@ -23,7 +23,7 @@ async function handleStreamAvatarsCommand(input, context, { config, service, log
             const value = BigInt(cents), fraction = value % 100n;
             return '$' + (value / 100n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',') + (fraction ? '.' + fraction.toString().padStart(2, '0') : '');
         };
-        return `Stream Avatars ${status.mode}: ${status.crowdCount} avatars, campaign ${money(status.campaignTotalCents)} / ${money(status.campaignGoalCents)}, next milestone ${money(status.nextMilestoneCents)}, companion ${status.companionConnected ? 'connected' : 'disconnected'}${status.recoveryRequired ? ', recovery required' : ''}${status.reconciliationRequired ? ', establishing baseline' : ''}.`;
+        return `Stream Avatars ${status.mode}: ${status.crowdCount} avatars, campaign ${money(status.campaignTotalCents)} / ${money(status.campaignGoalCents)}, next milestone ${money(status.nextMilestoneCents)}, companion ${status.companionConnected ? 'connected' : 'disconnected'}${status.recoveryRequired ? ', recovery required' : ''}${status.gameRecoveryRequired ? ', game recovery required' : ''}${status.reconciliationRequired ? ', establishing baseline' : ''}.`;
 
     }
     try {

@@ -22,7 +22,7 @@ function runAnalysis(options) {
     try {
         text = fs.readFileSync(options.inputPath, 'utf8');
     } catch (error) {
-        throw new Error(`Unable to read log file "${options.inputPath}": ${error.message}`);
+        throw new Error(`Unable to read log file "${options.inputPath}": ${error.message}`, { cause: error });
     }
 
     const parsed = parseLog(text);

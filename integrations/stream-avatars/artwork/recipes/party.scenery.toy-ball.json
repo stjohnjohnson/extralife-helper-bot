@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1,
+  "assetId": "party.scenery.toy-ball",
+  "styleRevision": "pixel-v1",
+  "exactPrompt": "Use case: stylized-concept. Asset ID: party.scenery.toy-ball. Generate one isolated transparent side-view scenery sprite: Toy ball. Compact side-view pixel art; clear silhouette, consistent pixel grid and dark outline #202330, minimal internal detail, warm upper-left highlights. Generic original subjects. Palette revision pixel-v1: #202330, #41445B, #F4E8CE, #946B49, #66A66C, #59B8B0, #699AD9, #F0C75E, #DE884E, #D66A72; use a small subset. Entire recognizable object with 4-pixel transparent edge padding on intended 64x64 logical export canvas. Visible height at final stream scale: 48 pixels maximum. Grounded baseline; sparse modular prop, no continuous floor strip. True transparent background; no text, logos, people, avatar bodies, environment, painted backdrop, ground slab, gradients outside object, detached decorations, external cast shadows, or cropping. Reference inputs, when supplied, provide style only; preserve this subject. Intended canvas is export guidance, not a guaranteed model output resolution.",
+  "referenceIds": []
+}

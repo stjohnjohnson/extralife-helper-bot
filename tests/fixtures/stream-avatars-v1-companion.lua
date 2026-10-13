@@ -1,0 +1,211 @@
+-- Import as an On Connect script. Private settings belong in this script's JSON file.
+script_trigger_type = "On Connect"
+
+-- The package generator updates these dimensions from the sa_heart manifest.
+local HEART_WIDTH, HEART_HEIGHT = 32, 32
+local MAX_HEARTS, AVATAR_TOP = 50, 40
+
+-- Some bundled MoonSharp versions serialize / as \/ but cannot parse it.
+-- get() internally round-trips tables with this codec, including our URL and
+-- queued messages. Normalize only odd backslash runs; preserve literal \\/.
+local parseJson = json.parse
+json.parse = function(text, ...)
+    local compatible = text:gsub("(\\+)(/?)", function(slashes, slash)
+        if slash == "/" and #slashes % 2 == 1 then return slashes:sub(1, -2)..slash end
+        return slashes..slash
+    end)
+    return parseJson(compatible, ...)
+end
+
+-- Image loading yields and CLR host errors can escape Lua pcall. Keep it in
+-- a child coroutine so transport, expiry and cleanup continue independently.
+function sa_load_heart(object, key)
+    local ok=pcall(function() applyImage(object,"sa_heart") end)
+    set("sa_pending_images",math.max(0,(get("sa_pending_images") or 1)-1))
+    if get(key)=="cancelled" then object.destroy(); set(key,nil); return end
+    if not ok then set(key,"failed"); return end
+    object.image.anchor("center",true)
+    set(key,"loaded")
+end
+
+function sa_on_socket(title, event, message, code)
+    if title ~= "sa_helper_bridge" then return end
+    local app = getApp()
+    if event == "OnOpen" then
+        local settings = get("sa_settings")
+        set("sa_connected", true)
+        app.sendWebsocketMessage(title, json.serialize({ version=1, type="auth", token=settings.token }))
+    elseif event == "OnMessage" then
+        if not get("sa_connected") then return end
+        local queue = get("sa_mailbox") or {}
+        if #queue >= 32 then set("sa_connected", false); set("sa_disconnect_pending",true); set("sa_mailbox",{}); app.removeWebSocket(title); return end
+        queue[#queue+1] = message
+        set("sa_mailbox", queue)
+    elseif event == "OnClose" or event == "OnError" then
+        set("sa_connected", false); set("sa_disconnect_pending",true); set("sa_mailbox",{})
+    end
+end
+
+return function()
+    load()
+    local settings = get("data")
+    if type(settings) ~= "table" or type(settings.address or settings.url) ~= "string" or type(settings.token) ~= "string" or #settings.token < 16 then
+        log("SA bridge: configure private address/token in the script JSON settings")
+        return
+    end
+    local function number(value) return type(value)=="number" and value==value and value~=math.huge and value~=-math.huge end
+    local function integer(value) return number(value) and value%1==0 end
+    local app = getApp()
+    local socket = "sa_helper_bridge"
+    local objects, owned, seen, seenOrder = {}, {}, {}, {}
+    local snapshot, effect = nil, nil
+    local generationFloor = -1
+    local loadSequence = get("sa_load_sequence") or 0
+    local elapsed, serverOffset, updateElapsed = 0, 0, 0
+    local retryAt, retryDelay, rotation, wasConnected = 0, 1, 0, false
+    local address = settings.address or settings.url
+    if #address==0 or address:find("%s") then log("SA bridge: invalid connection address"); return end
+    settings.url = address:match("^wss?://") and address or ("ws://"..address..(address:match(":%d+$") and "" or ":3000").."/sa/socket")
+    local previewHostSet = false
+    local function gameBounds()
+        local bottom=app.convertPercentToPosition(0,0); local top=app.convertPercentToPosition(1,1)
+        if not number(bottom.x) or not number(bottom.y) or not number(top.x) or not number(top.y) then return nil end
+        local width, height = top.x-bottom.x, top.y-bottom.y
+        if width<HEART_WIDTH or height<HEART_HEIGHT then return nil end
+        return {x=bottom.x,y=bottom.y,width=width,height=height}
+    end
+    local function send(value) app.sendWebsocketMessage(socket, json.serialize(value)) end
+    local function diagnostic(code) send({version=1,type="diagnostic",code=code}) end
+    local function release(entry)
+        local status=get(entry.key)
+        if not entry.loaded and status~="failed" and status~="loaded" then
+            -- stopAsync cannot cancel the host image callback. Leave its object
+            -- alive until it returns, then let the worker discard the image.
+            set(entry.key,"cancelled")
+        else set(entry.key,nil); pcall(entry.object.destroy) end
+    end
+    local function clearObjects()
+        for _,entry in pairs(objects) do release(entry) end
+        objects = {}; effect = nil
+    end
+    local function reconcileCrowd(ids)
+        local desired = {}
+        for _,name in ipairs(ids) do
+            local index = tonumber(string.match(name, "^sa_rehearsal_(%d+)$"))
+            if index and index >= 1 and index <= 100 then desired[900000+index] = name end
+        end
+        for id,_ in pairs(owned) do if not desired[id] then app.platformServiceSettings.SetUserLeave(id); owned[id]=nil end end
+        for id,name in pairs(desired) do if not owned[id] then app.platformServiceSettings.SetUserJoin(id,name); owned[id]=true end end
+        local idsToRemember={}; for id,_ in pairs(owned) do idsToRemember[#idsToRemember+1]=id end
+        set("sa_owned_ids",idsToRemember)
+    end
+    local function cleanup()
+        clearObjects(); reconcileCrowd({}); snapshot=nil; generationFloor=-1
+    end
+    local function validCrowd(ids)
+        if type(ids)~="table" or #ids>100 then return false end
+        for _,name in ipairs(ids) do
+            if type(name)~="string" or not string.match(name,"^sa_rehearsal_%d+$") then return false end
+            local n=tonumber(string.match(name,"(%d+)$")); if n<1 or n>100 then return false end
+        end
+        return true
+    end
+    local function validSnapshot(value)
+        return type(value.session)=="table" and number(value.serverNowMs) and type(value.rehearsal)=="table" and
+            type(value.rehearsal.active)=="boolean" and validCrowd(value.rehearsal.crowdIds)
+    end
+    local function handleMessage(value)
+        if type(value)~="table" or value.version~=1 then diagnostic("unsupported-message"); return end
+        if value.type=="heartbeat" and number(value.serverNowMs) then
+            serverOffset=value.serverNowMs-elapsed*1000
+            send({version=1,type="heartbeat"}); return
+        end
+        if (value.mode~="production" and value.mode~="rehearsal") or not integer(value.generation) or value.generation<generationFloor or value.generation<0 then return end
+        if value.type=="clear" then
+            generationFloor=value.generation; clearObjects(); reconcileCrowd({}); snapshot=nil
+        elseif value.type=="snapshot" and validSnapshot(value) then
+            if not snapshot or snapshot.generation~=value.generation or snapshot.mode~=value.mode or snapshot.session.sessionId~=value.session.sessionId then clearObjects() end
+            generationFloor=value.generation; snapshot=value; serverOffset=value.serverNowMs-elapsed*1000; retryDelay=1
+            if value.mode=="rehearsal" and not previewHostSet then app.platformServiceSettings.SetStreamer(900000,"sa_rehearsal_host"); previewHostSet=true end
+            if value.mode=="production" then previewHostSet=false end
+            reconcileCrowd(value.mode=="rehearsal" and value.rehearsal.crowdIds or {})
+            local resolution=app.getResolution()
+            send({version=1,type="ready",capabilities={"hearts","crowd","session"},resolution={width=resolution.x,height=resolution.y}})
+        elseif value.type=="crowd" and snapshot and snapshot.mode=="rehearsal" and value.mode==snapshot.mode and value.generation==snapshot.generation and validCrowd(value.crowdIds) then
+            reconcileCrowd(value.crowdIds)
+        elseif value.type=="hearts" and snapshot and value.mode==snapshot.mode and value.generation==snapshot.generation and value.sessionId==snapshot.session.sessionId and
+            type(value.id)=="string" and #value.id>0 and #value.id<=128 and number(value.expiresAtMs) and number(value.issuedAtMs) and value.expiresAtMs>value.issuedAtMs and
+            value.expiresAtMs-value.issuedAtMs<=10000 and value.expiresAtMs>elapsed*1000+serverOffset and value.durationMs==5000 and not seen[value.id] then
+            clearObjects()
+            seen[value.id]=true; seenOrder[#seenOrder+1]=value.id
+            if #seenOrder>256 then seen[table.remove(seenOrder,1)]=nil end
+            effect={ends=elapsed+5,offset=rotation}; rotation=rotation+MAX_HEARTS
+        else diagnostic("unsupported-message") end
+    end
+    local function renderTick()
+        if not effect or not snapshot then return end
+        if elapsed>=effect.ends then clearObjects(); return end
+        local strip=gameBounds(); if not strip then clearObjects(); diagnostic("render-error"); return end
+        local users=getUsers(); table.sort(users,function(a,b) return tostring(a.id)<tostring(b.id) end)
+        local selected={}; local count=math.min(#users,MAX_HEARTS)
+        for i=1,count do local user=users[((i-1+effect.offset)%#users)+1]; selected[tostring(user.id)]=user end
+        for id,entry in pairs(objects) do if not selected[id] then
+            release(entry); objects[id]=nil
+        end end
+        for id,user in pairs(selected) do
+            local entry=objects[id]
+            if not entry then
+                local pending=get("sa_pending_images") or 0
+                -- A CLR failure may never invoke its callback. Bound retained
+                -- pending objects until F5 reload, which the host cleans up.
+                if pending>=100 then clearObjects(); diagnostic("missing-heart-image"); return end
+                set("sa_pending_images",pending+1)
+                loadSequence=loadSequence+1; set("sa_load_sequence",loadSequence)
+                local key="sa_image_"..loadSequence
+                entry={object=app.createGameObject(),key=key,deadline=elapsed+2}; objects[id]=entry
+                -- The host starts animation before resuming the worker. Keep
+                -- pending/cancelled images hidden until positioned and active.
+                entry.object.setScale(0,0)
+                entry.loader=async("sa_load_heart",entry.object,key)
+            end
+            if not entry.loaded then
+                if get(entry.key)=="loaded" then entry.loaded=true; set(entry.key,nil)
+                elseif get(entry.key)=="failed" or elapsed>=entry.deadline then clearObjects(); diagnostic("missing-heart-image"); return end
+            end
+            local pos=user.getPosition()
+            local x=math.max(strip.x+HEART_WIDTH/2,math.min(strip.x+strip.width-HEART_WIDTH/2,pos.x))
+            local y=math.max(strip.y+HEART_HEIGHT/2,math.min(strip.y+strip.height-HEART_HEIGHT/2,pos.y+AVATAR_TOP+HEART_HEIGHT/2))
+            entry.object.setPosition(x,y)
+            if entry.loaded then entry.object.setScale(1,1) end
+        end
+    end
+    -- Reload cleanup uses only IDs this companion previously created, never real viewers.
+    for _,id in ipairs(get("sa_owned_ids") or {}) do if id>=900001 and id<=900100 then app.platformServiceSettings.SetUserLeave(id) end end
+    set("sa_pending_images",0)
+    set("sa_settings",settings); set("sa_mailbox",{}); set("sa_connected",false); set("sa_disconnect_pending",false)
+    app.removeWebSocket(socket); addEvent("websocket","sa_on_socket")
+    local bottom=app.convertPercentToPosition(0,0); local top=app.convertPercentToPosition(1,1)
+    log("SA game bounds: "..bottom.x..","..bottom.y.." to "..top.x..","..top.y)
+    while true do
+        local connected=get("sa_connected")
+        if get("sa_disconnect_pending") or (not connected and wasConnected) then
+            cleanup(); set("sa_disconnect_pending",false)
+            if not connected then retryAt=elapsed+retryDelay; retryDelay=math.min(30,retryDelay*2) end
+        end
+        wasConnected=connected
+        if not connected and elapsed>=retryAt then
+            retryAt=elapsed+retryDelay; retryDelay=math.min(30,retryDelay*2)
+            app.removeWebSocket(socket); app.createWebsocket(socket,settings.url)
+            wasConnected=get("sa_connected")
+        end
+        local queue=get("sa_mailbox") or {}; set("sa_mailbox",{})
+        for _,raw in ipairs(queue) do
+            local ok,value=pcall(json.parse,raw)
+            if ok then local handled=pcall(handleMessage,value); if not handled then clearObjects(); diagnostic("render-error") end
+            else diagnostic("unsupported-message") end
+        end
+        if updateElapsed>=0.05 then local ok=pcall(renderTick); if not ok then clearObjects(); diagnostic("render-error") end; updateElapsed=0 end
+        local delta=yield()
+        if number(delta) and delta>0 then elapsed=elapsed+delta; updateElapsed=updateElapsed+delta end
+    end
+end

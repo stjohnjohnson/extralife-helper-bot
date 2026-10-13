@@ -1,9 +1,12 @@
 const fs = require('node:fs');
+const { createHash } = require('node:crypto');
+const { buildThemeCatalog, buildThemeLayout } = require('./themeLayout');
 const path = require('node:path');
 const { crc32, inflateSync } = require('node:zlib');
 const { zipSync } = require('fflate');
 const { PNG } = require('pngjs');
 const { loadSounds, DEFAULT_SOUNDS } = require('./sounds');
+const { BUNDLED_THEME_PACK_DIR } = require('./themeRelease');
 
 const SCRIPT_NAME = 'sa_helper_bridge';
 const DEFAULT_INTEGRATION_DIR = path.resolve(__dirname, '../../integrations/stream-avatars');
@@ -84,7 +87,12 @@ function animationSettings(manifest) {
     };
 }
 
-function buildPackage({ integrationDir = DEFAULT_INTEGRATION_DIR } = {}) {
+function buildPackage({ integrationDir = DEFAULT_INTEGRATION_DIR, themeManifest, themeAssetsDir, themePackDir, previewOnly = false } = {}) {
+    if (themePackDir !== undefined && (typeof themePackDir !== 'string' || !themePackDir)) throw new Error('Local pack directory required');
+    if (themePackDir === undefined && !themeManifest && !themeAssetsDir) themePackDir = BUNDLED_THEME_PACK_DIR;
+    if (themePackDir && (themeManifest || themeAssetsDir)) throw new Error('Use one trusted local theme pack');
+    const catalog = themePackDir ? require('./themeRelease').loadThemePack({ directory: themePackDir, previewOnly }).catalog : buildThemeCatalog({ manifest: themeManifest, previewOnly });
+    if (themePackDir) themeAssetsDir = themePackDir;
     const assetsDir = path.join(integrationDir, 'assets');
     if (!fs.lstatSync(assetsDir).isDirectory()) throw new Error('assets must be a regular directory');
     const manifests = fs.readdirSync(assetsDir).filter(name => name.toLowerCase().endsWith('.json')).sort();
@@ -97,7 +105,7 @@ function buildPackage({ integrationDir = DEFAULT_INTEGRATION_DIR } = {}) {
         entries[name] = [contents, { mtime: ZIP_DATE }];
     };
     const scriptPath = `scripts/${SCRIPT_NAME}/`;
-    const source = readFile(path.join(integrationDir, 'companion.lua'), 1024 * 1024).toString('utf8');
+    let source = readFile(path.join(integrationDir, 'companion.lua'), 1024 * 1024).toString('utf8');
     add(`${scriptPath}${SCRIPT_NAME}_settings.json`, Buffer.from(JSON.stringify({
         address: 'BOT_LAN_IP', token: 'REPLACE_WITH_PRIVATE_TOKEN', sounds: DEFAULT_SOUNDS
     }, null, 2) + '\n'));
@@ -113,6 +121,25 @@ function buildPackage({ integrationDir = DEFAULT_INTEGRATION_DIR } = {}) {
         scriptImages[manifest.name] = animationSettings(manifest);
         add(`${scriptPath}${manifest.name}.png`, image);
     }
+    for (const asset of catalog.assets) {
+        if (typeof themeAssetsDir !== 'string') throw new Error('Theme assets directory is required');
+        const root = fs.realpathSync(themeAssetsDir); const filename = path.join(root, asset.exportFile);
+        const relative = path.relative(root, fs.realpathSync(filename));
+        if (relative.startsWith('..') || path.isAbsolute(relative)) throw new Error('Theme asset must stay inside its directory');
+        const image = readFile(filename);
+        if (createHash('sha256').update(image).digest('hex') !== asset.sha256) throw new Error(`Theme asset checksum mismatch: ${asset.id}`);
+        const dimensions = pngDimensions(image, asset.id);
+        if (dimensions.width !== asset.width || dimensions.height !== asset.height) throw new Error(`Theme asset geometry mismatch: ${asset.id}`);
+        if (Object.hasOwn(scriptImages, asset.image)) throw new Error(`Duplicate theme image: ${asset.image}`);
+        scriptImages[asset.image] = animationSettings({ name: asset.image, frameWidth: asset.width, frameHeight: asset.height, frames: 1, framesPerSecond: 1, loop: true });
+        add(`${scriptPath}${asset.image}.png`, image);
+    }
+    if (catalog.assets.length) {
+        const marker = 'local THEME_CATALOG_JSON = nil';
+        if (!source.includes(marker)) throw new Error('Companion theme-catalog marker is missing');
+        const themes = Object.fromEntries(Object.entries(catalog.themes).map(([id, theme]) => [id, buildThemeLayout({ theme, packRevision: catalog.packRevision })]));
+        source = source.replace(marker, `local THEME_CATALOG_JSON = [[${JSON.stringify({ profile: catalog.profile, packRevision: catalog.packRevision, previewOnly: catalog.previewOnly, themes })}]]`);
+    }
     if (!Object.hasOwn(scriptImages, 'sa_heart')) throw new Error('The companion requires an image named sa_heart');
     const marker = 'local HEART_WIDTH, HEART_HEIGHT = 32, 32';
     if (!source.includes(marker)) throw new Error('Companion image-dimension marker is missing');
@@ -124,8 +151,8 @@ function buildPackage({ integrationDir = DEFAULT_INTEGRATION_DIR } = {}) {
         lua = lua.replace(captionMarker, `local RAISED_WIDTH = ${scriptImages.sa_raised.width}`);
     }
     add(`${scriptPath}${SCRIPT_NAME}.lua`, Buffer.from(lua));
-    // Native import extracts script files but has no sound-library metadata.
-    // These Oggs are registered once through the application's Sounds screen.
+
+    // Native content import extracts script files but cannot register its sound library.
     const sounds = loadSounds(integrationDir);
     for (const [name, bytes] of Object.entries(sounds)) add(`${scriptPath}sounds/${name}`, bytes);
 
@@ -139,7 +166,7 @@ function buildPackage({ integrationDir = DEFAULT_INTEGRATION_DIR } = {}) {
         avatar: {}, gear: {}, backgrounds: {}, backgroundObj: {}, boss: {}, playerClass: {}, nametags: {},
         commands: { [SCRIPT_NAME]: command }, languages: {}
     }, null, 2) + '\n'));
-    return { archive: zipSync(entries, { level: 6 }), imageCount: manifests.length, soundCount: Object.keys(sounds).length, sounds };
+    return { archive: zipSync(entries, { level: 6 }), imageCount: manifests.length + catalog.assets.length, packRevision: catalog.packRevision, soundCount: Object.keys(sounds).length, sounds };
 }
 
 module.exports = { buildPackage };

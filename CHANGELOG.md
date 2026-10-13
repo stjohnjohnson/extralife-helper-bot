@@ -1,3 +1,111 @@
+# [4.13.0](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v4.12.1...v4.13.0) (2026-10-13)
+
+### Changes
+
+- Stream Avatars displays a small animated Extra Life logo at the host's heart position when connected. A question mark indicates unconfirmed connectivity. Viewer hearts remain available. ([#97](https://github.com/stjohnjohnson/extralife-helper-bot/pull/97))
+
+### Upgrade actions
+
+- Run `npm run sa:package`. ([#97](https://github.com/stjohnjohnson/extralife-helper-bot/pull/97))
+- Back up the companion's private connection settings. ([#97](https://github.com/stjohnjohnson/extralife-helper-bot/pull/97))
+- Import `dist/stream-avatars/sa-helper-bridge.zip` into Stream Avatars. ([#97](https://github.com/stjohnjohnson/extralife-helper-bot/pull/97))
+- Restore the private connection address. ([#97](https://github.com/stjohnjohnson/extralife-helper-bot/pull/97))
+- Restore the private connection token. ([#97](https://github.com/stjohnjohnson/extralife-helper-bot/pull/97))
+- Reconnect Stream Avatars or reload the companion with F5. ([#97](https://github.com/stjohnjohnson/extralife-helper-bot/pull/97))
+- A stopped companion cannot update its indicator. ([#97](https://github.com/stjohnjohnson/extralife-helper-bot/pull/97))
+- Native graphical placement still requires an operator check. ([#97](https://github.com/stjohnjohnson/extralife-helper-bot/pull/97))
+
+## [4.12.1](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v4.12.0...v4.12.1) (2026-10-12)
+
+Internal maintenance; no user-facing changes.
+
+# [4.12.0](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v4.11.0...v4.12.0) (2026-10-12)
+
+### Changes
+
+- Add automatic game-themed scenery with bundled artwork and static mappings. ([#88](https://github.com/stjohnjohnson/extralife-helper-bot/pull/88))
+- Include donation fixtures and all theme transitions in integration scenario `all`. ([#88](https://github.com/stjohnjohnson/extralife-helper-bot/pull/88))
+- Keep avatars unchanged while game changes trigger a welcoming jump. ([#88](https://github.com/stjohnjohnson/extralife-helper-bot/pull/88))
+
+### Upgrade actions
+
+- Run `npm run sa:package`. ([#88](https://github.com/stjohnjohnson/extralife-helper-bot/pull/88))
+- Import `dist/stream-avatars/sa-helper-bridge.zip` into Stream Avatars. ([#88](https://github.com/stjohnjohnson/extralife-helper-bot/pull/88))
+- Restore your existing private connection address. ([#88](https://github.com/stjohnjohnson/extralife-helper-bot/pull/88))
+- Restore your existing private connection token. ([#88](https://github.com/stjohnjohnson/extralife-helper-bot/pull/88))
+- If you configured obsolete theme environment variables, remove them. ([#88](https://github.com/stjohnjohnson/extralife-helper-bot/pull/88))
+- The ZIP contains all 52 campaign and scenery images. ([#88](https://github.com/stjohnjohnson/extralife-helper-bot/pull/88))
+- Complete the broader OBS crop and seam checks during deployment acceptance. ([#88](https://github.com/stjohnjohnson/extralife-helper-bot/pull/88))
+- Complete the checks for other platforms during deployment acceptance. ([#88](https://github.com/stjohnjohnson/extralife-helper-bot/pull/88))
+
+# [4.11.0](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v4.10.0...v4.11.0) (2026-10-12)
+
+### Changes
+
+- Releases describe final shipped changes and required upgrade actions using reviewed PR notes. ([#84](https://github.com/stjohnjohnson/extralife-helper-bot/pull/84))
+- Contributors receive concise writing guidance and a PR template with explicit release-note and upgrade sections. ([#84](https://github.com/stjohnjohnson/extralife-helper-bot/pull/84))
+
+### Upgrade actions
+
+- Complete the template before merging human-authored PRs. Non-breaking Dependabot maintenance remains exempt. Preserve applicable BREAKING CHANGE: footers. ([#84](https://github.com/stjohnjohnson/extralife-helper-bot/pull/84))
+
+# [4.10.0](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v4.9.0...v4.10.0) (2026-10-12)
+
+
+### Bug Fixes
+
+* **deps:** support major dependency updates from PR 61 ([84b80a9](https://github.com/stjohnjohnson/extralife-helper-bot/commit/84b80a9468fb71ce1945d6de6e57f91163aac9d1))
+* **stream-avatars:** preserve campaign store error causes ([1d9428e](https://github.com/stjohnjohnson/extralife-helper-bot/commit/1d9428eb21234f2641dfafe835a4484da1bc3c23))
+
+
+### Features
+
+* **analysis:** show cumulative donations on viewer timeline ([b4f95fb](https://github.com/stjohnjohnson/extralife-helper-bot/commit/b4f95fbb0a83218967d70f4ec020d66ad35b287c))
+
+# [4.9.0](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v4.8.0...v4.9.0) (2026-10-12)
+
+
+### Bug Fixes
+
+* accept native null milestones and improve celebration visuals ([cc959a7](https://github.com/stjohnjohnson/extralife-helper-bot/commit/cc959a778f86233a236c7a41759f1eed8d67de9c))
+* align companion owned crowd names with integration runner ([cf370f5](https://github.com/stjohnjohnson/extralife-helper-bot/commit/cf370f596fb257ebd383250d3f67b3f4c2e93632))
+* harden Stream Avatars lifecycle and deployment ([610d7ab](https://github.com/stjohnjohnson/extralife-helper-bot/commit/610d7abfbbfac169e74170f3d4b97ea22ad88375))
+* install Lua CI prerequisites and verify reconnect cap ([a864f58](https://github.com/stjohnjohnson/extralife-helper-bot/commit/a864f581bca8fe54f9967cbe88fcb4bef59ae2bb))
+* isolate Stream Avatars image loading from transport ([3ea9f9d](https://github.com/stjohnjohnson/extralife-helper-bot/commit/3ea9f9daa0a8a316a2d8ed87b3c94ddface12aa0))
+* preserve donation celebration baselines across mixed scans ([2e4d2e7](https://github.com/stjohnjohnson/extralife-helper-bot/commit/2e4d2e7d587467077aa5980f6361b94576905bb6))
+* preserve Stream Avatars recovery and effect ownership ([3962cab](https://github.com/stjohnjohnson/extralife-helper-bot/commit/3962cab94a614569431663a141f59b8c62513ba1))
+* respect native avatar action cooldowns during celebrations ([e75e6ad](https://github.com/stjohnjohnson/extralife-helper-bot/commit/e75e6adaa58ed3b14946e916ed0bbaf47ac8d4a5))
+* restore build and release test reliability ([3ecb3b5](https://github.com/stjohnjohnson/extralife-helper-bot/commit/3ecb3b5ca74d68aa8369cf02652db1368225db62))
+* retain party bounds and dance history for delayed goal upgrades ([42b1ebb](https://github.com/stjohnjohnson/extralife-helper-bot/commit/42b1ebb573c0efac3e5089f95597304fb6d4a30a))
+* retain recognition history across delayed extensions ([9dc21de](https://github.com/stjohnjohnson/extralife-helper-bot/commit/9dc21de71f7c83342b89e9ad45012d20e031e93e))
+* start celebration dances from native wander state ([d5b56a8](https://github.com/stjohnjohnson/extralife-helper-bot/commit/d5b56a895704435290766b13dcbbe790bb62955e))
+* support Stream Avatars embedded JSON slash escapes ([14b80c8](https://github.com/stjohnjohnson/extralife-helper-bot/commit/14b80c885f8711462eb92e09bb331de0c49ee94d))
+
+
+### Features
+
+* account for broadcast donations and fundraising thresholds ([550d4db](https://github.com/stjohnjohnson/extralife-helper-bot/commit/550d4db937c7f86503a04fecfbbbf2318455a3fc)), closes [hi#water](https://github.com/hi/issues/water)
+* add authenticated Stream Avatars LAN bridge ([1b0fc7b](https://github.com/stjohnjohnson/extralife-helper-bot/commit/1b0fc7b5558b9aad03c180b0704e5fa99ed595e2))
+* add isolated Stream Avatars rehearsal scenarios ([9a1a467](https://github.com/stjohnjohnson/extralife-helper-bot/commit/9a1a4678a14c8c4a8941fd286140fc78893b8948))
+* add persistent broadcast sessions ([238a9b4](https://github.com/stjohnjohnson/extralife-helper-bot/commit/238a9b43ea1a0ed51ca07dee575e61349a5577e5))
+* add Stream Avatars moving-heart companion ([c57ecef](https://github.com/stjohnjohnson/extralife-helper-bot/commit/c57ecef944b931107efab1c19c0eb4633f08c8e1))
+* add verified donation source and exact money parsing ([dbffc58](https://github.com/stjohnjohnson/extralife-helper-bot/commit/dbffc582ccfe42619112d4ad06248506ab1a298a))
+* compose and negotiate donation recognition metadata ([39da0c7](https://github.com/stjohnjohnson/extralife-helper-bot/commit/39da0c713919a919325a2b0c62423764f54a96b3))
+* compose donation and goal celebrations over the avatar bridge ([9134565](https://github.com/stjohnjohnson/extralife-helper-bot/commit/91345659974dc6086d63c459e6d203cb76aca798))
+* control Stream Avatars rehearsals from Twitch chat ([8ce171c](https://github.com/stjohnjohnson/extralife-helper-bot/commit/8ce171ce4d3b27687bcff07df7dc2600c34e26f7))
+* display combined donation amount captions ([e5a46b2](https://github.com/stjohnjohnson/extralife-helper-bot/commit/e5a46b2930180cdeddb2ebaf52c8669e818b11f1))
+* expose Twitch broadcast lifecycle observations ([9103e38](https://github.com/stjohnjohnson/extralife-helper-bot/commit/9103e382ae8f61fcbcf65525c28cf6ec689cb4de))
+* integrate live donation accounting with existing polling and notifications ([b3e9525](https://github.com/stjohnjohnson/extralife-helper-bot/commit/b3e9525033fa9123b6bebe5b190d3f89c4f69ae8))
+* package Stream Avatars companion and image catalog ([21af08a](https://github.com/stjohnjohnson/extralife-helper-bot/commit/21af08abd217ce95f6f0c41a7d333ca9ccc9614a))
+* persist and recover broadcast donation progress ([67ea634](https://github.com/stjohnjohnson/extralife-helper-bot/commit/67ea63425ed87d8ad210f8f880465f193c0e3272))
+* randomize donation jumps and paired hugs ([e55fd0d](https://github.com/stjohnjohnson/extralife-helper-bot/commit/e55fd0d33bc424f186f93877ce73db948ce593fc))
+* render donation hearts and gold crowd celebrations ([6f1c865](https://github.com/stjohnjohnson/extralife-helper-bot/commit/6f1c8658da70410d302cf43a8d20c5b60c16efd2))
+* render ordered campaign celebrations with protocol v3 ([58150b8](https://github.com/stjohnjohnson/extralife-helper-bot/commit/58150b8b174c7f76dbbe7c48802d1a40cfd54928))
+* replace rehearsal with a temporary avatar integration runner ([a00f146](https://github.com/stjohnjohnson/extralife-helper-bot/commit/a00f146adc5ed165ab0c28a971cf190a79ef2786))
+* sequence donation thanks before campaign parties ([b96f8bc](https://github.com/stjohnjohnson/extralife-helper-bot/commit/b96f8bc9c3ccbe6cc0238d47b9063c37aa65483c))
+* track campaign progress independently of broadcasts ([95f4dd9](https://github.com/stjohnjohnson/extralife-helper-bot/commit/95f4dd94f783c12ba7bcdba7272e2ff05480e028))
+* verify donation recognition through temporary integration ([0729539](https://github.com/stjohnjohnson/extralife-helper-bot/commit/0729539793be1d6e19d6f7d993ed54800278513f))
+
 # [4.8.0](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v4.7.1...v4.8.0) (2026-10-08)
 
 

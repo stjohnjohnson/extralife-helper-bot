@@ -1,4 +1,4 @@
-const colorNames = require('color-name');
+const { default: colorNames } = require('color-name');
 
 /** Parse the supported chat syntax into RGB bytes, without bridge I/O. */
 function parseHueColor(input, random = Math.random) {

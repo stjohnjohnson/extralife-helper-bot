@@ -73,6 +73,14 @@ describe('bundled celebration sounds', () => {
         expect(() => buildPackage({ integrationDir })).toThrow(/catalog/i);
     });
 
+    test('malformed sound catalogs retain the underlying parse error as their cause', () => {
+        fs.writeFileSync(path.join(integrationDir, 'sounds/catalog.json'), '{');
+        let failure;
+        try { buildPackage({ integrationDir }); } catch (error) { failure = error; }
+        expect(failure).toBeInstanceOf(Error);
+        expect(failure.cause).toBeInstanceOf(SyntaxError);
+    });
+
     test('the same catalog builds byte-identical packages including audio', () => {
         const first = buildPackage({ integrationDir }).archive;
         fs.utimesSync(path.join(integrationDir, 'sounds/sa_goal.ogg'), new Date(0), new Date());
