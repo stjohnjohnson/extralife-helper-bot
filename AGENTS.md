@@ -19,6 +19,11 @@ This file applies to the entire repository. Create additional `AGENTS.md` files 
 - Use `Internal only.` in the release-notes section for maintenance without user-facing impact. Features and breaking changes require actual release notes. Dependabot's non-breaking `chore(deps...)` PRs are the sole template exception; dependency fixes and breaking updates follow the normal contract.
 - List required commands, settings, migrations, and material deployment limitations under upgrade actions; write `None.` when no action is required. Summarize validation with command names and concise results, and link the tracking issue. Breaking PR titles also require a `BREAKING CHANGE:` footer because the existing version analyzer uses that footer.
 - When replacing an earlier, still-unreleased PR's notes, add `<!-- replaces-release-notes: #NUMBER -->` (comma-separated numbers for multiple PRs). Restate retained behavior and all applicable upgrade actions in the replacement. Do not replace notes for an already-released PR.
+- Use bullets or numbered steps for upgrade actions. Put each separate deployment limitation in a bullet. Do not use standalone paragraphs.
+- The `PR release metadata` check validates descriptions when PRs open, reopen, receive commits, change descriptions, or become ready for review.
+- Hosted validation reads the current PR description. Historical workflow reruns must not validate an older event description.
+- Before merging, require a passing `PR release metadata` check for the current description.
+- For a local check, run `npm run check:pr -- event.json` with a GitHub pull-request event file.
 - Review the release notes and upgrade actions against the final diff before requesting review. The release tool reads these PR sections; writing quality is an agent and reviewer responsibility.
 
 ### STE-style writing

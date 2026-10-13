@@ -1,3 +1,5 @@
+const { parseReleaseMetadata } = require('./pr-release-metadata');
+
 // Extend the existing generator's writer; it owns commit parsing, Markdown
 // rendering, the version header, and breaking-change footers.
 const mainTemplate = `{{> header}}
@@ -21,38 +23,6 @@ Internal maintenance; no user-facing changes.
 {{/if}}
 {{> footer}}
 `;
-
-function section(body, name) {
-    let heading, fence;
-    const lines = [];
-    for (const line of (body || '').replace(/<!--[\s\S]*?-->/g, '').split(/\r?\n/)) {
-        const marker = line.match(/^\s{0,3}(`{3,}|~{3,})/);
-        if (marker) {
-            if (!fence) fence = marker[1];
-            else if (marker[1][0] === fence[0] && marker[1].length >= fence.length) fence = undefined;
-        } else if (!fence && /^## /.test(line)) {
-            heading = line.slice(3).trim();
-            continue;
-        }
-        if (heading === name) lines.push(line);
-    }
-    return lines.join('\n').trim();
-}
-
-function bullets(text, pr, field) {
-    const lines = text.split(/\r?\n/).filter(line => line.trim());
-    const result = [];
-    for (const line of lines) {
-        const item = line.match(field === 'Upgrade actions' ? /^(?:[-*]|\d{1,9}[.)]) (\S.*)$/ : /^[-*] (\S.*)$/);
-        if (item) result.push(item[1]);
-        else if (/^\s+\S/.test(line) && result.length) result[result.length - 1] += ' ' + line.trim();
-        else throw new Error(`PR #${pr.number}: complete ${field} in the PR template.`);
-    }
-    if (!result.length || result.some(line => /^(?:TODO|TBD)$/i.test(line) || /\[(?:Describe|Insert|Replace)\b/i.test(line))) {
-        throw new Error(`PR #${pr.number}: complete ${field} in the PR template.`);
-    }
-    return result;
-}
 
 async function finalizeContext(context, commits, { fetchImpl, token }) {
     if (context.host !== 'https://github.com' || !/^[\w.-]+$/.test(context.owner || '') || !/^[\w.-]+$/.test(context.repository || '')) {
@@ -100,24 +70,12 @@ async function finalizeContext(context, commits, { fetchImpl, token }) {
     const ordered = [...prs.values()].sort((a, b) => a.merged_at.localeCompare(b.merged_at) || a.number - b.number);
     const parsed = new Map(), replaced = new Set();
     for (const pr of ordered) {
-        const breaking = pr.commits.some(commit => commit.notes.length) || /!:\s/.test(pr.title);
-        const bot = pr.user?.login === 'dependabot[bot]' && pr.user.type === 'Bot' && /^chore\(deps(?:-[a-z]+)?\): /.test(pr.title) && !breaking;
-        const notes = section(pr.body, 'Release notes');
-        const upgrades = section(pr.body, 'Upgrade actions');
-        const internal = bot || notes === 'Internal only.';
-        if (internal && (breaking || /^feat(?:\([^()]+\))?!?:/.test(pr.title))) throw new Error(`PR #${pr.number}: features and breaking changes require release notes.`);
-        const record = { internal, notes: internal ? [] : bullets(notes, pr, 'Release notes'),
-            upgrades: bot || upgrades === 'None.' ? [] : bullets(upgrades, pr, 'Upgrade actions') };
-        const refs = pr.body?.match(/<!--\s*replaces-release-notes:\s*([\s\S]*?)-->/)?.[1];
-        if (refs !== undefined) {
-            const references = refs.trim().split(/\s*,\s*/);
-            if (internal || new Set(references).size !== references.length) throw new Error(`PR #${pr.number}: invalid release-note replacement.`);
-            for (const ref of references) {
-                const target = /^#[1-9]\d*$/.test(ref) && parsed.get(Number(ref.slice(1)));
-                if (!target || target.internal) throw new Error(`PR #${pr.number}: replacement must reference an earlier user-facing PR in this release.`);
-                if (target.upgrades.length && !record.upgrades.length) throw new Error(`PR #${pr.number}: restate applicable upgrade actions from ${ref}.`);
-                replaced.add(Number(ref.slice(1)));
-            }
+        const record = parseReleaseMetadata(pr, { breaking: pr.commits.some(commit => commit.notes.length) });
+        for (const number of record.replacements) {
+            const target = parsed.get(number);
+            if (!target || target.internal) throw new Error(`PR #${pr.number}: replacement must reference an earlier user-facing PR in this release.`);
+            if (target.upgrades.length && !record.upgrades.length) throw new Error(`PR #${pr.number}: restate applicable upgrade actions from #${number}.`);
+            replaced.add(number);
         }
         parsed.set(pr.number, record);
     }
