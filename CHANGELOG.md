@@ -1,3 +1,19 @@
+# [4.14.0](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v4.13.0...v4.14.0) (2026-10-13)
+
+### Changes
+
+- Add family voice alerts for donation recognition, campaign milestones and goals. Donation and milestone clips alternate automatically. Missing sounds preserve visual celebrations and connectivity. ([#80](https://github.com/stjohnjohnson/extralife-helper-bot/pull/80))
+
+### Upgrade actions
+
+- Run `npm run sa:package`. ([#80](https://github.com/stjohnjohnson/extralife-helper-bot/pull/80))
+- Import `dist/stream-avatars/sa-helper-bridge.zip` into Stream Avatars. ([#80](https://github.com/stjohnjohnson/extralife-helper-bot/pull/80))
+- Import all seven Oggs from `dist/stream-avatars/sounds/` through **Sounds → Import Sound**. ([#80](https://github.com/stjohnjohnson/extralife-helper-bot/pull/80))
+- Set the companion’s private connection address. ([#80](https://github.com/stjohnjohnson/extralife-helper-bot/pull/80))
+- Set the companion’s private connection token. ([#80](https://github.com/stjohnjohnson/extralife-helper-bot/pull/80))
+- Companion import cannot register native sounds; import the seven Oggs separately. ([#80](https://github.com/stjohnjohnson/extralife-helper-bot/pull/80))
+- Live audible playback, intelligibility, OBS capture and Windows execution remain unverified. ([#80](https://github.com/stjohnjohnson/extralife-helper-bot/pull/80))
+
 # [4.13.0](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v4.12.1...v4.13.0) (2026-10-13)
 
 ### Changes
