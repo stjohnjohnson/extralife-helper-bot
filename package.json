@@ -6,6 +6,7 @@
   "scripts": {
     "analyze": "node scripts/analyze.js",
     "lint": "eslint .",
+    "check:pr": "node scripts/check-pr-description.js",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config jest.config.json",
     "test:watch": "npm test -- --watch",
     "test:coverage": "npm test -- --coverage",
