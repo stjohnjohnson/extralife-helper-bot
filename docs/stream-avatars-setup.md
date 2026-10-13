@@ -112,8 +112,6 @@ sa_goal
 
 Leave chat/soundboard triggering disabled. Adjust each sound's volume in the native settings. The content ZIP importer carries these files in the companion script's `sounds/` subfolder, but cannot register the native sound-library entries. You can import from that extracted folder when transferring only the ZIP.
 
-**Updates:** Replace the registered files for `sa_donation`, `sa_milestone` and `sa_goal`. Import the four additional options. Keep the exact names and your volume choices. Reimporting the companion preserves the independent native sound library, so old registered audio remains until replaced. Restore private connection settings and any custom sound mappings after companion reimport. An older private mapping with a single name keeps using that one clip; adopt the lists below to enable alternation.
-
 Optional private settings accept a single imported name, `false` to disable a kind, or an ordered list of 1–16 distinct names. Defaults are:
 
 ```json
