@@ -1,3 +1,20 @@
+# [4.13.0](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v4.12.1...v4.13.0) (2026-10-13)
+
+### Changes
+
+- Stream Avatars displays a small animated Extra Life logo at the host's heart position when connected. A question mark indicates unconfirmed connectivity. Viewer hearts remain available. ([#97](https://github.com/stjohnjohnson/extralife-helper-bot/pull/97))
+
+### Upgrade actions
+
+- Run `npm run sa:package`. ([#97](https://github.com/stjohnjohnson/extralife-helper-bot/pull/97))
+- Back up the companion's private connection settings. ([#97](https://github.com/stjohnjohnson/extralife-helper-bot/pull/97))
+- Import `dist/stream-avatars/sa-helper-bridge.zip` into Stream Avatars. ([#97](https://github.com/stjohnjohnson/extralife-helper-bot/pull/97))
+- Restore the private connection address. ([#97](https://github.com/stjohnjohnson/extralife-helper-bot/pull/97))
+- Restore the private connection token. ([#97](https://github.com/stjohnjohnson/extralife-helper-bot/pull/97))
+- Reconnect Stream Avatars or reload the companion with F5. ([#97](https://github.com/stjohnjohnson/extralife-helper-bot/pull/97))
+- A stopped companion cannot update its indicator. ([#97](https://github.com/stjohnjohnson/extralife-helper-bot/pull/97))
+- Native graphical placement still requires an operator check. ([#97](https://github.com/stjohnjohnson/extralife-helper-bot/pull/97))
+
 ## [4.12.1](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v4.12.0...v4.12.1) (2026-10-12)
 
 Internal maintenance; no user-facing changes.
