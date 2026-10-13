@@ -99,7 +99,26 @@ return function()
         return true
     end
     local app = getApp()
-    local soundNames={donation="sa_donation",milestone="sa_milestone",goal="sa_goal"}
+    local soundNames={donation={"sa_donation","sa_donation_2","sa_donation_3","sa_donation_4"},milestone={"sa_milestone","sa_milestone_2"},goal="sa_goal"}
+    local function soundPool(value)
+        if value==false then return false end
+        if type(value)=="string" then value={value} end
+        if type(value)~="table" then return nil end
+        local count=0
+        for key in pairs(value) do
+            if type(key)~="number" or key%1~=0 or key<1 or key>16 then return nil end
+            count=count+1
+        end
+        if count==0 or count>16 then return nil end
+        local result,seenNames={},{}
+        for index=1,count do
+            local name=value[index]
+            if type(name)~="string" or #name==0 or #name>64 or not name:match("^[A-Za-z0-9][A-Za-z0-9_ %-]*$") then return nil end
+            if seenNames[name:lower()] then return nil end
+            seenNames[name:lower()]=true;result[index]=name
+        end
+        return result
+    end
     local invalidSounds=false
     for kind,default in pairs(soundNames) do
         local name=default
@@ -107,10 +126,23 @@ return function()
             if type(settings.sounds)~="table" then name=false; invalidSounds=true
             elseif settings.sounds[kind]~=nil then name=settings.sounds[kind] end
         end
-        if name~=false and (type(name)~="string" or #name==0 or #name>64 or not name:match("^[A-Za-z0-9][A-Za-z0-9_ %-]*$")) then name=false; invalidSounds=true end
-        soundNames[kind]=name
+        local pool=soundPool(name)
+        if pool==nil then pool=false;invalidSounds=true end
+        soundNames[kind]=pool
     end
     if invalidSounds then log("SA bridge: invalid sound setting; affected cues disabled") end
+    local soundRotation=get("sa_sound_rotation") or {}
+    local function nextSound(kind)
+        local pool=soundNames[kind]
+        if pool==false then return false end
+        local signature=table.concat(pool,"|")
+        local previous=soundRotation[kind]
+        local index=type(previous)=="table" and previous.pool==signature and previous.next or 1
+        if type(index)~="number" or index%1~=0 or index<1 or index>#pool then index=1 end
+        soundRotation[kind]={pool=signature,next=index%#pool+1}
+        set("sa_sound_rotation",soundRotation)
+        return pool[index]
+    end
     local soundHistory=get("sa_sound_history") or {}
     local soundReported=false
     local function soundOperation(name)
@@ -138,7 +170,7 @@ return function()
     end
     local function cue(value)
         -- Claim even disabled/unavailable cues; reloads never retry old effects.
-        if claimSound(value) then soundOperation(soundNames[value.kind]) end
+        if claimSound(value) then soundOperation(nextSound(value.kind)) end
     end
     soundOperation(false) -- reload cleanup retains history, stops only our GUID
     local socket = "sa_helper_bridge"

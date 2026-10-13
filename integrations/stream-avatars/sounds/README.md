@@ -1,23 +1,27 @@
-# Companion celebration sounds
+# Family celebration recordings
 
-These original synthesized cues are covered by the repository's MIT license:
+These original recordings were supplied by the project maintainer for this companion. They replace the earlier synthesized cue auditions.
 
-| Native sound name | Duration | Cue |
+| Native sound name | Recording | Prepared duration |
 | --- | --- | --- |
-| `sa_donation` | 3 seconds | Attention flourish with an ascending phrase and resolving chord |
-| `sa_milestone` | 18 seconds | Upbeat melody, bass and percussion through the milestone party |
-| `sa_goal` | 20 seconds | Distinct victory melody and fuller accompaniment through the goal party |
+| `sa_donation` | Quinn donation 1 | 0.88 seconds |
+| `sa_donation_2` | Zac donation 1 | 1.35 seconds |
+| `sa_donation_3` | Quinn donation 2 | 1.42 seconds |
+| `sa_donation_4` | Zac donation 2 | 0.87 seconds |
+| `sa_milestone` | Quinn milestone | 4.36 seconds |
+| `sa_milestone_2` | Zac milestone | 2.90 seconds |
+| `sa_goal` | Zac goal | 4.56 seconds |
 
-The donation cue gets attention for a few seconds. Party cues use 150 BPM melodic phrases with changing chords, synthesized bass, kick and snare, then resolve and fade at the normal visual deadline. They are finite compositions, not repeating native playback loops; an upgrade, expiry or cancellation can end them early through the companion's owned sound cleanup. Existing users must replace the registered files in Stream Avatars' Sounds library to hear revised cues; reimporting the companion alone does not replace that library.
+Donations cycle through the four listed options. Milestones alternate between their two options. Each recording plays once at its natural length; no music, repetition, pitch changes or time stretching were added. Internal pauses remain intact. Visual celebration timing remains unchanged.
 
-No recordings, samples, or third-party melodies are used. `scripts/sa-sounds.js` generates the notes, attack/decay envelopes, harmonics, fades, and PCM deterministically. Each PCM file has 44.1 kHz mono, 16-bit samples and a peak of 0.32 (about -9.9 dBFS). The checked-in Ogg Vorbis files duplicate that signal into two channels for FFmpeg's native Vorbis encoder. Packaging checks container structure, Ogg CRCs, codec headers, duration bounds, and the catalog's SHA-256 digests. The committed clips have also been decoded with FFmpeg; the packager does not need FFmpeg.
+`recordings/` holds generically named, metadata-free copies of the supplied 44.1 kHz mono, signed 16-bit PCM recordings. The supplied files are unchanged. The preparation catalog records each source digest, conservative outer trims and volume reduction. Brief boundary fades avoid clicks. Some supplied recordings reach full scale; volume reduction supplies playback headroom without claiming to recover source clipping. The final Oggs decode with peaks below -8 dBFS. Donation RMS levels are about -23 dBFS; milestone and goal levels retain their natural speech dynamics and pauses. Native sound volume remains adjustable.
 
-To author the files again, install FFmpeg with its native Vorbis encoder and run:
+To reproduce the seven Oggs, install FFmpeg with its native Vorbis encoder and run:
 
 ```sh
 node scripts/sa-sounds.js
 ```
 
-This refreshes all three Oggs and `catalog.json`. The checked-in files were encoded with FFmpeg 8.0.1. PCM is reproducible across platforms; encoded bytes may change with encoder versions. The bit-exact encoding flags give identical files when regenerated with the same encoder version. To inspect PCM without an encoder, run `node scripts/sa-sounds.js --wav-only --output /path/to/scratch`.
+FFmpeg is an authoring dependency only. Normal packaging uses Node alone. The committed files were encoded with FFmpeg 8.0.1 using bit-exact flags and removed metadata. Regeneration with that encoder matches the catalog digests. Different encoder versions can change encoded bytes. `node scripts/sa-sounds.js --check` verifies source integrity and preparation bounds without FFmpeg. Use `--wav-only --output /path/to/scratch` to create prepared PCM previews with FFmpeg.
 
-`npm run sa:package` includes only catalogued Ogg files in the companion ZIP and writes an adjacent `sounds/` folder. Stream Avatars' content importer extracts script files but does not register sound-library entries. Import each Ogg once in its **Sounds** screen with the name above, and leave chat/soundboard triggering disabled. Adjust volume there. See [the setup guide](../../../docs/stream-avatars-setup.md#celebration-sounds) for configuration and upgrades.
+Packaging includes only the seven catalogued Oggs, not source WAVs or preparation files. It validates container structure, Ogg CRCs, codec headers, duration bounds and catalog SHA-256 digests. `npm run sa:package` writes the companion ZIP and an adjacent `sounds/` folder. Import all seven Oggs through Stream Avatars' **Sounds** screen with the exact names above. Replace existing registered files for the three original names. Companion reimport alone preserves the native sound library and old registered audio. Leave chat/soundboard triggering disabled. See [sound setup](../../../docs/stream-avatars-setup.md#celebration-sounds) for rotation settings and upgrades.

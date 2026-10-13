@@ -2,16 +2,36 @@
   {
     "name": "sa_donation",
     "file": "sa_donation.ogg",
-    "sha256": "df7efbf8557832c10717677a0346a3ed09ecf67df6645ac0c5d6481aa897eb5d"
+    "sha256": "2d359d383107c431ddcdd19d0a74da710bfcdd2bef50ca50edccd8e81d50202e"
+  },
+  {
+    "name": "sa_donation_2",
+    "file": "sa_donation_2.ogg",
+    "sha256": "47fff2e9daa1a6a2cf09bff5271418ccb6e4b85af18ddd416f94022b8ece4435"
+  },
+  {
+    "name": "sa_donation_3",
+    "file": "sa_donation_3.ogg",
+    "sha256": "6545588f636b19f662f5ab036820e8fe73940ca7beb32e680a0a8439a78edb0c"
+  },
+  {
+    "name": "sa_donation_4",
+    "file": "sa_donation_4.ogg",
+    "sha256": "a7f5af1a3483b43e78be497871dd0de063c4262ae1bb1ae4d0924436bc9f20b7"
   },
   {
     "name": "sa_milestone",
     "file": "sa_milestone.ogg",
-    "sha256": "9f63502ae9f1cc11cc6013a4a9f9dccc8a819b895a7783d3031edbc7094bf643"
+    "sha256": "6cccc436ef4c426be88ab199e1c55cfbd78238b0748f09cd61402e80e4ccae77"
+  },
+  {
+    "name": "sa_milestone_2",
+    "file": "sa_milestone_2.ogg",
+    "sha256": "c9092337b1ce3149418ec7483f2d723a6ce05542002c9ee23b0cdab121ffedc3"
   },
   {
     "name": "sa_goal",
     "file": "sa_goal.ogg",
-    "sha256": "fc01ea4017a8608af1e46675278f56b154742c94489143e057f913ff743bcd5c"
+    "sha256": "e449c4ed77f5a0160e994e8f2dd455f60e4c270c9a74fb2f3a02498281a6b259"
   }
 ]

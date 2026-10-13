@@ -2,7 +2,10 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { createHash } = require('node:crypto');
 
-const DEFAULT_SOUNDS = { donation: 'sa_donation', milestone: 'sa_milestone', goal: 'sa_goal' };
+const DEFAULT_SOUNDS = {
+    donation: ['sa_donation', 'sa_donation_2', 'sa_donation_3', 'sa_donation_4'],
+    milestone: ['sa_milestone', 'sa_milestone_2'], goal: 'sa_goal'
+};
 const RESERVED = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
 const MAX_BYTES = 4 * 1024 * 1024;
 
@@ -76,7 +79,7 @@ function loadSounds(integrationDir) {
         if (createHash('sha256').update(bytes).digest('hex') !== entry.sha256) throw new Error('Sound digest mismatch: ' + entry.name);
         files[`${entry.name}.ogg`] = bytes;
     }
-    for (const name of Object.values(DEFAULT_SOUNDS)) if (!Object.hasOwn(files, `${name}.ogg`)) throw new Error('Sound catalog requires ' + name);
+    for (const name of Object.values(DEFAULT_SOUNDS).flat()) if (!Object.hasOwn(files, `${name}.ogg`)) throw new Error('Sound catalog requires ' + name);
     return files;
 }
 

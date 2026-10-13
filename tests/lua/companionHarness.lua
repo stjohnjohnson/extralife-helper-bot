@@ -22,6 +22,9 @@ local config = { url = "ws://127.0.0.1/sa/socket", token = "private-test-token",
 if scenario=="sound-custom" then config.sounds={donation="My Chime",milestone=false,goal="Victory"} end
 if scenario=="sound-disabled" then config.sounds={donation=false,milestone=false,goal=false} end
 if scenario=="sound-invalid-settings" then config.sounds={donation="../private.ogg",milestone=42,goal={}} end
+if scenario=="sound-pools" then config.sounds={donation={"One","Two","Three"},milestone={"Gold","Silver"},goal="Victory"} end
+if scenario=="sound-invalid-pools" then config.sounds={donation={"Fine",false},milestone={"Same","same"},goal={}} end
+if scenario=="sound-pool-missing" then config.sounds={donation={"Missing","Available"},milestone=false,goal=false} end
 if scenario=="cooldown-custom" then config.danceCooldownSeconds=25 end
 if scenario=="cooldown-invalid" then config.hugCooldownSeconds="10" end
 local expectedUrl=config.url
@@ -37,7 +40,7 @@ app.playSound=function(name,loop)
     if scenario=="sound-faults" then error("audio unavailable") end
     if scenario=="sound-clr-fault" then error("CLR audio failure") end
     local id="sound_"..#soundPlays
-    if scenario~="sound-missing" then playingSounds[id]=true end
+    if scenario~="sound-missing" and name~="Missing" then playingSounds[id]=true end
     return id
 end
 app.stopSound=function(id)
@@ -215,7 +218,58 @@ local function phasePacket(phase,seq,id)
     local party=phase=="party"
     return {version=3,type="celebration",mode="integration",generation=1,campaignId="12",id=id or phase,sequenceId=seq or "sequence",issuedAtMs=1000,expiresAtMs=11000,phase=phase,kind=party and "milestone" or "donation",campaignTotalCents=252500,milestoneCents=party and 250000 or codec.null,donationCount=party and 0 or 1,donationTotalCents=party and 0 or 5000,recognitionStartedAtMs=party and codec.null or 1000,recognitionAction=party and codec.null or "jump",heartsUntilMs=party and 0 or 6000,partyStartedAtMs=party and 1000 or codec.null,partyUntilMs=party and 19000 or 0}
 end
-if scenario:match("^sound%-") then
+if scenario=="sound-rotation" or scenario=="sound-pools" or scenario=="sound-invalid-pools" or scenario=="sound-pool-missing" or scenario=="sound-pool-change" then
+    addUser(1);send(phaseSnapshot());assert(#soundPlays==0)
+    local serial=0
+    local function event(kind)
+        serial=serial+1
+        send({version=3,type="clear",mode="integration",generation=1});send(phaseSnapshot())
+        local value=phasePacket(kind=="donation" and "recognition" or "party","rotation_"..serial,"clip_"..serial)
+        value.kind=kind; if kind=="goal" then value.partyUntilMs=21000 end
+        send(value)
+        local played=#soundPlays
+        local duplicate=clone(value);duplicate.id="repeat_"..serial;duplicate.issuedAtMs=1001
+        send(duplicate);assert(#soundPlays==played,"duplicates must not consume rotation")
+    end
+    local function reload()
+        start=assert(loadfile(script,"t",env))();runner=coroutine.create(start);tick();send(phaseSnapshot())
+    end
+    if scenario=="sound-invalid-pools" then
+        event("donation");event("milestone");event("goal");assert(#soundPlays==0,"malformed/duplicate/empty pools must be disabled")
+        local invalids={ {"Fine",17}, {[1]="One",[3]="Gap"}, {[1]="One",extra="Bad"}, {"../private"}, {} }
+        local oversized={};for i=1,17 do oversized[i]="Cue"..i end;invalids[#invalids+1]=oversized
+        for _,pool in ipairs(invalids) do config.sounds.donation=pool;reload();event("donation");assert(#soundPlays==0,"invalid pool must stay silent") end
+    elseif scenario=="sound-pool-missing" then
+        event("donation");event("donation");event("donation")
+        assert(table.concat(soundPlays,",")=="Missing,Available,Missing","failed playback must still advance the pool")
+        assert(playingSounds.unrelated)
+    elseif scenario=="sound-pool-change" then
+        config.sounds={donation={"One","Two","Three"},milestone=false,goal=false};reload()
+        event("donation");event("donation")
+        config.sounds.donation={"New","Next"};reload();event("donation")
+        assert(soundPlays[3]=="New","changed pools must restart at their first option")
+        config.sounds.donation=false;reload();event("donation");assert(#soundPlays==3,"disabled pools must be silent")
+        config.sounds.donation={"New","Next"};reload();event("donation");assert(soundPlays[4]=="Next","disabling must not consume a turn")
+    else
+        local expected=scenario=="sound-pools" and {"One","Two","Three","One","Two","Three","One","Two"} or {"sa_donation","sa_donation_2","sa_donation_3","sa_donation_4","sa_donation","sa_donation_2","sa_donation_3","sa_donation_4"}
+        for i=1,8 do
+            event("donation");assert(soundPlays[#soundPlays]==expected[i],"donation rotation mismatch at "..i)
+            if i==2 then reload() end
+            if i==3 then callbacks.websocket("sa_helper_bridge","OnClose","","");tick();callbacks.websocket("sa_helper_bridge","OnOpen","","");send(phaseSnapshot()) end
+            if i==4 then
+                local expired=phasePacket("recognition","expired-rotation","expired-rotation");expired.expiresAtMs=999;send(expired)
+                local inactive=phasePacket("recognition","inactive-rotation","inactive-rotation");inactive.heartsUntilMs=1000;send(inactive)
+            end
+            if i==1 or i==4 or i==6 then
+                event("milestone")
+                local want=scenario=="sound-pools" and (i==4 and "Silver" or "Gold") or (i==4 and "sa_milestone_2" or "sa_milestone")
+                assert(soundPlays[#soundPlays]==want,"milestone rotation must be independent")
+            end
+            if i==5 then event("goal");assert(soundPlays[#soundPlays]==(scenario=="sound-pools" and "Victory" or "sa_goal")) end
+        end
+    end
+    assert(playingSounds.unrelated,"rotation must never stop unrelated audio")
+elseif scenario:match("^sound%-") then
     addUser(1);send(phaseSnapshot());assert(#soundPlays==0,"snapshots must be silent")
     local gift=phasePacket("recognition");send(gift)
     local enabled=scenario~="sound-disabled" and scenario~="sound-invalid-settings"

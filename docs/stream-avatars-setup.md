@@ -43,27 +43,41 @@ The package contains placeholder address/token values and never reads `.env`, pr
 
 ### Celebration sounds
 
-The package bundles three original MIT-licensed Ogg Vorbis cues: `sa_donation` (three-second attention flourish), `sa_milestone` (18-second upbeat celebration), and `sa_goal` (20-second victory celebration). Donation audio attracts attention for a few seconds; milestone and goal melodies carry through their normal visual parties with rhythmic accompaniment and a resolving ending. The packager also writes them to `dist/stream-avatars/sounds/` (or a `sounds/` folder beside a custom output ZIP).
+The package bundles seven original family recordings: four donation clips, two milestone clips and one goal clip. Each plays once at its natural length. Donations cycle Quinn 1 → Zac 1 → Quinn 2 → Zac 2. Milestones alternate Quinn → Zac. Goals use Zac's goal recording. Native shared state remembers the next option across F5 reloads, disconnects and reconnects. A full application restart can reset that state.
 
-**Updating sounds:** Replace the existing registered sound files through Stream Avatars' Sounds screen, keeping the same names and your volume choices. Reimporting only the companion ZIP preserves the sound library and therefore leaves older audio playing until its files are replaced.
+Run `npm run sa:package` to write the ZIP and `dist/stream-avatars/sounds/`. A custom output ZIP has an adjacent `sounds/` folder. Import all seven Oggs through **Sounds → Import Sound** with these exact names:
 
-**One-time setup:** Open Stream Avatars' **Sounds → Import Sound** and import each Ogg with its exact name above. Leave chat/soundboard triggering disabled, and set a comfortable volume in the native sound settings. The content ZIP importer does not register sounds automatically; it only carries them in the companion script's `sounds/` subfolder. You can import from that extracted subfolder when transferring only the ZIP to another computer. Existing names should be edited/replaced through Sounds rather than imported again with an unintended suffix. Reimporting the companion replaces its folder, but keeps the independent native sound library and its volume settings.
+```text
+sa_donation
+sa_donation_2
+sa_donation_3
+sa_donation_4
+sa_milestone
+sa_milestone_2
+sa_goal
+```
 
-Sounds start with each visual phase: once per combined donation thank-you, then once when a milestone or goal party begins. Caption/amount updates, recognition extensions, repeated packets, snapshots, startup and reconnect do not replay cues. A goal wins a simultaneous milestone; a valid later milestone-to-goal upgrade plays the goal cue once and stops any companion milestone audio still playing. A new phase replaces only the companion's prior cue. Expiry, clear, disconnect, reload and campaign/generation changes stop only its owned audio. Missing sounds or host audio errors leave visuals and transport running; the Lua console reports sound unavailability once per run.
+Leave chat/soundboard triggering disabled. Adjust each sound's volume in the native settings. The content ZIP importer carries these files in the companion script's `sounds/` subfolder, but cannot register the native sound-library entries. You can import from that extracted folder when transferring only the ZIP.
 
-The companion defaults to the bundled names even with older private settings. To replace or disable a cue, add this optional mapping to the script's private JSON and reload:
+**Updates:** Replace the registered files for `sa_donation`, `sa_milestone` and `sa_goal`. Import the four additional options. Keep the exact names and your volume choices. Reimporting the companion preserves the independent native sound library, so old registered audio remains until replaced. Restore private connection settings and any custom sound mappings after companion reimport. An older private mapping with a single name keeps using that one clip; adopt the lists below to enable alternation.
+
+Optional private settings accept a single imported name, `false` to disable a kind, or an ordered list of 1–16 distinct names. Defaults are:
 
 ```json
 "sounds": {
-  "donation": "My Chime",
-  "milestone": false,
+  "donation": ["sa_donation", "sa_donation_2", "sa_donation_3", "sa_donation_4"],
+  "milestone": ["sa_milestone", "sa_milestone_2"],
   "goal": "sa_goal"
 }
 ```
 
-Custom names must already be imported, start with a letter or number, use only letters, numbers, spaces, underscores or hyphens, and fit in 64 characters. `false` disables a cue; omitted keys use the defaults. Invalid values disable only the affected cue and log a settings warning. Restore private sound choices along with address/token after reimport. Playback attempts, including unavailable or disabled cues, are remembered for two minutes across clears, reconnects and F5 reloads to prevent late updates replaying audio. This history is bounded to 256 recent cue identities; snapshots never recreate sound playback.
+For custom sounds, replace a list with names such as `["Quinn Thanks", "Zac Thanks"]`. Names must already be imported, start with a letter or number, and contain only letters, numbers, spaces, underscores or hyphens. Each name is limited to 64 characters. Lists must be dense and have no duplicates ignoring case. Invalid settings disable only the affected kind and produce a warning. Omitted keys use defaults. A changed list restarts at its first option; disabling a kind does not consume its next turn.
 
-The audio catalog is explicitly allowlisted, checksummed and bounded. Node-only packaging verifies Ogg/Vorbis container headers, page checksums, packet framing and catalog SHA-256 digests; no encoder is required. See [audio provenance and regeneration](../integrations/stream-avatars/sounds/README.md) for authoring instructions.
+Audio starts with a validated active recognition or party phase. Repeated packets, caption/amount updates, recognition extensions, snapshots, startup and reconnect do not play or advance the rotation. An expired or rejected packet does not consume a turn. Each kind rotates independently. An unavailable clip consumes its turn, allowing the next event to try the next option. Playback identities are remembered for two minutes, up to 256 identities, across clears and reloads.
+
+A goal wins its simultaneous milestone. A valid later milestone-to-goal upgrade plays the goal cue once and stops the companion's prior audio. A new phase replaces only its owned sound. Expiry, clear, disconnect, reload and identity changes stop only companion-owned audio. Missing sounds or host errors leave visuals and connectivity running. The console reports audio unavailability once per run.
+
+The catalog is allowlisted, checksummed and bounded. Node-only packaging validates Ogg/Vorbis framing, page checksums and SHA-256 digests. Source WAVs and preparation metadata are excluded from the ZIP. See [recording provenance and preparation](../integrations/stream-avatars/sounds/README.md).
 
 ### Image catalog
 

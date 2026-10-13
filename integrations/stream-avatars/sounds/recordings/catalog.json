@@ -1,0 +1,58 @@
+[
+  {
+    "name": "sa_donation",
+    "file": "sa_donation.wav",
+    "sha256": "d279c9c9a9a4334bc1961b1afb33b6e3470cd2561bf84d079c01e78062a4ffec",
+    "startSeconds": 0.27,
+    "endSeconds": 1.146757,
+    "gainDb": -7.811
+  },
+  {
+    "name": "sa_donation_2",
+    "file": "sa_donation_2.wav",
+    "sha256": "10b15fabacbd516b147d635aee2cc0ecfddcbde453dc5e40b6789e9e96a6c712",
+    "startSeconds": 0.48,
+    "endSeconds": 1.829433,
+    "gainDb": -6.093
+  },
+  {
+    "name": "sa_donation_3",
+    "file": "sa_donation_3.wav",
+    "sha256": "7ae557f829d27d05cf28948ef04001dd0a1a3681a520f8612f4c85dc8b212082",
+    "startSeconds": 0.37,
+    "endSeconds": 1.790499,
+    "gainDb": -4.65
+  },
+  {
+    "name": "sa_donation_4",
+    "file": "sa_donation_4.wav",
+    "sha256": "d4e374bd7b648d7b166c5504381a036479db3bec17fe0ce0f432e9a9ace19339",
+    "startSeconds": 0,
+    "endSeconds": 0.869841,
+    "gainDb": -7.301
+  },
+  {
+    "name": "sa_milestone",
+    "file": "sa_milestone.wav",
+    "sha256": "76081cabec21931ffd2500544b2fb347cee72da543d100b60ab465872a899c5f",
+    "startSeconds": 0,
+    "endSeconds": 4.356395,
+    "gainDb": -10.037
+  },
+  {
+    "name": "sa_milestone_2",
+    "file": "sa_milestone_2.wav",
+    "sha256": "98153a458f190499ed2b1d548001fd8c3272903f1bd94fe68ee5500e45c28ef6",
+    "startSeconds": 0,
+    "endSeconds": 2.901497,
+    "gainDb": -6
+  },
+  {
+    "name": "sa_goal",
+    "file": "sa_goal.wav",
+    "sha256": "eeee46f18ab6cdd273b66122c36c017161d9caa9695a61eb53e9b5140164c187",
+    "startSeconds": 0.89,
+    "endSeconds": 5.452063,
+    "gainDb": -6
+  }
+]

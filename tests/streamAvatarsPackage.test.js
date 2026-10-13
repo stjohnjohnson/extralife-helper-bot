@@ -31,7 +31,7 @@ describe('portable Stream Avatars packages', () => {
         const entries = decode(result.archive);
         expect(result.imageCount).toBe(22);
         expect(Object.keys(entries).sort()).toEqual([
-            'data.txt', ...['sa_donation', 'sa_milestone', 'sa_goal'].map(name => `${commandPath}sounds/${name}.ogg`), ...fs.readdirSync(path.join(shipped, 'assets')).filter(name => name.endsWith('.json')).map(name => `${commandPath}${JSON.parse(fs.readFileSync(path.join(shipped, 'assets', name))).name}.png`), `${commandPath}sa_helper_bridge.lua`, `${commandPath}sa_helper_bridge_settings.json`
+            'data.txt', ...['sa_donation', 'sa_donation_2', 'sa_donation_3', 'sa_donation_4', 'sa_milestone', 'sa_milestone_2', 'sa_goal'].map(name => `${commandPath}sounds/${name}.ogg`), ...fs.readdirSync(path.join(shipped, 'assets')).filter(name => name.endsWith('.json')).map(name => `${commandPath}${JSON.parse(fs.readFileSync(path.join(shipped, 'assets', name))).name}.png`), `${commandPath}sa_helper_bridge.lua`, `${commandPath}sa_helper_bridge_settings.json`
         ].sort());
         expect(Buffer.from(entries[`${commandPath}sa_helper_bridge.lua`])).toEqual(fs.readFileSync(path.join(shipped, 'companion.lua')));
         expect(Buffer.from(entries[`${commandPath}sa_heart.png`])).toEqual(fs.readFileSync(path.join(shipped, 'assets/heart.png')));
@@ -47,7 +47,7 @@ describe('portable Stream Avatars packages', () => {
             } }
         });
         expect(json(entries, `${commandPath}sa_helper_bridge_settings.json`)).toEqual({
-            address: 'BOT_LAN_IP', token: 'REPLACE_WITH_PRIVATE_TOKEN', sounds: { donation: 'sa_donation', milestone: 'sa_milestone', goal: 'sa_goal' }
+            address: 'BOT_LAN_IP', token: 'REPLACE_WITH_PRIVATE_TOKEN', sounds: { donation: ['sa_donation', 'sa_donation_2', 'sa_donation_3', 'sa_donation_4'], milestone: ['sa_milestone', 'sa_milestone_2'], goal: 'sa_goal' }
         });
     });
 
