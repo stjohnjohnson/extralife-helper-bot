@@ -268,9 +268,11 @@ Successful Twitch category writes are ordered at confirmation; viewer polls are 
 A game read older than the latest accepted stream status is ignored.
 Restart and first Twitch reconciliation restore snapshots only.
 Campaign resets leave game state intact.
-Production game updates require confirmed online Twitch data no older than two viewer sampling intervals.
+Production game updates do not require an online Twitch observation or a fresh viewer sample.
+The existing Discord activity pipeline updates scenery after Twitch confirms its category write, including while offline.
 The first Twitch reconciliation restores scenery without an entrance.
-Fifteen minutes of continuously confirmed offline observations clear the game.
+Scenery persists through offline periods, restarts, and broadcast startup until another category update or an explicit game reset.
+Fifteen minutes of continuously confirmed offline observations end the broadcast session without clearing scenery.
 Unknown status or a sampling gap breaks that continuous offline period.
 Campaign accounting and donation effects continue independently of stream status.
 

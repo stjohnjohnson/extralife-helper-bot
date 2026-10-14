@@ -68,11 +68,19 @@ test('strictly migrates only complete version1 records and retains all progress'
     expect(original.schemaVersion).toBe(1);
     for (const patch of [{ game: null }, { arbitrary: true }, { schemaVersion: 3 }]) expect(() => validateSessionState({ ...original, ...patch }, { mode: 'production', channel: 'streamer' })).toThrow(/state/i);
 });
-test('offline grace retains confirmed game and final ending clears it', () => {
+test('offline grace and broadcast startup retain confirmed scenery', () => {
     let state = { ...live(), game: { identity: 'a'.repeat(64), displayName: 'Minecraft', themeId: 'block-world', observedAtMs: 7200000, source: 'twitch' } };
     state = observe(state, 'offline', 7260000); expect(state.game.displayName).toBe('Minecraft');
     for (let elapsed = 60000; elapsed <= 900000; elapsed += 60000) state = observe(state, 'offline', 7260000 + elapsed);
-    expect(state.endedAtMs).not.toBeNull(); expect(state.game).toBeNull();
+    expect(state.endedAtMs).not.toBeNull(); expect(state.game.displayName).toBe('Minecraft');
+    state = observe(state, 'online', 8300000, { startedAtMs: 8290000, streamId: 'next' });
+    expect(state.game.displayName).toBe('Minecraft');
+});
+test('starting a broadcast preserves scenery without sharing mutable input state', () => {
+    const before = { ...empty(), game: { identity: 'a'.repeat(64), displayName: 'Minecraft', themeId: 'block-world', observedAtMs: 1, source: 'discord-category' } };
+    const after = observe(before, 'online', 1000, { startedAtMs: 900, streamId: 'next' });
+    after.game.displayName = 'Raft';
+    expect(before.game.displayName).toBe('Minecraft');
 });
 test.each([{ themeId: 'path/file' }, { displayName: '😀'.repeat(201) }, { identity: '../untrusted' }, { source: 'discord-presence' }, { observedAtMs: -1 }, { gear: 'untrusted' }])('version2 rejects unsafe confirmed game records %j', patch => {
     expect(() => validateSessionState({ ...live(), game: { identity: 'a'.repeat(64), displayName: 'Minecraft', themeId: 'block-world', observedAtMs: 1, source: 'twitch', ...patch } }, { mode: 'production', channel: 'streamer' })).toThrow(/state/i);

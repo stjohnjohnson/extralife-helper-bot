@@ -53,12 +53,16 @@ test('ties prefer Twitch, stale polls cannot replace PATCH, invalid and missing 
     for (const value of [game('', 980), game(null, 980), game('Minecraft', -1), game('Minecraft', 990, 'presence')]) await controller.observeGame(value);
     expect(controller.getSnapshot().game.displayName).toBe('PlateUp!'); await controller.stop();
 });
-test('game writes share session serialization and cannot revive ended or reset sessions', async () => {
+test('game writes share serialization without reviving ended or reset broadcast sessions', async () => {
     const controller = await gameController();
     await Promise.all([controller.observeGame(game('Minecraft', 901)), controller.observe({ status: 'offline', observedAtMs: 1000 }), controller.observeGame(game('Raft', 1001))]);
-    expect(controller.getSnapshot().game.displayName).toBe('Minecraft');
-    await controller.observe({ status: 'offline', observedAtMs: 1100 }); expect(controller.getSnapshot().game).toBeNull();
-    await controller.reset(); await controller.observeGame(game('Raft', 1200)); expect(controller.getSnapshot().game).toBeNull(); await controller.stop();
+    expect(controller.getSnapshot().game.displayName).toBe('Raft');
+    await controller.observe({ status: 'offline', observedAtMs: 1100 });
+    expect(controller.getSnapshot()).toMatchObject({ endedAtMs: 1100, game: { displayName: 'Raft' } });
+    await controller.observeGame(game('Minecraft', 1101, 'discord-category'));
+    expect(controller.getSnapshot()).toMatchObject({ endedAtMs: 1100, game: { displayName: 'Minecraft' } });
+    await controller.reset(); await controller.observeGame(game('Raft', 1200));
+    expect(controller.getSnapshot()).toMatchObject({ sessionId: null, game: { displayName: 'Raft' } }); await controller.stop();
 });
 test('failed game persistence emits no snapshot or entrance and requires recovery', async () => {
     const store = memoryStore(); const controller = await gameController(store); const notifications = []; controller.subscribe((...args) => notifications.push(args));

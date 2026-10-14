@@ -154,9 +154,10 @@ Reconnect restores current state without replaying missed effects or entrances.
 Donation parties do not add an extra Hue celebration.
 
 Production scenery follows the confirmed Twitch category.
-Game updates require a confirmed online sample no older than two viewer sampling intervals.
+Successful Discord category updates change scenery even when Twitch is offline.
+Scenery updates do not require a live broadcast or a fresh viewer sample.
 The first Twitch reconciliation restores scenery silently.
-Fifteen minutes of continuously confirmed offline observations clear game scenery.
+Scenery persists through offline periods and restarts until another category update or an explicit game reset.
 Donation recognition and campaign milestones remain independent of Twitch status.
 
 Detailed timing, native action limitations, and cleanup behavior are in the [renderer reference](stream-avatars-reference.md#renderer-behavior).

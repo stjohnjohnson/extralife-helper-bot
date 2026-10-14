@@ -108,13 +108,64 @@ test('PATCH ordering beats late old polls; ties prefer Twitch and newer manual c
     now++; await observeGame('Just Chatting'); expect(service.getStatus().game).toMatchObject({ displayName: 'Just Chatting', themeId: null });
     now++; await observeGame(''); expect(service.getStatus().game.displayName).toBe('Just Chatting');
 });
-test('offline and stale live observations cannot write production games or send entrances', async () => {
-    await observeGame('Minecraft'); expect(service.getStatus().game).toBeNull();
+test('game updates do not require fresh online evidence', async () => {
+    await observeGame('Minecraft', now, 'discord-category'); expect(service.getStatus().game.displayName).toBe('Minecraft');
+    now++;
     await service.observeProduction({ status: 'offline', observedAtMs: now });
-    await observeGame('Raft'); expect(service.getStatus().game).toBeNull();
+    await observeGame('Raft'); expect(service.getStatus().game.displayName).toBe('Raft');
     now++; await online(); await observeGame('Minecraft');
-    now += 120001; await observeGame('Raft'); expect(service.getStatus().game.displayName).toBe('Minecraft');
-    await service.observeProduction({ status: 'offline', observedAtMs: now }); await observeGame('Raft'); expect(service.getStatus().game.displayName).toBe('Minecraft');
+    now += 120001; await observeGame('Raft'); expect(service.getStatus().game.displayName).toBe('Raft');
+    await service.observeProduction({ status: 'offline', observedAtMs: now }); now++;
+    await observeGame('PlateUp!', now, 'discord-category'); expect(service.getStatus().game.displayName).toBe('PlateUp!');
+});
+
+test('offline Discord categories reach the companion and persist without creating a broadcast session', async () => {
+    await connectThemes();
+    let pending = waitFor('snapshot', value => value.theme?.gameName === 'Minecraft');
+    await service.observeGame({ gameName: 'Minecraft', observedAtMs: now - 10, confirmedAtMs: now, source: 'discord-category' });
+    expect(await pending).toMatchObject({ theme: { themeId: 'block-world' } });
+    let durable = JSON.parse(await fs.readFile(join(directory, 'production/state.json'), 'utf8'));
+    expect(durable).toMatchObject({ sessionId: null, game: { displayName: 'Minecraft', observedAtMs: now } });
+    now++;
+    pending = waitFor('game-entrance');
+    await observeGame('PlateUp!', now, 'discord-category');
+    expect(await pending).toMatchObject({ themeId: 'kitchen' });
+    now++;
+    await observeGame('Minecraft', now - 2, 'discord-category');
+    expect(service.getStatus().game.displayName).toBe('PlateUp!');
+    await service.observeProduction({ status: 'offline', observedAtMs: now });
+    durable = JSON.parse(await fs.readFile(join(directory, 'production/state.json'), 'utf8'));
+    expect(durable).toMatchObject({ sessionId: null, game: { displayName: 'PlateUp!' } });
+});
+
+test('offline scenery survives restart and live startup reconciles silently', async () => {
+    await observeGame('Minecraft', now, 'discord-category');
+    await service.stop();
+    service = await startStreamAvatars({ webServer, config: { participantId: '123', twitch: { channel: 'streamer' }, streamAvatars: { config: { token: 't'.repeat(32), stateDir: directory } } }, logger: { warn() {} }, realClock: { nowMs: () => now } });
+    const restored = await connectThemes();
+    expect(restored.theme).toMatchObject({ gameName: 'Minecraft', themeId: 'block-world' });
+    const received = []; socket.on('message', raw => received.push(JSON.parse(raw)));
+    now++; await online();
+    expect(service.getStatus().game.displayName).toBe('Minecraft');
+    await observeGame('PlateUp!', now - 1);
+    expect(service.getStatus().game.displayName).toBe('Minecraft');
+    const pending = waitFor('snapshot', value => value.theme?.gameName === 'Raft');
+    await observeGame('Raft'); await pending;
+    expect(received.every(value => value.type === 'snapshot')).toBe(true);
+    expect(service.getStatus().game.displayName).toBe('Raft');
+});
+
+test('offline grace ends the broadcast without clearing scenery or blocking later Discord updates', async () => {
+    await online(); await observeGame('Minecraft');
+    now++; await service.observeProduction({ status: 'offline', observedAtMs: now });
+    for (let i = 0; i < 15; i++) {
+        now += 60000; await service.observeProduction({ status: 'offline', observedAtMs: now });
+    }
+    expect(service.getStatus().game.displayName).toBe('Minecraft');
+    now++; await observeGame('PlateUp!', now, 'discord-category');
+    expect(service.getStatus().game.displayName).toBe('PlateUp!');
+    const durable = JSON.parse(await fs.readFile(join(directory, 'production/state.json'), 'utf8'));
+    expect(durable.endedAtMs).not.toBeNull();
 });
 test('restart and reconnect restore latest game with no entrance; first reconciliation stays quiet', async () => {
     await online(); await observeGame('Minecraft'); now++; await observeGame('Raft');
@@ -166,6 +217,24 @@ test('an old in-flight game read cannot replace a newer online status after offl
     now += 100; await online();
     await observeGame('Raft', now - 150);
     expect(service.getStatus().game.displayName).toBe('Minecraft');
+});
+
+test.each([
+    ['game.reset', 'twitch'], ['game.recover', 'twitch'],
+    ['game.reset', 'discord-category'], ['game.recover', 'discord-category']
+])('%s fences older %s updates after changing stored observation history', async (action, source) => {
+    await observeGame('Minecraft', now, 'discord-category');
+    now += 10; await observeGame('PlateUp!', now, 'discord-category');
+    now += 100; await service.observeProduction({ status: 'offline', observedAtMs: now });
+    expect((await service.dispatch({ name: action })).status).toBe('ok');
+    const restored = service.getStatus().game;
+    const durable = await fs.readFile(join(directory, 'production/state.json'), 'utf8');
+    await service.observeGame({ gameName: 'Raft', observedAtMs: now - 50, source,
+        ...(source === 'discord-category' ? { confirmedAtMs: now - 1 } : {}) });
+    expect(service.getStatus().game).toEqual(restored);
+    expect(await fs.readFile(join(directory, 'production/state.json'), 'utf8')).toBe(durable);
+    now++; await observeGame('Raft', now, 'discord-category');
+    expect(service.getStatus().game.displayName).toBe('Raft');
 });
 
 test('confirmed game reset and recovery require fresh offline evidence and leave campaign and donation effects intact', async () => {
