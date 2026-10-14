@@ -1,3 +1,9 @@
+# [4.15.0](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v4.14.0...v4.15.0) (2026-10-14)
+
+### Changes
+
+- Discord activity changes update Stream Avatars scenery while Twitch is offline after successful category updates. Scenery persists through offline periods and restarts until another category update or game reset. ([#102](https://github.com/stjohnjohnson/extralife-helper-bot/pull/102))
+
 # [4.14.0](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v4.13.0...v4.14.0) (2026-10-13)
 
 ### Changes
