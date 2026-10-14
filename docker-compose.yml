@@ -10,9 +10,9 @@ services:
       - stream-avatars-state:/usr/src/app/data/stream-avatars
       # Mount the app for development (optional)
       # - ./app.js:/usr/src/app/app.js:ro
-    # Shared listener: enable either web integration in .env and restrict LAN access
-    # ports:
-    #   - "3000:3000"
+    # Shared listener for the voice overlay and Stream Avatars; restrict LAN access.
+    ports:
+      - "3000:3000"
 
 volumes:
   stream-avatars-state:

@@ -47,7 +47,7 @@ describe('coordinated Hue chat effects', () => {
             }
         };
         jest.spyOn(v3.api, 'createLocal').mockReturnValue({ connect: jest.fn().mockResolvedValue(api) });
-        controller = new HueController({ hue: { ipAddress: '192.168.1.2', username: 'key', groupId: '1', chatControlEnabled: true } }, logger);
+        controller = new HueController({ hue: { ipAddress: '192.168.1.2', username: 'key', groupId: '1' } }, logger);
         await controller.initialize();
     });
 
@@ -103,9 +103,8 @@ describe('coordinated Hue chat effects', () => {
         expect(await controller.requestColor('red')).toEqual({ status: 'applied' });
     });
 
-    test('disabled controls leave donation celebrations available', async () => {
-        controller.config.hue.chatControlEnabled = false;
-        expect(await controller.requestColor('red')).toEqual({ status: 'disabled' });
+    test('chat controls and donation celebrations are always available', async () => {
+        expect(await controller.requestColor('red')).toEqual({ status: 'applied' });
         await controller.celebrateDonation();
         expect(writes.some(write => write.light)).toBe(true);
     });
@@ -324,7 +323,7 @@ describe('coordinated Hue chat effects', () => {
         await controller.stop();
         const pending = deferred();
         v3.api.createLocal.mockReturnValue({ connect: jest.fn(() => pending.promise) });
-        controller = new HueController({ hue: { ipAddress: '192.168.1.2', username: 'key', groupId: '1', chatControlEnabled: true } }, logger);
+        controller = new HueController({ hue: { ipAddress: '192.168.1.2', username: 'key', groupId: '1' } }, logger);
         const initialize = controller.initialize();
         const stop = controller.stop();
         pending.resolve(api);

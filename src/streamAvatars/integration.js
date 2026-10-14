@@ -10,7 +10,7 @@ const { resolveIntegrationPack } = require('./integrationPack');
 const scenarios = require('../../tests/fixtures/donations/integration-scenarios');
 async function runIntegration({ listenerConfig, token, crowdCount = 20, scenario = 'all', recognition = 'random', theme, game, candidatePackDir, themePackDir, signal, hueOutput, logger = console, wait = ms => delay(ms, undefined, { signal }), clock = { nowMs: Date.now }, timers }) {
     if (!['random','jump','hug'].includes(recognition)) throw new Error('Invalid integration recognition; use random, jump or hug');
-    if (!Number.isInteger(crowdCount) || crowdCount < 0 || crowdCount > 100 || typeof token !== 'string' || token.length < 16 || token.length > 256) throw new Error('Invalid integration crowd/token configuration');
+    if (!Number.isInteger(crowdCount) || crowdCount < 0 || crowdCount > 100 || typeof token !== 'string' || token.length < 16 || token.length > 256 || /\s/u.test(token)) throw new Error('Invalid integration crowd/token configuration');
     if (game !== undefined && cleanGameName(game) === null) throw new Error('Invalid integration game name');
     if (theme !== undefined && ![...THEME_IDS, 'all', 'neutral'].includes(theme)) throw new Error('Unknown integration theme');
     if (theme !== undefined && game !== undefined) throw new Error('Choose --theme or --game');

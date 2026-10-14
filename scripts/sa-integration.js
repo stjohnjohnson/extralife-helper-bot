@@ -24,7 +24,7 @@ async function run(args = process.argv.slice(2), env = process.env) {
     if (hue) {
         if (!env.HUE_USERNAME?.trim() || !env.HUE_IPADDRESS?.trim() || !/^\d+$/.test(env.HUE_GROUPID || '') || !Number.isSafeInteger(Number(env.HUE_GROUPID))) throw new Error('--hue requires HUE_USERNAME, HUE_IPADDRESS and an integer HUE_GROUPID');
         const { HueController } = require('../src/hueControl');
-        hueOutput = new HueController({ hue: { username: env.HUE_USERNAME, ipAddress: env.HUE_IPADDRESS, groupId: env.HUE_GROUPID, chatControlEnabled: false } }, console);
+        hueOutput = new HueController({ hue: { username: env.HUE_USERNAME, ipAddress: env.HUE_IPADDRESS, groupId: env.HUE_GROUPID } }, console);
     }
     const controller = new AbortController();
     const shutdown = signal => { process.exitCode=signal==='SIGINT' ? 130 : 143; controller.abort(); };

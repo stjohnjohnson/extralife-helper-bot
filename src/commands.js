@@ -19,7 +19,7 @@ const moneyFormatter = new Intl.NumberFormat('en-US', {
  * @param {Object} config - Application configuration
  * @param {Object} clients - Discord and Twitch clients
  * @param {Object} logger - Logger instance
- * @param {Object} hueController - Hue controller instance (optional)
+ * @param {Object} hueController - Hue controller instance, or null while unavailable
  * @returns {Promise<string|null>} Response message or null if command not found
  */
 async function handleCommand(command, platform, context, config, clients, logger, hueController = null, avatarService = null) {
@@ -32,7 +32,7 @@ async function handleCommand(command, platform, context, config, clients, logger
     }
     const colorCommand = normalizedCommand.trim().match(/^color(?:\s+([\s\S]*))?$/);
     if (colorCommand) {
-        return await handleColorCommand(colorCommand[1]?.trim() || '', platform, context, config, hueController, logger);
+        return await handleColorCommand(colorCommand[1]?.trim() || '', platform, context, hueController, logger);
     }
 
     // Check for built-in commands first
@@ -63,10 +63,9 @@ async function handleCommand(command, platform, context, config, clients, logger
 }
 
 /** Translate the controller's shared admission result into a chat response. */
-async function handleColorCommand(input, platform, context, config, hueController, logger) {
+async function handleColorCommand(input, platform, context, hueController, logger) {
     try {
-        const result = !config.hue?.chatControlEnabled ? { status: 'disabled' }
-            : !hueController ? { status: 'unavailable' } : await hueController.requestColor(input);
+        const result = !hueController ? { status: 'unavailable' } : await hueController.requestColor(input);
         logger.info('Hue color command', eventMetadata('command', {
             command: 'color', platform, username: context.username, argument: input, status: result.status
         }));
@@ -75,8 +74,6 @@ async function handleColorCommand(input, platform, context, config, hueControlle
             return null;
         case 'party':
             return 'Party started! Lights will return to their previous state afterward.';
-        case 'disabled':
-            return 'Chat light control is disabled.';
         case 'busy':
             return 'Lights are busy. Please try again after the current effect finishes.';
         case 'cooldown': {

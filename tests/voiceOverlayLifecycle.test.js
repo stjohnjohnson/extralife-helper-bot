@@ -9,16 +9,11 @@ function setup() {
     client.channels = { fetch: jest.fn().mockResolvedValue(channel) };
     const controller = { ready: Promise.resolve(), stop: jest.fn().mockResolvedValue() };
     startOverlayConnection.mockReturnValue(controller);
-    return { client, channel, controller, config: { voiceOverlay: { enabled: true, host: '127.0.0.1', port: 0 }, discord: { liveRoomChannel: 'live' }, gameUpdates: { userId: 'target' } },
+    return { client, channel, controller, config: { webServer: { host: '127.0.0.1', port: 0 }, discord: { liveRoomChannel: 'live' }, gameUpdates: { userId: 'target' } },
         logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn() } };
 }
 beforeEach(() => jest.clearAllMocks());
-test('disabled feature creates no connection or channel access', async () => {
-    const s = setup(); s.config.voiceOverlay.enabled = false;
-    const service = await startVoiceOverlay(s); await service.stop();
-    expect(s.client.channels.fetch).not.toHaveBeenCalled(); expect(startOverlayConnection).not.toHaveBeenCalled();
-});
-test('enabled service resolves fixed room and owns idempotent shutdown', async () => {
+test('service always resolves fixed room and owns idempotent shutdown', async () => {
     const s = setup(); const service = await startVoiceOverlay(s);
     try {
         expect(s.client.channels.fetch).toHaveBeenCalledWith('live');

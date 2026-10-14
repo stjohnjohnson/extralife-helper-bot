@@ -13,7 +13,7 @@ async function handleStreamAvatarsCommand(input, context, { config, service, log
     const key = normalizeChannel(context.channel) + ':' + id;
     if (seen.has(key)) return null;
     seen.set(key, now); if (seen.size > 256) seen.delete(seen.keys().next().value);
-    if (!service) return 'Stream Avatars is disabled or unavailable.';
+    if (!service) return 'Stream Avatars is unavailable right now.';
     let action;
     try { action = parseAction(input); } catch (error) { return error.message; }
     if (action.name === 'status') {

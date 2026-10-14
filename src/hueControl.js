@@ -174,7 +174,6 @@ class HueController {
 
     /** Admit viewer requests through the same controller on both platforms. */
     async requestColor(input) {
-        if (!this.config.hue.chatControlEnabled) return { status: 'disabled' };
         if (this.stopped || !this.connected || !this.group) return { status: 'unavailable' };
         if (this.activeEffect || this.colorWrite) return { status: 'busy' };
         const party = typeof input === 'string' && input.trim().toLowerCase() === 'party';

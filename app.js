@@ -91,7 +91,7 @@ async function getLatestDonation(state, silent = false) {
         catch { log.warn('Stream Avatars donation accounting unavailable'); }
     };
     try {
-        // Initialize optional local resources before the first silent checkpoint.
+        // Initialize local resources before the first silent checkpoint.
         // This does not wait for Stream Avatars itself to connect.
         await state.streamAvatarsStartup;
         if (!state.active) return;
@@ -144,25 +144,21 @@ function start({ config = parseConfiguration(), donationSource } = {}) {
         resolveReady: null
     };
     runtime = state;
-    if (config.voiceOverlay?.enabled || config.streamAvatars?.enabled) {
-        state.webServerStartup = startWebServer({ config: config.webServer, signal: state.webServerAbort.signal })
-            .then(async server => {
-                if (!state.active) { await server.stop(); return null; }
-                state.webServer = server; return server;
-            })
-            .catch(() => { log.error('Web listener unavailable; web integrations disabled'); return null; });
-    }
-    if (config.streamAvatars?.enabled) {
-        state.streamAvatarsStartup = state.webServerStartup.then(webServer => {
-            if (!webServer || !state.active) return;
-            return startStreamAvatars({ config, webServer, logger: log, signal: state.streamAvatarsAbort.signal })
-                .then(async service => { if (!state.active) await service.stop(); else state.streamAvatars = service; })
-                .catch(() => log.error('Stream Avatars unavailable'));
-        });
-    } else if (config.streamAvatars?.errors?.length) log.warn('Stream Avatars configuration invalid; integration disabled');
+    state.webServerStartup = startWebServer({ config: config.webServer, signal: state.webServerAbort.signal })
+        .then(async server => {
+            if (!state.active) { await server.stop(); return null; }
+            state.webServer = server; return server;
+        })
+        .catch(() => { log.error('Web listener unavailable; web integrations could not start'); return null; });
+    state.streamAvatarsStartup = state.webServerStartup.then(webServer => {
+        if (!webServer || !state.active) return;
+        return startStreamAvatars({ config, webServer, logger: log, signal: state.streamAvatarsAbort.signal })
+            .then(async service => { if (!state.active) await service.stop(); else state.streamAvatars = service; })
+            .catch(() => log.error('Stream Avatars unavailable'));
+    });
 
     log.info(`ExtraLife Helper Bot starting for participant ${config.participantId}`);
-    log.info('All services configured and enabled: Discord, Twitch, Voice, Game Updates, Hue');
+    log.info('All features configured: Discord, Twitch, Voice, Game Updates, Hue, Donation Markers, Voice Overlay, Stream Avatars');
     log.info(`Admin users: Discord=${config.discord.admins.length}, Twitch=${config.twitch.admins.length}`);
 
     state.hueController = new HueController(config, hueLog);
@@ -223,18 +219,16 @@ function start({ config = parseConfiguration(), donationSource } = {}) {
         }
         discordLog.info(`Found Discord Summary Channel: ${state.summaryChannel.id}`);
         state.voiceMonitor = startVoiceMonitoring(state.discordClient, state.donationChannel.guild, config, discordLog);
-        if (config.voiceOverlay?.enabled) {
-            state.voiceOverlayStartup = state.webServerStartup.then(webServer => {
-                if (!webServer || !state.active) return;
-                return startVoiceOverlay({ client: state.discordClient, config, webServer,
-                    logger: discordLog, signal: state.voiceOverlayAbort.signal })
-                    .then(async service => {
-                        if (!state.active) await service.stop();
-                        else state.voiceOverlay = service;
-                    })
-                    .catch(error => discordLog.error('Unable to start voice overlay', { error: error.message }));
-            });
-        }
+        state.voiceOverlayStartup = state.webServerStartup.then(webServer => {
+            if (!webServer || !state.active) return;
+            return startVoiceOverlay({ client: state.discordClient, config, webServer,
+                logger: discordLog, signal: state.voiceOverlayAbort.signal })
+                .then(async service => {
+                    if (!state.active) await service.stop();
+                    else state.voiceOverlay = service;
+                })
+                .catch(error => discordLog.error('Unable to start voice overlay', { error: error.message }));
+        });
         void updateDiscordSummary(state);
         resolveReady();
     });

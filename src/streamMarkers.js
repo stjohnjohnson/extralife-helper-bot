@@ -29,7 +29,8 @@ function markerDescription(cents, displayName) {
 
 /** One runtime service; only newly announced donations should be submitted. */
 function createStreamMarkerService(config, logger) {
-    const threshold = config.streamMarkers?.donationThresholdCents;
+    const threshold = config.streamMarkers.donationThresholdCents;
+    if (!Number.isSafeInteger(threshold) || threshold <= 0) throw new Error('Stream marker donation threshold must be positive integer cents');
     const pending = new Set();
     let active = true;
     let broadcasterId;
@@ -62,7 +63,7 @@ function createStreamMarkerService(config, logger) {
 
     async function markDonation(donation) {
         const cents = donationCents(donation.amount);
-        if (!active || !Number.isSafeInteger(threshold) || threshold <= 0 || cents === null || cents < threshold) return null;
+        if (!active || cents === null || cents < threshold) return null;
         const controller = new AbortController();
         pending.add(controller);
         let timedOut = false;

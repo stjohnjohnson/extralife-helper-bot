@@ -2,10 +2,10 @@
 
 [README](../README.md) · [Configuration](configuration.md)
 
-The bot can create Twitch stream markers for new donations at or above a configured amount.
+The bot creates Twitch stream markers for new donations at or above a configured amount.
 Markers identify points in the recording for later review.
 
-## Enable markers
+## Configure markers
 
 1. Complete [broadcaster API authorization](setup.md#broadcaster-api-access) with `channel:manage:broadcast`.
 2. Enable **Store past broadcasts** in the broadcaster's Twitch VOD settings.
@@ -19,8 +19,7 @@ Markers identify points in the recording for later review.
 
 This example marks donations of $100.00 or more.
 The threshold accepts positive USD amounts with at most two decimal places, such as `25.50`.
-An unset or blank value disables markers.
-An invalid value prevents startup.
+The threshold is required. Missing, blank, or invalid values prevent startup.
 Twitch requires a live stream and available VOD storage; see the [marker API](https://dev.twitch.tv/docs/api/reference/#create-stream-marker).
 
 ## Marker descriptions

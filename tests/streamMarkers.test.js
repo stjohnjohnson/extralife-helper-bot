@@ -57,10 +57,8 @@ test('accepts decimal string amounts at a cent boundary', async () => {
     expect(makeTwitchApiRequest.mock.calls[0][1].body.description).toBe('Donation: $100.01 from Full Display Name');
 });
 
-test.each([{}, { streamMarkers: { donationThresholdCents: null } }])('disabled configuration never contacts Twitch', async overrides => {
-    service.stop();
-    service = createStreamMarkerService({ twitch: config.twitch, ...overrides }, logger);
-    expect(await service.markDonation(donation)).toBeNull();
+test.each([null, 0, -1, 1.5, NaN])('rejects an invalid required threshold before contacting Twitch: %s', threshold => {
+    expect(() => createStreamMarkerService({ ...config, streamMarkers: { donationThresholdCents: threshold } }, logger)).toThrow('Stream marker donation threshold must be positive integer cents');
     expect(getValidAccessToken).not.toHaveBeenCalled();
 });
 
