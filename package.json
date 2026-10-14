@@ -34,7 +34,7 @@
     "@discordjs/voice": "0.19.2",
     "color-name": "2.1.1",
     "discord.js": "^14.27.0",
-    "dotenv": "^18.0.5",
+    "dotenv": "^18.0.7",
     "extra-life-api": "^8.0.0",
     "fflate": "0.8.3",
     "node-hue-api": "^5.0.0-beta.16",
