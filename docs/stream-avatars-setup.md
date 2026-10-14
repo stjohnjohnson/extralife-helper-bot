@@ -6,7 +6,7 @@ Stream Avatars connects to the bot through a private WebSocket connection.
 It shows donation effects, campaign milestones, goal celebrations, and game-themed scenery.
 The bot runs on Linux, macOS, or Windows.
 The voice overlay and this bridge share the `WEB_HOST` and `WEB_PORT` listener.
-Either web integration can be enabled independently; the [core bot settings](configuration.md#required-core-settings) remain required.
+Both integrations start with the bot; all [required settings](configuration.md#required-core-settings) must be valid.
 
 ## Configure the bot
 
@@ -20,7 +20,6 @@ Either web integration can be enabled independently; the [core bot settings](con
 3. Save these settings in `.env`, replacing the token placeholder:
 
    ```dotenv
-   STREAM_AVATARS_ENABLED=true
    STREAM_AVATARS_TOKEN=<private-random-token>
    STREAM_AVATARS_DONATION_INTERVAL_CENTS=50000
    STREAM_AVATARS_STATE_DIR=./data/stream-avatars
@@ -31,11 +30,11 @@ Either web integration can be enabled independently; the [core bot settings](con
 4. Permit the Stream Avatars computer to reach the bot's listener on your LAN.
 5. Start the bot.
 
-The token must contain 16–256 characters.
+The token must contain 16–256 non-whitespace characters.
 Copy it privately to the companion; never put it in chat or a URL.
 Authentication uses the first WebSocket frame.
 For an untrusted network, use a TLS reverse proxy and a `wss://` connection.
-Invalid bridge settings disable Stream Avatars while core services continue.
+Invalid bridge settings prevent bot startup. Runtime bridge failures leave other bot services running.
 Disconnected companions do not queue animations for replay.
 
 ## Generate and import the companion

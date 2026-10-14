@@ -50,14 +50,9 @@ function parseConfiguration() {
 
     const rawMarkerThreshold = process.env.STREAM_MARKER_DONATION_THRESHOLD?.trim();
     const thresholdCents = rawMarkerThreshold ? Math.round(Number(rawMarkerThreshold) * 100) : null;
-    if (rawMarkerThreshold && (!/^\d+(\.\d{1,2})?$/.test(rawMarkerThreshold) ||
-        !Number.isSafeInteger(thresholdCents) || thresholdCents <= 0)) {
+    if (!rawMarkerThreshold || !/^\d+(\.\d{1,2})?$/.test(rawMarkerThreshold) ||
+        !Number.isSafeInteger(thresholdCents) || thresholdCents <= 0) {
         configErrors.push('STREAM_MARKER_DONATION_THRESHOLD must be a positive USD amount with up to two decimal places');
-    }
-
-    const hueChatFlag = process.env.HUE_CHAT_CONTROL_ENABLED;
-    if (hueChatFlag !== undefined && !['true', 'false'].includes(hueChatFlag)) {
-        configErrors.push('HUE_CHAT_CONTROL_ENABLED must be true or false');
     }
 
     const interval = key => {
@@ -70,16 +65,11 @@ function parseConfiguration() {
     };
     const viewerSampleIntervalSeconds = interval('TWITCH_VIEWER_SAMPLE_INTERVAL_SECONDS');
     const voiceSampleIntervalSeconds = interval('DISCORD_VOICE_SAMPLE_INTERVAL_SECONDS');
-    const overlayFlag = process.env.VOICE_OVERLAY_ENABLED;
-    if (overlayFlag !== undefined && !['true', 'false'].includes(overlayFlag)) {
-        configErrors.push('VOICE_OVERLAY_ENABLED must be true or false');
-    }
-    const enabled = overlayFlag === 'true';
     const webServer = parseWebServerConfiguration(process.env);
-    if (enabled) configErrors.push(...webServer.errors);
+    const streamAvatars = parseStreamAvatarsConfiguration(process.env);
+    configErrors.push(...webServer.errors, ...streamAvatars.errors);
     return {
-        streamAvatars: parseStreamAvatarsConfiguration(process.env),
-        voiceOverlay: { enabled },
+        streamAvatars,
         webServer,
         streamMarkers: { donationThresholdCents: thresholdCents },
         isValid: configErrors.length === 0,
@@ -110,7 +100,6 @@ function parseConfiguration() {
             messageTemplate: process.env.DISCORD_GAME_UPDATE_MESSAGE || 'Now playing {game}!'
         },
         hue: {
-            chatControlEnabled: hueChatFlag === 'true',
             username: process.env.HUE_USERNAME,
             ipAddress: process.env.HUE_IPADDRESS,
             groupId: process.env.HUE_GROUPID

@@ -21,7 +21,7 @@ test('Hue environment never initializes a Hue controller without explicit --hue'
 });
 test('--hue constructs only the Hue controller with Hue-specific configuration', async () => {
     await run(['--hue'],env);
-    expect(HueController).toHaveBeenCalledWith({ hue: { username: 'private', ipAddress: '192.168.1.4', groupId: '1', chatControlEnabled: false } },console);
+    expect(HueController).toHaveBeenCalledWith({ hue: { username: 'private', ipAddress: '192.168.1.4', groupId: '1' } },console);
     expect(runIntegration).toHaveBeenCalledWith(expect.objectContaining({ hueOutput: mockHue }));
 });
 test.each([['--crowd','NaN'],['--unknown'],['--scenario']])('invalid CLI flags reject without creating any controller: %j',async(...args) => {

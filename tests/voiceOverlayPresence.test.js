@@ -41,7 +41,7 @@ test('the real OBS endpoint starts idle, stays blank while absent, and survives 
     const channel = { id: 'live', guild, isVoiceBased: () => true, permissionsFor: () => ({ has: () => true }),
         members: new Map([['guest', { displayAvatarURL: () => 'https://cdn.discordapp.com/guest.png' }]]) };
     client.channels = { fetch: async () => channel };
-    const config = { voiceOverlay: { enabled: true, host: '127.0.0.1', port: 0 },
+    const config = { webServer: { host: '127.0.0.1', port: 0 },
         discord: { liveRoomChannel: 'live' }, gameUpdates: { userId: 'target' } };
     const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn() };
     const service = await startVoiceOverlay({ client, config, logger });

@@ -15,18 +15,18 @@ async function startStreamAvatars({ config, logger = { warn() {} }, signal, webS
     const settings = config.streamAvatars.config, mode = integration ? 'integration' : 'production';
     if (candidatePackDir && !integration) throw new Error('Candidate packs require integration preview');
     if (candidatePackDir && themePackDir) throw new Error('Choose one theme pack');
+    const themes = settings.themes || loadThemeConfiguration();
+    if (themes.errors.length) throw new Error(themes.errors.join('; '));
     const directory = candidatePackDir || themePackDir || BUNDLED_THEME_PACK_DIR;
     const catalog = loadThemePack({ directory, previewOnly: Boolean(candidatePackDir && integration) }).catalog;
     const crowdIds = integration ? [...integration.crowdIds] : [], participantId = String(config.participantId), intervalCents = settings.donationIntervalCents ?? 50000;
     const progress = await createCampaignProgress({ store: createCampaignStore({ path: join(settings.stateDir, mode, 'campaign.json'), mode, participantId, intervalCents }),
         clock: realClock, mode, participantId, intervalCents });
-    const themes = settings.themes || loadThemeConfiguration();
-    for (const error of themes.errors) logger.warn(error);
     const cadenceMs = (config.twitch?.viewerSampleIntervalSeconds || 60) * 1000;
     const channel = config.twitch?.channel || 'integration';
     const gameSession = integration ? null : await createSessionController({
         store: createSessionStore({ path: join(settings.stateDir, 'production', 'state.json'), mode: 'production', channel }),
-        clock: realClock, mode: 'production', channel, graceMs: 900000, cadenceMs, gameConfig: themes.enabled ? themes.config : null
+        clock: realClock, mode: 'production', channel, graceMs: 900000, cadenceMs, gameConfig: themes.config
     });
     let previewGame = null, reconciledGame = false, lastRealObservation = null, observationTail = Promise.resolve();
     const enqueueObservation = operation => {
@@ -38,8 +38,8 @@ async function startStreamAvatars({ config, logger = { warn() {} }, signal, webS
     let server, events, stopping, phaseTimer = null, lastResolution = null, active = true, generation = 1;
     const snapshot = () => ({ version: 3, type: 'snapshot', mode, generation, serverNowMs: realClock.nowMs(), campaign: publicCampaign(progress.getSnapshot()),
         integration: { active: Boolean(integration), crowdIds },
-        theme: themes.enabled && currentGame() ? { gameIdentity: currentGame().identity, gameName: currentGame().displayName, themeId: currentGame().themeId, packRevision: catalog.packRevision } : null,
-        features: ['hearts','crowd','campaign','celebrations','donation-recognition', ...(themes.enabled ? ['themes'] : [])] });
+        theme: currentGame() ? { gameIdentity: currentGame().identity, gameName: currentGame().displayName, themeId: currentGame().themeId, packRevision: catalog.packRevision } : null,
+        features: ['hearts','crowd','campaign','celebrations','donation-recognition', 'themes'] });
     const cancelTimer = () => { if (phaseTimer !== null) timers.clearTimeout(phaseTimer); phaseTimer = null; };
     const discardVisuals = () => { cancelTimer(); composer.clear(); progress.clearConfirmations(); };
     const invalidate = () => { discardVisuals(); generation++; events?.clear({ mode, generation }); server?.send(snapshot()); };
@@ -90,7 +90,7 @@ async function startStreamAvatars({ config, logger = { warn() {} }, signal, webS
     } catch (error) { await stop(); throw error; }
     return { address: server.address, getPollCheckpoint: () => active ? progress.getPollCheckpoint() : null,
         previewGame({ theme, gameName, announce = true }) { return enqueueObservation(async () => {
-            if (!integration || !themes.enabled) throw new Error('Theme preview unavailable');
+            if (!integration) throw new Error('Theme preview unavailable');
             if ((theme === undefined) === (gameName === undefined)) throw new Error('Choose a theme or game');
             const game = gameName !== undefined ? resolveGame(gameName, themes.config) : [...THEME_IDS, 'neutral'].includes(theme) ? {
                 identity: createHash('sha256').update('integration-theme:' + theme).digest('hex'),
@@ -109,7 +109,7 @@ async function startStreamAvatars({ config, logger = { warn() {} }, signal, webS
             if (!gameSession.getStatus().recoveryRequired) await gameSession.observe(observation);
         }); },
         observeGame(observation) { return enqueueObservation(async () => {
-            if (integration || gameSession.getStatus().recoveryRequired || !themes.enabled || !validGameObservation(observation) ||
+            if (integration || gameSession.getStatus().recoveryRequired || !validGameObservation(observation) ||
                 (lastRealObservation && (observation.confirmedAtMs ?? observation.observedAtMs) < lastRealObservation.observedAtMs)) return;
             await gameSession.observeGame(observation, { announce: (reconciledGame || observation.source === 'discord-category') && currentGame() !== null });
             if (observation.source === 'twitch') reconciledGame = true;

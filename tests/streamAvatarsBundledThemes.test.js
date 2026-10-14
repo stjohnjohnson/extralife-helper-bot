@@ -26,7 +26,7 @@ test('integration all/themes resolve the shipped pack independently of ignored r
     expect(resolveIntegrationPack({ required: true })).toMatchObject({ themePackDir: directory, candidatePackDir: undefined });
 });
 test('theme configuration is static and requires neither retired environment variable', () => {
-    const settings = { STREAM_AVATARS_ENABLED: 'true', STREAM_AVATARS_TOKEN: 't'.repeat(32) };
+    const settings = { STREAM_AVATARS_TOKEN: 't'.repeat(32) };
     const normal = parseStreamAvatarsConfiguration(settings);
     expect(normal.config.themes.enabled).toBe(true);
     expect(normal.config).not.toHaveProperty('themePackDir');

@@ -194,3 +194,11 @@ test.each([
         })).rejects.toThrow(new RegExp(code + '.*import|import.*' + code, 'i'));
     } finally { socket?.terminate(); }
 });
+
+
+test.each([' '.repeat(32), 'a b'.repeat(8)])('runner rejects whitespace tokens before creating resources', async invalidToken => {
+    const logger = { info: jest.fn(), warn: jest.fn() };
+    const wait = jest.fn(async () => { throw new Error('listener was created'); });
+    await expect(runIntegration({ listenerConfig: { host: '127.0.0.1', port: 0 }, token: invalidToken, logger, wait })).rejects.toThrow('Invalid integration crowd/token configuration');
+    expect(wait).not.toHaveBeenCalled();
+});

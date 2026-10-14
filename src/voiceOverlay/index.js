@@ -4,7 +4,6 @@ const { startOverlayConnection } = require('./connection');
 const { startOverlayServer } = require('./server');
 
 async function startVoiceOverlay({ client, config, logger, signal, webServer }) {
-    if (!config.voiceOverlay?.enabled) return { async stop() {} };
     const checkAbort = () => { if (signal?.aborted) throw new Error('Voice overlay startup aborted'); };
     checkAbort();
     const channel = await client.channels.fetch(config.discord.liveRoomChannel);
@@ -30,7 +29,7 @@ async function startVoiceOverlay({ client, config, logger, signal, webServer }) 
     const onAbort = () => { void stop().catch(() => logger.error('Unable to close voice overlay')); };
     signal?.addEventListener('abort', onAbort, { once: true });
     try {
-        server = await startOverlayServer({ config: config.webServer || config.voiceOverlay, state, logger, webServer, signal });
+        server = await startOverlayServer({ config: config.webServer, state, logger, webServer, signal });
         // If shutdown raced the listen operation, explicitly close this late server.
         if (signal?.aborted) { await server.stop(); checkAbort(); }
         connection = startOverlayConnection({ client, channel, state, logger, streamerUserId: config.gameUpdates.userId });

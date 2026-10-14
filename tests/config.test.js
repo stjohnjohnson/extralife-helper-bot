@@ -68,7 +68,7 @@ describe('Config Module', () => {
     });
 
     describe('parseCustomResponses', () => {
-        test('reserves color even when chat lighting is disabled', () => {
+        test('reserves the built-in color command', () => {
             const result = parseCustomResponses('color:"a custom response"');
             expect(result.customResponses.has('color')).toBe(false);
             expect(result.customResponseErrors).toHaveLength(1);
@@ -188,11 +188,14 @@ describe('Config Module', () => {
                     delete process.env[key];
                 }
             });
+            process.env.STREAM_AVATARS_TOKEN = 'a'.repeat(32);
+            process.env.STREAM_MARKER_DONATION_THRESHOLD = '100';
         });
 
-        test.each([undefined, '', '   '])('disables donation markers for unset/blank threshold %s', raw => {
+        test.each([undefined, '', '   '])('requires a marker threshold: %s', raw => {
             if (raw !== undefined) process.env.STREAM_MARKER_DONATION_THRESHOLD = raw;
-            expect(parseConfiguration().streamMarkers.donationThresholdCents).toBeNull();
+            else delete process.env.STREAM_MARKER_DONATION_THRESHOLD;
+            expect(parseConfiguration().errors).toContain('STREAM_MARKER_DONATION_THRESHOLD must be a positive USD amount with up to two decimal places');
         });
 
         test.each([['100', 10000], ['25.50', 2550], ['0.01', 1], [' 100.00 ', 10000]])('parses USD threshold %s in cents', (raw, cents) => {
@@ -207,14 +210,35 @@ describe('Config Module', () => {
             expect(config.errors).toContain('STREAM_MARKER_DONATION_THRESHOLD must be a positive USD amount with up to two decimal places');
         });
 
-        test.each([[undefined, false], ['false', false], ['true', true]])('parses Hue chat opt-in %s', (flag, expected) => {
-            if (flag !== undefined) process.env.HUE_CHAT_CONTROL_ENABLED = flag;
-            expect(parseConfiguration().hue.chatControlEnabled).toBe(expected);
+        test.each(['false', 'true', 'yes'])('retired enable switches do not affect configuration: %s', flag => {
+            const normal = parseConfiguration();
+            Object.assign(process.env, { HUE_CHAT_CONTROL_ENABLED: flag, VOICE_OVERLAY_ENABLED: flag, STREAM_AVATARS_ENABLED: flag });
+            expect(parseConfiguration()).toEqual(normal);
+            expect(normal.hue).not.toHaveProperty('chatControlEnabled');
+            expect(normal).not.toHaveProperty('voiceOverlay');
+            expect(normal.streamAvatars).not.toHaveProperty('enabled');
         });
 
-        test.each(['', 'yes', '1', 'TRUE'])('rejects invalid Hue chat opt-in %s', flag => {
-            process.env.HUE_CHAT_CONTROL_ENABLED = flag;
-            expect(parseConfiguration().errors).toContain('HUE_CHAT_CONTROL_ENABLED must be true or false');
+        test.each([undefined, '', ' ', 'short', 'a'.repeat(257)])('requires a valid avatar token: %s', token => {
+            if (token === undefined) delete process.env.STREAM_AVATARS_TOKEN;
+            else process.env.STREAM_AVATARS_TOKEN = token;
+            const config = parseConfiguration();
+            expect(config.isValid).toBe(false);
+            expect(config.errors).toContain('STREAM_AVATARS_TOKEN must contain 16 to 256 non-whitespace characters');
+        });
+
+        test('includes avatar validation errors in startup errors without exposing credentials', () => {
+            Object.assign(process.env, { STREAM_AVATARS_TOKEN: 'secret', STREAM_AVATARS_STATE_DIR: '', STREAM_AVATARS_DONATION_INTERVAL_CENTS: '0', WEB_HOST: ' ', WEB_PORT: 'invalid' });
+            const config = parseConfiguration();
+            expect(config.isValid).toBe(false);
+            expect(config.errors).toEqual(expect.arrayContaining([
+                'Stream Avatars state directory must not be empty',
+                'STREAM_AVATARS_DONATION_INTERVAL_CENTS must be a valid integer',
+                'WEB_HOST must not be empty',
+                'WEB_PORT must be an integer between 1 and 65535'
+            ]));
+            expect(config.errors.filter(error => error.startsWith('WEB_PORT'))).toHaveLength(1);
+            expect(JSON.stringify(config.errors)).not.toContain('secret');
         });
 
         test('should return valid config when all required vars present', () => {
@@ -455,20 +479,15 @@ describe('Config Module', () => {
     });
 });
 
-describe('optional voice overlay configuration', () => {
+describe('shared listener configuration', () => {
     let previous;
     beforeEach(() => {
         previous = { ...process.env };
         for (const key of ['VOICE_OVERLAY_ENABLED', 'VOICE_OVERLAY_HOST', 'VOICE_OVERLAY_PORT', 'WEB_HOST', 'WEB_PORT']) delete process.env[key];
     });
     afterEach(() => { process.env = previous; });
-    test('defaults off with LAN defaults', () => {
-        expect(parseConfiguration().voiceOverlay).toEqual({ enabled: false });
-        expect(parseConfiguration().webServer).toEqual({ host: '0.0.0.0', port: 3000, errors: [] });
-    });
-    test('enabled defaults reuse existing channel and target configuration', () => {
-        process.env.VOICE_OVERLAY_ENABLED = 'true';
-        expect(parseConfiguration().voiceOverlay).toEqual({ enabled: true });
+    test('uses LAN defaults without feature switches', () => {
+        expect(parseConfiguration()).not.toHaveProperty('voiceOverlay');
         expect(parseConfiguration().webServer).toEqual({ host: '0.0.0.0', port: 3000, errors: [] });
     });
     test('accepts explicit host and port', () => {
@@ -480,19 +499,15 @@ describe('optional voice overlay configuration', () => {
         expect(parseConfiguration().webServer).toEqual({ host: '127.0.0.1', port: 4322, errors: [] });
         expect(parseConfiguration().errors.some(error => error.startsWith('VOICE_OVERLAY_'))).toBe(false);
     });
-    test.each(['0', '65536', '3.5', '', 'abc', '1e3'])('rejects invalid enabled port %s', value => {
+    test.each(['0', '65536', '3.5', '', 'abc', '1e3'])('rejects invalid listener port %s', value => {
         Object.assign(process.env, { VOICE_OVERLAY_ENABLED: 'true', VOICE_OVERLAY_PORT: value });
         expect(parseConfiguration().errors.some(error => error.startsWith('VOICE_OVERLAY_PORT'))).toBe(true);
     });
-    test('rejects malformed enablement and empty enabled host', () => {
-        process.env.VOICE_OVERLAY_ENABLED = 'yes';
-        expect(parseConfiguration().errors.some(error => error.startsWith('VOICE_OVERLAY_ENABLED'))).toBe(true);
-        Object.assign(process.env, { VOICE_OVERLAY_ENABLED: 'true', VOICE_OVERLAY_HOST: '' });
-        expect(parseConfiguration().errors.some(error => error.startsWith('VOICE_OVERLAY_HOST'))).toBe(true);
-    });
-    test('disabled feature ignores unused invalid network settings', () => {
-        Object.assign(process.env, { VOICE_OVERLAY_ENABLED: 'false', VOICE_OVERLAY_HOST: '', VOICE_OVERLAY_PORT: 'abc' });
-        expect(parseConfiguration().errors.some(error => error.startsWith('VOICE_OVERLAY'))).toBe(false);
+    test('rejects invalid listener settings even with retired switches set to false', () => {
+        Object.assign(process.env, { VOICE_OVERLAY_ENABLED: 'false', STREAM_AVATARS_ENABLED: 'false', WEB_HOST: '', WEB_PORT: 'abc' });
+        expect(parseConfiguration().errors).toEqual(expect.arrayContaining([
+            'WEB_HOST must not be empty', 'WEB_PORT must be an integer between 1 and 65535'
+        ]));
     });
 });
 

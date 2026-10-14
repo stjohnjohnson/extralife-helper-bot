@@ -6,14 +6,13 @@ The overlay shows eligible participants in `DISCORD_LIVE_ROOM_CHANNEL` and highl
 It hides `DISCORD_GAME_UPDATE_USER_ID` and the helper bot.
 It does not record or decode audio.
 
-## Enable the overlay
+## Configure the overlay
 
 1. Complete the [core bot setup](setup.md).
 2. Grant the Discord bot **View Channel** and **Connect** permissions in the live room.
 3. Add these settings to `.env`:
 
    ```dotenv
-   VOICE_OVERLAY_ENABLED=true
    WEB_HOST=0.0.0.0
    WEB_PORT=3000
    ```
@@ -21,7 +20,7 @@ It does not record or decode audio.
 4. Start the bot.
 5. Allow the OBS computer to reach the configured port on your private network.
 
-The voice overlay and Stream Avatars share the HTTP listener.
+The voice overlay and Stream Avatars start with the bot and share the HTTP listener.
 For Docker, publish that port:
 
 ```sh

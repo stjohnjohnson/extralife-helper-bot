@@ -13,7 +13,7 @@ Unknown commands receive no response.
 | `!goal` | Everyone; both platforms | Show the participant's total, goal, and percentage |
 | `!promote` | Admin; both platforms | Move all members from the waiting voice room into the live voice room |
 | `!testlights` | Admin; both platforms | Test the Hue donation celebration |
-| `!color <value>` | Everyone; both platforms, when enabled | Change the configured Hue group's color |
+| `!color <value>` | Everyone; both platforms | Change the configured Hue group's color |
 | `!sa status` | Twitch admin | Show campaign progress, companion connectivity, and recovery status |
 | `!sa campaign recover confirm` | Twitch admin | Restore the validated campaign backup and silently establish current baselines |
 | `!sa campaign reset confirm` | Twitch admin | Archive and reset campaign progress, then silently establish current baselines |
@@ -39,7 +39,7 @@ Stream Avatars controls require the configured Twitch channel; forwarded, duplic
 
 ## Hue colors and parties
 
-Set `HUE_CHAT_CONTROL_ENABLED=true` to allow all users to control the configured Hue group.
+All users can control the configured Hue group through `!color`.
 
 | Example | Effect |
 | --- | --- |
@@ -79,4 +79,4 @@ Quoted responses can contain commas.
 The parser reserves `goal`, `promote`, `color`, and `sa`.
 The command handler also owns `testlights`; a custom response with that name cannot run.
 Choose another name for a custom command.
-The `color` and `sa` names remain reserved when their integrations are disabled.
+The `color` and `sa` names are reserved for built-in commands.

@@ -33,7 +33,7 @@ Discord documents privileged intent requirements in its [Gateway reference](http
 | Send Messages | Post donations and command responses |
 | Read Message History | Reply to commands in text channels |
 | Manage Channels | Rename the fundraising summary channel |
-| Connect | Access voice rooms; required for the optional speaking overlay |
+| Connect | Access voice rooms; required for the speaking overlay |
 | Move Members | Move waiting participants with `!promote` |
 
 Use `DISCORD_DONATION_CHANNEL` for donation messages and `DISCORD_SUMMARY_CHANNEL` for the progress channel.
@@ -74,7 +74,7 @@ If chat authentication fails, replace that token.
 4. Copy the returned refresh token into `TWITCH_REFRESH_TOKEN`.
 
 Follow Twitch's [authorization code grant flow](https://dev.twitch.tv/docs/authentication/getting-tokens-oauth/#authorization-code-grant-flow) for authorization and exchange parameters.
-The bot uses this refresh token for game-category updates, viewer sampling, and optional donation markers.
+The bot uses this refresh token for game-category updates, viewer sampling, and donation markers.
 The bot caches API access tokens in memory and refreshes them with a five-minute expiry buffer.
 It does not save returned replacement refresh tokens.
 If refresh fails, authorize again and replace `TWITCH_REFRESH_TOKEN`.
@@ -92,7 +92,7 @@ If refresh fails, authorize again and replace `TWITCH_REFRESH_TOKEN`.
 See the [Hue developer setup guide](https://developers.meethue.com/develop/get-started-2/) for bridge discovery and API authorization.
 Keep the bridge and bot reachable on the same private network.
 Donation celebrations restore previous light states when they finish.
-Optional chat colors use the same group; see [Hue commands](commands.md#hue-colors-and-parties).
+Chat colors use the same group; see [Hue commands](commands.md#hue-colors-and-parties).
 
 ## Run with Docker
 
@@ -101,16 +101,19 @@ Optional chat colors use the same group; see [Hue commands](commands.md#hue-colo
 3. Start the bot:
 
    ```sh
-   docker run --rm -it --env-file .env \
+   docker run --rm -it --env-file .env -p 3000:3000 \
+     -v stream-avatars-state:/usr/src/app/data/stream-avatars \
      ghcr.io/stjohnjohnson/extralife-helper-bot:latest
    ```
 
-For web integrations, publish the listener port described in the [voice overlay](voice-overlay.md) or [Stream Avatars](stream-avatars-setup.md) guide.
-Stream Avatars also requires a persistent state volume.
+Every integration starts with the bot.
+Configure the [marker threshold](stream-markers.md), [voice overlay](voice-overlay.md), and [Stream Avatars token and companion](stream-avatars-setup.md).
+Restrict the published listener port to trusted computers.
+The named Docker volume preserves Stream Avatars state.
 
 The [Compose file](../docker-compose.yml) builds the local checkout and restarts the bot unless stopped.
 It includes a Stream Avatars state volume.
-If a web integration is enabled, uncomment its port mapping before starting:
+Restrict its listener port to your trusted network before starting:
 
 ```sh
 docker compose up -d --build

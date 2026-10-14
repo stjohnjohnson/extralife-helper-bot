@@ -184,14 +184,9 @@ test('disconnected transitions restore a negotiated snapshot without replay; cam
     expect((await service.dispatch({ name: 'campaign.reset' })).status).toBe('ok'); await pending;
     expect(service.getStatus().game.displayName).toBe('Raft'); expect(received.some(value => value.type === 'game-entrance')).toBe(false);
 });
-test('invalid theme configuration keeps independent campaign donations available', async () => {
+test('invalid theme configuration rejects startup instead of silently losing game features', async () => {
     await service.stop();
-    service = await startStreamAvatars({ webServer, config: { participantId: '123', twitch: { channel: 'streamer' }, streamAvatars: { config: { token: 't'.repeat(32), stateDir: directory, themes: { enabled: false, config: null, errors: ['Invalid Stream Avatars theme configuration'] } } } }, logger: { warn() {} }, realClock: { nowMs: () => now } });
-    await online(); await connectThemes(); await observeGame('Minecraft'); expect(service.getStatus().game).toBeNull();
-    const accept = donations => service.acceptObservation({ expectedEpochId: service.getPollCheckpoint().epochId, batchId: 'gift', complete: true, donations, observedAtMs: now });
-    await accept([]); now++;
-    const pending = waitFor('celebration'); await accept([{ id: 'gift', participantId: '123', createdAtMs: now, amountCents: 2500 }]);
-    expect(await pending).toMatchObject({ phase: 'recognition', donationTotalCents: 2500 });
+    await expect(startStreamAvatars({ webServer, config: { participantId: '123', twitch: { channel: 'streamer' }, streamAvatars: { config: { token: 't'.repeat(32), stateDir: directory, themes: { enabled: false, config: null, errors: ['Invalid Stream Avatars theme configuration'] } } } }, logger: { warn() {} }, realClock: { nowMs: () => now } })).rejects.toThrow('Invalid Stream Avatars theme configuration');
 });
 test('campaign reset and queued live game observations retain independent ownership', async () => {
     await service.observeProduction({ status: 'offline', observedAtMs: now }); now++;
