@@ -1,3 +1,17 @@
+# [4.16.0](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v4.15.1...v4.16.0) (2026-10-20)
+
+### Changes
+
+- Donation announcements resume after restarts from the last saved donation. Large backlogs use additional API pages. First startup silently saves the latest donation without replaying existing donations. ([#109](https://github.com/stjohnjohnson/extralife-helper-bot/pull/109))
+- Failed announcements retry from the unsaved donation. Previously saved donations remain complete. Interrupted delivery can repeat an announcement that one service already accepted. ([#109](https://github.com/stjohnjohnson/extralife-helper-bot/pull/109))
+
+### Upgrade actions
+
+- For Docker, mount persistent storage at `/usr/src/app/data/donations`; the updated Compose file supplies this volume. ([#109](https://github.com/stjohnjohnson/extralife-helper-bot/pull/109))
+- If you set `DONATION_STATE_DIR`, retain that directory across restarts and container replacements. ([#109](https://github.com/stjohnjohnson/extralife-helper-bot/pull/109))
+- Use a separate state directory for each running bot instance. ([#109](https://github.com/stjohnjohnson/extralife-helper-bot/pull/109))
+- Without retained storage, container replacement establishes a fresh silent baseline. ([#109](https://github.com/stjohnjohnson/extralife-helper-bot/pull/109))
+
 ## [4.15.1](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v4.15.0...v4.15.1) (2026-10-20)
 
 ### Changes
