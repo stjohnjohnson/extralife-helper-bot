@@ -1,8 +1,8 @@
 const { handleCommand, handleGoalCommand, handlePromoteCommand, handleTestLightsCommand } = require('../src/commands.js');
-const { getUserInfo } = require('extra-life-api');
+const { getUserInfo } = require('../src/extralife');
 
 // Mock the external API
-jest.mock('extra-life-api');
+jest.mock('../src/extralife');
 
 describe('Commands Module', () => {
     const mockLogger = {

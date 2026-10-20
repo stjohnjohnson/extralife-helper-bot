@@ -1,6 +1,6 @@
 const { randomUUID } = require('node:crypto');
 const { createDonationSource } = require('./src/donations/source');
-const { getUserInfo } = require('extra-life-api');
+const { getUserInfo } = require('./src/extralife');
 const { Client: DiscordClient, GatewayIntentBits } = require('discord.js');
 const tmi = require('tmi.js');
 const getLogger = require('./logger.js');
