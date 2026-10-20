@@ -1,4 +1,4 @@
-const { getUserInfo } = require('extra-life-api');
+const { getUserInfo } = require('./extralife');
 const { eventMetadata } = require('./analysis/eventMetadata.js');
 const { isAdmin } = require('./config.js');
 const { handleStreamAvatarsCommand } = require('./streamAvatars/commands');

@@ -25,16 +25,14 @@ const mockHueController = {
     stop: jest.fn().mockResolvedValue()
 };
 
-jest.mock('extra-life-api', () => ({
-    getUserDonations: jest.fn().mockResolvedValue({ donations: [] }),
-    getUserInfo: jest.fn()
-}));
+const mockGetUserDonations = jest.fn().mockResolvedValue({ donations: [] });
+jest.mock('../src/extralife', () => ({ getUserInfo: jest.fn() }));
 
 // Keep the legacy notification fixtures while exercising the new shared poll boundary.
 jest.mock('../src/donations/source', () => ({ createDonationSource: jest.fn(() => {
     const controller = new AbortController();
     return { async poll({ participantId, window, onLatest }) {
-        const data = await Promise.race([require('extra-life-api').getUserDonations(participantId), new Promise((resolve, reject) => controller.signal.addEventListener('abort', () => reject(new Error('aborted')), { once: true }))]);
+        const data = await Promise.race([mockGetUserDonations(participantId), new Promise((resolve, reject) => controller.signal.addEventListener('abort', () => reject(new Error('aborted')), { once: true }))]);
         await onLatest(data.donations); return { scan: window ? { complete: true, participantId, fromMs: window.fromMs, throughMs: window.throughMs, donations: [] } : null, campaign: null };
     }, readCampaign: jest.fn().mockResolvedValue(null), stop() { controller.abort(); } };
 }) }));
@@ -85,7 +83,7 @@ jest.mock('../src/hueControl.js', () => ({
     HueController: jest.fn(() => mockHueController)
 }));
 
-const { getUserDonations, getUserInfo } = require('extra-life-api');
+const { getUserInfo } = require('../src/extralife');
 const { Client: DiscordClient } = require('discord.js');
 const tmi = require('tmi.js');
 const { parseConfiguration } = require('../src/config.js');
@@ -151,7 +149,7 @@ describe('application lifecycle', () => {
         await application.stop();
         jest.clearAllMocks();
         parseConfiguration.mockReturnValue(validConfig);
-        getUserDonations.mockResolvedValue({ donations: [] });
+        mockGetUserDonations.mockResolvedValue({ donations: [] });
         getValidAccessToken.mockResolvedValue('marker-token');
         getBroadcasterIdFromChannel.mockResolvedValue('streamer-id');
         makeTwitchApiRequest.mockResolvedValue({ data: [{ id: 'marker-id', position_seconds: 42, created_at: '2026-10-08T01:00:00Z' }] });
@@ -207,7 +205,7 @@ describe('application lifecycle', () => {
         expect(connect).toHaveBeenCalledTimes(1);
         expect(HueController).toHaveBeenCalledWith(validConfig, mockLogger);
         expect(startViewerCountMonitoring).toHaveBeenCalledWith(validConfig, mockLogger, { onObservation: expect.any(Function), onGameObservation: expect.any(Function) });
-        expect(getUserDonations).toHaveBeenCalledWith('participant-1');
+        expect(mockGetUserDonations).toHaveBeenCalledWith('participant-1');
         expect(() => application.start({ config: validConfig })).toThrow('Application already started');
     });
 
@@ -276,7 +274,7 @@ describe('application lifecycle', () => {
         const donationChannel = { id: 'donations', guild: { id: 'guild' }, send: jest.fn() };
         const summaryChannel = { id: 'summary', setName: jest.fn().mockResolvedValue() };
         mockDiscordClient.channels.cache.get.mockImplementation(id => ({ donations: donationChannel, summary: summaryChannel })[id]);
-        getUserDonations
+        mockGetUserDonations
             .mockResolvedValueOnce({ donations: [] })
             .mockResolvedValue({ donations: [{ donationID: 'd-1', amount: 25, displayName: '', message: 'Great job' }] });
 
@@ -301,7 +299,7 @@ describe('application lifecycle', () => {
 
     test('marks each qualifying new donation once, including a mixed batch, but skips startup history', async () => {
         const historic = { donationID: 'historic', amount: 1000, displayName: 'Earlier Donor' };
-        getUserDonations.mockResolvedValueOnce({ donations: [historic] }).mockResolvedValue({ donations: [
+        mockGetUserDonations.mockResolvedValueOnce({ donations: [historic] }).mockResolvedValue({ donations: [
             historic,
             { donationID: 'large', amount: 150, displayName: 'Full Name' },
             { donationID: 'small', amount: 99.99, displayName: 'Small Donor' },
@@ -323,7 +321,7 @@ describe('application lifecycle', () => {
     });
 
     test('hidden donation amount is omitted without suppressing notifications or Hue', async () => {
-        getUserDonations.mockResolvedValueOnce({ donations: [] }).mockResolvedValue({ donations: [{ donationID: 'hidden', amount: null, displayName: 'Donor' }] });
+        mockGetUserDonations.mockResolvedValueOnce({ donations: [] }).mockResolvedValue({ donations: [{ donationID: 'hidden', amount: null, displayName: 'Donor' }] });
         application.start({ config: validConfig }); await jest.advanceTimersByTimeAsync(30000);
         expect(mockTwitchClient.say).toHaveBeenCalledWith('channel-name', 'ExtraLife ExtraLife Donor just donated! ExtraLife ExtraLife');
         expect(mockHueController.celebrateDonation).toHaveBeenCalledTimes(1);
@@ -363,7 +361,7 @@ describe('application lifecycle', () => {
     });
 
     test('disabled markers leave existing donation announcements active', async () => {
-        getUserDonations.mockResolvedValueOnce({ donations: [] }).mockResolvedValue({ donations: [
+        mockGetUserDonations.mockResolvedValueOnce({ donations: [] }).mockResolvedValue({ donations: [
             { donationID: 'd', amount: 1000, displayName: 'Donor' }
         ] });
         application.start({ config: validConfig });
@@ -376,7 +374,7 @@ describe('application lifecycle', () => {
     test.each(['pending', 'failed'])('%s marker write does not delay chat, Hue, or summary refresh', async mode => {
         if (mode === 'pending') makeTwitchApiRequest.mockImplementation(() => new Promise(() => {}));
         else makeTwitchApiRequest.mockRejectedValue(Object.assign(new Error('rate limited'), { statusCode: 429 }));
-        getUserDonations.mockResolvedValueOnce({ donations: [] }).mockResolvedValue({ donations: [
+        mockGetUserDonations.mockResolvedValueOnce({ donations: [] }).mockResolvedValue({ donations: [
             { donationID: 'd', amount: 100, displayName: 'Donor' }
         ] });
         const donationChannel = { id: 'donations', guild: { id: 'guild' }, send: jest.fn() };
@@ -394,7 +392,7 @@ describe('application lifecycle', () => {
 
     test('shutdown cancels a pending marker and prevents further writes', async () => {
         makeTwitchApiRequest.mockImplementation(() => new Promise(() => {}));
-        getUserDonations.mockResolvedValueOnce({ donations: [] }).mockResolvedValue({ donations: [
+        mockGetUserDonations.mockResolvedValueOnce({ donations: [] }).mockResolvedValue({ donations: [
             { donationID: 'd', amount: 100, displayName: 'Donor' }
         ] });
         application.start({ config: { ...validConfig, streamMarkers: { donationThresholdCents: 10000 } } });
@@ -410,7 +408,7 @@ describe('application lifecycle', () => {
 
     test('failed startup donation fetch keeps the first successful load silent', async () => {
         const history = { donationID: 'history', amount: 500, displayName: 'Historic Donor' };
-        getUserDonations.mockRejectedValueOnce(new Error('Extra Life unavailable'))
+        mockGetUserDonations.mockRejectedValueOnce(new Error('Extra Life unavailable'))
             .mockResolvedValueOnce({ donations: [history] })
             .mockResolvedValue({ donations: [history, { donationID: 'new', amount: 100, displayName: 'New Donor' }] });
         application.start({ config: { ...validConfig, streamMarkers: { donationThresholdCents: 10000 } } });
@@ -424,12 +422,12 @@ describe('application lifecycle', () => {
 
     test('a slow silent startup load cannot race a live poll and mark history', async () => {
         const initial = deferred();
-        getUserDonations.mockReturnValueOnce(initial.promise).mockResolvedValue({ donations: [
+        mockGetUserDonations.mockReturnValueOnce(initial.promise).mockResolvedValue({ donations: [
             { donationID: 'history', amount: 500, displayName: 'Historic Donor' }
         ] });
         application.start({ config: { ...validConfig, streamMarkers: { donationThresholdCents: 10000 } } });
         await jest.advanceTimersByTimeAsync(30000);
-        expect(getUserDonations).toHaveBeenCalledTimes(1);
+        expect(mockGetUserDonations).toHaveBeenCalledTimes(1);
         initial.resolve({ donations: [{ donationID: 'history', amount: 500, displayName: 'Historic Donor' }] });
         await jest.advanceTimersByTimeAsync(30000);
         expect(makeTwitchApiRequest).not.toHaveBeenCalled();

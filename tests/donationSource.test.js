@@ -22,3 +22,26 @@ test('cancellation and stopped sources cannot request',async()=>{const {source,f
 
 test('identical duplicate IDs in a page count once',async()=>{const {source}=setup([response([raw(1),raw(1)],2)]);expect((await poll(source,{participantId:12,window:{fromMs:0,throughMs:t}})).scan.donations).toHaveLength(1);});
 test('request pacing and backoff wait are cancellable',async()=>{let now=t;const wait=jest.fn(async ms=>{now+=ms;});const fetch=jest.fn().mockResolvedValue(response([],0));const source=createDonationSource({fetch,clock:{nowMs:()=>now},requestGapMs:15000,wait});await poll(source,{participantId:12});await poll(source,{participantId:12});expect(wait).toHaveBeenCalledWith(15000,undefined,expect.objectContaining({signal:expect.any(AbortSignal)}));source.stop();await expect(poll(source,{participantId:12})).rejects.toThrow();});
+
+
+test('donation pages go directly to the current DonorDrive host', async () => {
+    const { source, fetch } = setup([
+        response(Array.from({ length: 100 }, (_, i) => raw(i)), 101),
+        response([raw(100)], 101)
+    ]);
+    const { scan } = await poll(source, { participantId: 12, window: { fromMs: 0, throughMs: t } });
+    expect(scan.donations).toHaveLength(101);
+    expect(fetch.mock.calls.map(([url]) => new URL(url).origin)).toEqual([
+        'https://dd.extra-life.org', 'https://dd.extra-life.org'
+    ]);
+    const first = new URL(fetch.mock.calls[0][0]);
+    expect(first.pathname).toBe('/api/participants/12/donations');
+    expect(first.searchParams.getAll('version')).toEqual(['1.4']);
+    expect(first.searchParams.getAll('offset')).toEqual(['0']);
+});
+
+test('campaign totals go directly to the current DonorDrive host', async () => {
+    const { source, fetch } = setup([response({ sumDonations: 12.34, fundraisingGoal: 500 })]);
+    expect(await source.readCampaign({ participantId: '12/34?other=1' })).toMatchObject({ totalCents: 1234 });
+    expect(fetch.mock.calls[0][0]).toBe('https://dd.extra-life.org/api/participants/12%2F34%3Fother%3D1?version=1.4');
+});

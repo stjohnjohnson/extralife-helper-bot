@@ -1,6 +1,6 @@
 const { setTimeout: delay } = require('node:timers/promises');
 const { parseCents } = require('./money');
-const API = 'https://www.extra-life.org/api/participants/';
+const { participantEndpoint } = require('../extralife');
 // v1.0 has different offset conventions. Pin the documented zero-based contract.
 const VERSION = '1.4';
 function parseDonationTime(value) {
@@ -46,7 +46,6 @@ function createDonationSource({ fetch: fetcher = globalThis.fetch, clock = { now
         tail = operation.catch(() => {});
         return operation;
     }
-    const endpoint = participantId => API + encodeURIComponent(String(participantId));
     return {
         async poll({ participantId, signal, onLatest = () => {} }) {
             await this.pollCampaignDonations({ participantId, signal, onLatest,
@@ -59,7 +58,7 @@ function createDonationSource({ fetch: fetcher = globalThis.fetch, clock = { now
             const throughMs = clock.nowMs(), seen = new Set(checkpoint.rawSeenDonationIds), census = new Set(), facts = new Map(), donations = [];
             let expectedCount = null, previousTime = Infinity, discovered = 0;
             for (let offset = 0; offset < 25600; offset += 100) {
-                const url = new URL(endpoint(participantId) + '/donations');
+                const url = new URL(participantEndpoint(participantId) + '/donations');
                 url.searchParams.set('version', VERSION); url.searchParams.set('limit', '100'); url.searchParams.set('offset', String(offset));
                 url.searchParams.set('orderBy', 'createdDateUTC DESC, donationID DESC');
                 url.searchParams.set('where', `createdDateUTC <= '${new Date(throughMs).toISOString()}'`);
@@ -105,7 +104,7 @@ function createDonationSource({ fetch: fetcher = globalThis.fetch, clock = { now
             throw new Error('Donation catch-up exceeds bounded page limit');
         },
         async readCampaign({ participantId, signal }) {
-            const res = await request(endpoint(participantId) + '?version=' + VERSION, signal);
+            const res = await request(participantEndpoint(participantId) + '?version=' + VERSION, signal);
             if (res.status !== 200) throw new Error('Missing campaign observation');
             const data = await res.json();
             const totalCents = parseCents(data.sumDonations), goalCents = parseCents(data.fundraisingGoal);
