@@ -1,5 +1,23 @@
 const { parseAdminUsers, isAdmin, parseConfiguration, parseCustomResponses } = require('../src/config.js');
 
+describe('donation checkpoint directory', () => {
+    const original = process.env.DONATION_STATE_DIR;
+    afterEach(() => {
+        if (original === undefined) delete process.env.DONATION_STATE_DIR;
+        else process.env.DONATION_STATE_DIR = original;
+    });
+    test('uses local persistent storage by default and allows a mounted directory', () => {
+        delete process.env.DONATION_STATE_DIR;
+        expect(parseConfiguration().donationStateDirectory).toBe('./data/donations');
+        process.env.DONATION_STATE_DIR = '/persistent/donations';
+        expect(parseConfiguration().donationStateDirectory).toBe('/persistent/donations');
+    });
+    test.each(['', '   '])('rejects an empty checkpoint directory: %j', value => {
+        process.env.DONATION_STATE_DIR = value;
+        expect(parseConfiguration().errors).toContain('DONATION_STATE_DIR must be a nonempty directory');
+    });
+});
+
 describe('Config Module', () => {
     describe('parseAdminUsers', () => {
         test('should parse comma-separated admin users', () => {

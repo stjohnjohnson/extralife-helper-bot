@@ -174,6 +174,7 @@ For Docker, publish the listener and mount persistent state:
 
 ```sh
 docker run --rm -it --env-file .env -p 3000:3000 \
+  -v donation-state:/usr/src/app/data/donations \
   -v stream-avatars-state:/usr/src/app/data/stream-avatars \
   ghcr.io/stjohnjohnson/extralife-helper-bot:latest
 ```
@@ -184,6 +185,8 @@ Do not run `docker compose down -v` when you need to preserve progress.
 
 Corrupt state creates a durable recovery gate.
 Normal donation notifications continue if campaign accounting is unavailable.
+Donation announcements use a separate [replay checkpoint](configuration.md#donation-replay).
+Restarted announcements do not replay historical Stream Avatars effects.
 Use [Twitch admin commands](commands.md#command-reference) for explicit recovery or reset:
 
 | Command group | Requirement and effect |

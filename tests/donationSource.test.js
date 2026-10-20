@@ -45,3 +45,88 @@ test('campaign totals go directly to the current DonorDrive host', async () => {
     expect(await source.readCampaign({ participantId: '12/34?other=1' })).toMatchObject({ totalCents: 1234 });
     expect(fetch.mock.calls[0][0]).toBe('https://dd.extra-life.org/api/participants/12%2F34%3Fother%3D1?version=1.4');
 });
+
+test('announcement catch-up scans beyond a campaign baseline and excludes the saved donation', async () => {
+    const { source, fetch } = setup([
+        response(Array.from({ length: 100 }, (_, i) => raw(i)), 201),
+        response(Array.from({ length: 100 }, (_, i) => raw(i + 100)), 201)
+    ]);
+    const batches = []; const campaignPages = [];
+    const result = await source.pollCampaignDonations({
+        participantId: 12,
+        checkpoint: { participantId: '12', rawSeenDonationIds: [], baselineAtMs: null, baselineNeeded: true, recordCount: null },
+        announcementCheckpoint: { lastDonationId: 'id150' },
+        onAnnouncements: batch => batches.push(batch),
+        onDonations: page => campaignPages.push(page)
+    });
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(batches).toHaveLength(1);
+    expect(batches[0].baseline).toBe(false);
+    expect(batches[0].donations).toHaveLength(150);
+    expect(batches[0].donations[149].donationID).toBe('id149');
+    expect(result.donations).toHaveLength(100);
+    expect(campaignPages).toHaveLength(1);
+});
+
+test('a missing announcement file establishes a one-page baseline without scanning history', async () => {
+    const { source, fetch } = setup([response(Array.from({ length: 100 }, (_, i) => raw(i)), 10000)]);
+    const batches = [];
+    await source.poll({ participantId: 12, announcementCheckpoint: null, onAnnouncements: batch => batches.push(batch) });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(batches[0]).toMatchObject({ baseline: true, donations: [expect.objectContaining({ donationID: 'id0' }), ...Array.from({ length: 99 }, () => expect.any(Object))] });
+});
+
+test('an initialized empty account replays all donations and deduplicates page overlaps', async () => {
+    const first = Array.from({ length: 100 }, (_, i) => raw(i));
+    const { source } = setup([response(first), response([raw(99), raw(100)])]);
+    const batches = [];
+    await source.poll({ participantId: 12, announcementCheckpoint: { lastDonationId: null }, onAnnouncements: batch => batches.push(batch) });
+    expect(batches[0].baseline).toBe(false);
+    expect(batches[0].donations).toHaveLength(101);
+    expect(batches[0].donations[100].donationID).toBe('id100');
+});
+
+test('a missing saved donation reports a gap without delivering newer donations', async () => {
+    const { source } = setup([response([raw(1)], 1)]);
+    const deliver = jest.fn();
+    await expect(source.poll({ participantId: 12, announcementCheckpoint: { lastDonationId: 'gone' }, onAnnouncements: deliver })).rejects.toThrow('checkpoint');
+    expect(deliver).not.toHaveBeenCalled();
+});
+
+test.each([
+    [response(Array.from({ length: 100 }, (_, i) => raw(i)), 101), response([], 101)],
+    [response([raw(1, { donationID: '' })], 1)],
+    [response([raw(1, { createdDateUTC: 'bad' })], 1)],
+    [response([raw(1, { participantID: 99 })], 1)],
+    [response([raw(2), raw(1)], 2)]
+])('an invalid catch-up page cannot deliver or complete announcements', async (...pages) => {
+    const { source } = setup(pages); const deliver = jest.fn();
+    await expect(source.poll({ participantId: 12, announcementCheckpoint: { lastDonationId: null }, onAnnouncements: deliver })).rejects.toThrow();
+    expect(deliver).not.toHaveBeenCalled();
+});
+
+test('announcements await their durable callback and propagate delivery failures', async () => {
+    const { source } = setup([response([raw(1)], 1)]);
+    await expect(source.poll({ participantId: 12, announcementCheckpoint: { lastDonationId: null }, onAnnouncements: async () => { throw new Error('delivery failed'); } })).rejects.toThrow('delivery failed');
+});
+
+test.each(['delivery', 'missing checkpoint'])('campaign completion survives an independent announcement failure: %s', async failure => {
+    const { source } = setup([response([raw(1)], 1)]);
+    const complete = [];
+    await expect(source.pollCampaignDonations({
+        participantId: 12,
+        checkpoint: { participantId: '12', rawSeenDonationIds: [], baselineAtMs: null, baselineNeeded: true, recordCount: null },
+        announcementCheckpoint: { lastDonationId: failure === 'delivery' ? null : 'gone' },
+        onAnnouncements: async () => { throw new Error('delivery failed'); },
+        onCampaignComplete: scan => complete.push(scan)
+    })).rejects.toThrow();
+    expect(complete).toHaveLength(1);
+    expect(complete[0]).toMatchObject({ complete: true, recordCount: 1, rawSeenIds: ['id1'] });
+});
+
+test('invalid donation ID ordering within one timestamp cannot hide a newer donation behind the checkpoint', async () => {
+    const { source } = setup([response(['C', 'A', 'B'].map(donationID => raw(1, { donationID })), 3)]);
+    const deliver = jest.fn();
+    await expect(source.poll({ participantId: 12, announcementCheckpoint: { lastDonationId: 'A' }, onAnnouncements: deliver })).rejects.toThrow('ordering');
+    expect(deliver).not.toHaveBeenCalled();
+});

@@ -26,14 +26,33 @@ const mockHueController = {
 };
 
 const mockGetUserDonations = jest.fn().mockResolvedValue({ donations: [] });
-jest.mock('../src/extralife', () => ({ getUserInfo: jest.fn() }));
+const mockCheckpointFiles = new Map();
+const mockCheckpointFs = {
+    readFile: jest.fn(async file => {
+        if (!mockCheckpointFiles.has(file)) throw Object.assign(new Error('missing'), { code: 'ENOENT' });
+        return mockCheckpointFiles.get(file);
+    }),
+    mkdir: jest.fn(),
+    open: jest.fn(async file => ({
+        writeFile: async contents => { mockCheckpointFiles.set(file, contents); },
+        sync: async () => {}, close: async () => {}
+    })),
+    rename: jest.fn(async (from, to) => { mockCheckpointFiles.set(to, mockCheckpointFiles.get(from)); mockCheckpointFiles.delete(from); }),
+    rm: jest.fn(async file => { mockCheckpointFiles.delete(file); })
+};
+jest.mock('../src/donations/replay', () => ({
+    createDonationReplay: options => jest.requireActual('../src/donations/replay').createDonationReplay({ ...options, fs: mockCheckpointFs })
+}));
+jest.mock('../src/extralife', () => ({ ...jest.requireActual('../src/extralife'), getUserInfo: jest.fn() }));
 
 // Keep the legacy notification fixtures while exercising the new shared poll boundary.
 jest.mock('../src/donations/source', () => ({ createDonationSource: jest.fn(() => {
     const controller = new AbortController();
-    return { async poll({ participantId, window, onLatest }) {
+    return { async poll({ participantId, window, announcementCheckpoint, onAnnouncements }) {
         const data = await Promise.race([mockGetUserDonations(participantId), new Promise((resolve, reject) => controller.signal.addEventListener('abort', () => reject(new Error('aborted')), { once: true }))]);
-        await onLatest(data.donations); return { scan: window ? { complete: true, participantId, fromMs: window.fromMs, throughMs: window.throughMs, donations: [] } : null, campaign: null };
+        const index = announcementCheckpoint?.lastDonationId ? data.donations.findIndex(d => d.donationID === announcementCheckpoint.lastDonationId) : -1;
+        await onAnnouncements({ donations: index < 0 ? data.donations : data.donations.slice(0, index), baseline: announcementCheckpoint === null });
+        return { scan: window ? { complete: true, participantId, fromMs: window.fromMs, throughMs: window.throughMs, donations: [] } : null, campaign: null };
     }, readCampaign: jest.fn().mockResolvedValue(null), stop() { controller.abort(); } };
 }) }));
 
@@ -121,13 +140,12 @@ const validConfig = {
 };
 
 function registeredHandler(emitter, eventName) {
-    const registration = emitter.mock.calls.find(([event]) => event === eventName);
+    const registration = emitter.mock.calls.findLast(([event]) => event === eventName);
     return registration && registration[1];
 }
 
 async function flushPromises() {
-    await Promise.resolve();
-    await Promise.resolve();
+    for (let i = 0; i < 40; i++) await Promise.resolve();
 }
 
 function deferred() {
@@ -148,17 +166,27 @@ describe('application lifecycle', () => {
     beforeEach(async () => {
         await application.stop();
         jest.clearAllMocks();
+        mockCheckpointFiles.clear();
+        mockCheckpointFs.rename.mockImplementation(async (from, to) => { mockCheckpointFiles.set(to, mockCheckpointFiles.get(from)); mockCheckpointFiles.delete(from); });
+        mockCheckpointFs.readFile.mockImplementation(async file => {
+            if (!mockCheckpointFiles.has(file)) throw Object.assign(new Error('missing'), { code: 'ENOENT' });
+            return mockCheckpointFiles.get(file);
+        });
         parseConfiguration.mockReturnValue(validConfig);
         mockGetUserDonations.mockResolvedValue({ donations: [] });
         getValidAccessToken.mockResolvedValue('marker-token');
         getBroadcasterIdFromChannel.mockResolvedValue('streamer-id');
         makeTwitchApiRequest.mockResolvedValue({ data: [{ id: 'marker-id', position_seconds: 42, created_at: '2026-10-08T01:00:00Z' }] });
         getUserInfo.mockResolvedValue({ sumDonations: 500, fundraisingGoal: 1000 });
-        mockDiscordClient.login.mockResolvedValue();
+        const donationChannel = { id: 'donations', guild: { id: 'guild' }, send: jest.fn().mockResolvedValue() };
+        const summaryChannel = { id: 'summary', setName: jest.fn().mockResolvedValue() };
+        mockDiscordClient.channels.cache.get.mockImplementation(id => ({ donations: donationChannel, summary: summaryChannel })[id]);
+        mockDiscordClient.login.mockImplementation(async () => { registeredHandler(mockDiscordClient.once, 'ready')(); });
         mockDiscordClient.destroy.mockResolvedValue();
         mockTwitchClient.connect = jest.fn().mockResolvedValue();
         mockTwitchClient.connect.mockResolvedValue();
         mockTwitchClient.disconnect.mockResolvedValue();
+        mockTwitchClient.say.mockReset().mockResolvedValue();
         mockHueController.initialize.mockResolvedValue(true);
         mockHueController.stop.mockResolvedValue();
         mockHueController.celebrateDonation.mockResolvedValue();
@@ -297,13 +325,91 @@ describe('application lifecycle', () => {
         expect(donationChannel.send).toHaveBeenCalledTimes(1);
     });
 
+    test('restart replays from the failed donation after saving each successful announcement', async () => {
+        const file = require('node:path').resolve('data/donations/participant-1.json');
+        mockCheckpointFiles.set(file, JSON.stringify({ version: 1, participantId: 'participant-1', lastDonationId: 'A' }));
+        const donations = ['D', 'C', 'B', 'A'].map(donationID => ({ donationID, amount: 25, displayName: donationID }));
+        mockGetUserDonations.mockResolvedValue({ donations });
+        mockTwitchClient.say.mockImplementation(async (channel, text) => {
+            if (text.includes(' C just')) throw new Error('Twitch disconnected');
+        });
+        await application.start({ config: validConfig }); await jest.advanceTimersByTimeAsync(0);
+        expect(mockTwitchClient.say.mock.calls.map(([, text]) => text.match(/ ([BCD]) just/)[1])).toEqual(['B', 'C']);
+        expect(JSON.parse(mockCheckpointFiles.get(file)).lastDonationId).toBe('B');
+        await application.stop(); mockTwitchClient.say.mockReset().mockResolvedValue();
+        await application.start({ config: validConfig }); await jest.advanceTimersByTimeAsync(0);
+        expect(mockTwitchClient.say.mock.calls.map(([, text]) => text.match(/ ([BCD]) just/)[1])).toEqual(['C', 'D']);
+        expect(JSON.parse(mockCheckpointFiles.get(file)).lastDonationId).toBe('D');
+    });
+
+    test('a failed Discord announcement blocks Twitch delivery and retries at the next poll', async () => {
+        const channel = mockDiscordClient.channels.cache.get('donations');
+        mockGetUserDonations.mockResolvedValueOnce({ donations: [] }).mockResolvedValue({ donations: [{ donationID: 'A', amount: 25 }] });
+        channel.send.mockRejectedValueOnce(new Error('Discord disconnected')).mockResolvedValue();
+        await application.start({ config: validConfig }); await jest.advanceTimersByTimeAsync(30000);
+        expect(mockTwitchClient.say).not.toHaveBeenCalled();
+        await jest.advanceTimersByTimeAsync(30000);
+        expect(channel.send).toHaveBeenCalledTimes(2);
+        expect(mockTwitchClient.say).toHaveBeenCalledTimes(1);
+    });
+
+    test('a checkpoint write failure retries only the unsaved donation and blocks later donations', async () => {
+        mockGetUserDonations.mockResolvedValueOnce({ donations: [] }).mockResolvedValue({ donations: ['C', 'B'].map(donationID => ({ donationID, displayName: donationID })) });
+        await application.start({ config: validConfig }); await jest.advanceTimersByTimeAsync(0);
+        mockCheckpointFs.rename.mockRejectedValueOnce(new Error('disk full'));
+        await jest.advanceTimersByTimeAsync(30000);
+        expect(mockTwitchClient.say.mock.calls.map(([, text]) => text.match(/ ([BC]) just/)[1])).toEqual(['B']);
+        await jest.advanceTimersByTimeAsync(30000);
+        expect(mockTwitchClient.say.mock.calls.map(([, text]) => text.match(/ ([BC]) just/)[1])).toEqual(['B', 'B', 'C']);
+    });
+
+    test('replay waits for Discord readiness and Twitch connection', async () => {
+        const file = require('node:path').resolve('data/donations/participant-1.json');
+        mockCheckpointFiles.set(file, JSON.stringify({ version: 1, participantId: 'participant-1', lastDonationId: null }));
+        const twitch = deferred();
+        mockTwitchClient.connect.mockReturnValue(twitch.promise);
+        mockDiscordClient.login.mockResolvedValue();
+        mockGetUserDonations.mockResolvedValue({ donations: [{ donationID: 'A', amount: 25 }] });
+        const startup = application.start({ config: validConfig });
+        await jest.advanceTimersByTimeAsync(30000);
+        expect(mockTwitchClient.say).not.toHaveBeenCalled();
+        registeredHandler(mockDiscordClient.once, 'ready')(); await startup;
+        await jest.advanceTimersByTimeAsync(0);
+        expect(mockTwitchClient.say).not.toHaveBeenCalled();
+        twitch.resolve(); await jest.advanceTimersByTimeAsync(30000);
+        expect(mockTwitchClient.say).toHaveBeenCalledTimes(1);
+    });
+
+    test('malformed checkpoint state prevents polling and remains available for recovery', async () => {
+        const file = require('node:path').resolve('data/donations/participant-1.json');
+        mockCheckpointFiles.set(file, 'broken');
+        await application.start({ config: validConfig }); await jest.advanceTimersByTimeAsync(30000);
+        expect(mockGetUserDonations).not.toHaveBeenCalled();
+        expect(mockTwitchClient.say).not.toHaveBeenCalled();
+        expect(mockCheckpointFiles.get(file)).toBe('broken');
+        expect(mockLogger.error).toHaveBeenCalledWith('Error getting Donations', expect.objectContaining({ error: expect.any(String) }));
+    });
+
+    test('shutdown does not wait for a wedged chat send or save its donation', async () => {
+        mockGetUserDonations.mockResolvedValueOnce({ donations: [] }).mockResolvedValue({ donations: [{ donationID: 'A' }] });
+        await application.start({ config: validConfig }); await jest.advanceTimersByTimeAsync(0);
+        const delivery = deferred();
+        mockTwitchClient.say.mockReturnValueOnce(delivery.promise);
+        await jest.advanceTimersByTimeAsync(30000);
+        await application.stop();
+        delivery.resolve(); await jest.advanceTimersByTimeAsync(0);
+        const file = require('node:path').resolve('data/donations/participant-1.json');
+        expect(JSON.parse(mockCheckpointFiles.get(file)).lastDonationId).toBeNull();
+        expect(jest.getTimerCount()).toBe(0);
+    });
+
     test('marks each qualifying new donation once, including a mixed batch, but skips startup history', async () => {
         const historic = { donationID: 'historic', amount: 1000, displayName: 'Earlier Donor' };
         mockGetUserDonations.mockResolvedValueOnce({ donations: [historic] }).mockResolvedValue({ donations: [
-            historic,
             { donationID: 'large', amount: 150, displayName: 'Full Name' },
             { donationID: 'small', amount: 99.99, displayName: 'Small Donor' },
-            { donationID: 'boundary', amount: '100.00', displayName: '' }
+            { donationID: 'boundary', amount: '100.00', displayName: '' },
+            historic
         ] });
         application.start({ config: { ...validConfig, streamMarkers: { donationThresholdCents: 10000 } } });
         await jest.advanceTimersByTimeAsync(0);
@@ -331,10 +437,10 @@ describe('application lifecycle', () => {
         const later = deferred(); const checkpoint = { epochId: 'epoch', participantId: '12', baselineNeeded: true };
         const service = { getPollCheckpoint: () => checkpoint, acceptObservation: jest.fn().mockRejectedValue(new Error('private store details')), stop: jest.fn().mockResolvedValue() };
         startStreamAvatars.mockResolvedValue(service);
-        const source = { poll: jest.fn(), pollCampaignDonations: jest.fn().mockImplementationOnce(async ({ onLatest, onDonations }) => {
-            onLatest([]); await onDonations({ donations: [], complete: false, throughMs: Date.now() }); return { donations: [], complete: true, throughMs: Date.now(), rawSeenIds: [], recordCount: 0 };
-        }).mockImplementation(async ({ onLatest, onDonations }) => {
-            onLatest([{ donationID: 'live', amount: 25 }]); await onDonations({ donations: [{id:'live',participantId:'12',createdAtMs:Date.now(),amountCents:2500}], complete: false, throughMs: Date.now() });
+        const source = { poll: jest.fn(), pollCampaignDonations: jest.fn().mockImplementationOnce(async ({ onAnnouncements, onDonations }) => {
+            await onAnnouncements({ donations: [], baseline: true }); await onDonations({ donations: [], complete: false, throughMs: Date.now() }); return { donations: [], complete: true, throughMs: Date.now(), rawSeenIds: [], recordCount: 0 };
+        }).mockImplementation(async ({ onAnnouncements, onDonations }) => {
+            await onAnnouncements({ donations: [{ donationID: 'live', amount: 25 }], baseline: false }); await onDonations({ donations: [{id:'live',participantId:'12',createdAtMs:Date.now(),amountCents:2500}], complete: false, throughMs: Date.now() });
             return later.promise;
         }), readCampaign: jest.fn().mockResolvedValue(null), stop: jest.fn() };
         application.start({ config: { ...validConfig, streamAvatars: { enabled: true, config: {} } }, donationSource: source });
@@ -345,6 +451,24 @@ describe('application lifecycle', () => {
         later.resolve({ donations: [], complete: true, throughMs: Date.now(), rawSeenIds: ['live'], recordCount: 1 }); await jest.advanceTimersByTimeAsync(0);
         expect(mockLogger.warn).toHaveBeenCalledWith('Stream Avatars donation accounting unavailable');
         expect(mockTwitchClient.say).toHaveBeenCalledTimes(1);
+    });
+
+    test.each(['chat', 'missing checkpoint'])('announcement %s failures preserve independent campaign completion and totals', async failure => {
+        const service = {
+            getPollCheckpoint: () => ({ epochId: 'epoch', participantId: 'participant-1', baselineNeeded: true, baselineAtMs: null, rawSeenDonationIds: [], recordCount: null }),
+            acceptObservation: jest.fn().mockResolvedValue(), stop: jest.fn().mockResolvedValue()
+        };
+        startStreamAvatars.mockResolvedValue(service);
+        const file = require('node:path').resolve('data/donations/participant-1.json');
+        mockCheckpointFiles.set(file, JSON.stringify({ version: 1, participantId: 'participant-1', lastDonationId: failure === 'chat' ? null : 'gone' }));
+        if (failure === 'chat') mockTwitchClient.say.mockRejectedValue(new Error('chat unavailable'));
+        const fetch = jest.fn().mockImplementation(async url => ({ status: 200, headers: new Headers({ 'num-records': '1' }), json: async () => url.includes('/donations') ? [{ donationID: 'new', participantID: 'participant-1', amount: 25, createdDateUTC: new Date(Date.now() - 1000).toISOString() }] : { sumDonations: 25, fundraisingGoal: 500 } }));
+        const source = jest.requireActual('../src/donations/source').createDonationSource({ fetch, requestGapMs: 0 });
+        await application.start({ config: { ...validConfig, streamAvatars: { enabled: true, config: {} } }, donationSource: source });
+        await jest.advanceTimersByTimeAsync(0);
+        expect(service.acceptObservation).toHaveBeenCalledWith(expect.objectContaining({ complete: true, baseline: true }));
+        expect(service.acceptObservation).toHaveBeenCalledWith(expect.objectContaining({ campaign: expect.objectContaining({ totalCents: 2500 }) }));
+        expect(JSON.parse(mockCheckpointFiles.get(file)).lastDonationId).toBe(failure === 'chat' ? null : 'gone');
     });
 
     test('shutdown cancels source work and fences late campaign intake and requests', async () => {
@@ -410,7 +534,7 @@ describe('application lifecycle', () => {
         const history = { donationID: 'history', amount: 500, displayName: 'Historic Donor' };
         mockGetUserDonations.mockRejectedValueOnce(new Error('Extra Life unavailable'))
             .mockResolvedValueOnce({ donations: [history] })
-            .mockResolvedValue({ donations: [history, { donationID: 'new', amount: 100, displayName: 'New Donor' }] });
+            .mockResolvedValue({ donations: [{ donationID: 'new', amount: 100, displayName: 'New Donor' }, history] });
         application.start({ config: { ...validConfig, streamMarkers: { donationThresholdCents: 10000 } } });
         await jest.advanceTimersByTimeAsync(30000);
         expect(makeTwitchApiRequest).not.toHaveBeenCalled();
@@ -624,6 +748,7 @@ describe('Twitch avatar command forwarding', () => {
 describe('shared web listener application lifecycle', () => {
     beforeEach(() => {
         jest.clearAllMocks();
+        mockDiscordClient.login.mockReset().mockResolvedValue();
         startWebServer.mockResolvedValue(mockWebServer);
         mockTwitchClient.connect = jest.fn().mockResolvedValue();
         mockWebServer.stop.mockResolvedValue();

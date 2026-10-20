@@ -53,6 +53,42 @@ Discord server roles and Twitch moderator or broadcaster badges do not grant bot
 Hue donation celebrations remain active when chat light control is disabled.
 See [donation markers](stream-markers.md) for live-stream and recording requirements.
 
+## Donation replay
+
+| Setting | Default | Valid values and effect |
+| --- | --- | --- |
+| `DONATION_STATE_DIR` | `./data/donations` | Nonempty writable directory; relative paths use the process working directory |
+
+The bot saves a separate `<participant ID>.json` checkpoint for each participant.
+Use a separate directory for each running bot instance.
+Keep this directory across restarts and container replacements.
+
+Without a checkpoint file, the bot silently saves the latest donation ID.
+An empty account gets an initialized checkpoint; its first future donation will be announced.
+With an existing checkpoint, the bot fetches newer donations and announces them oldest first.
+Large backlogs can require multiple API pages, with at least 15 seconds between requests.
+Each scan supports up to 25,600 records; a larger gap requires operator intervention.
+
+The bot waits for Discord readiness and a Twitch connection before processing donations.
+After Discord and Twitch accept each announcement, the bot atomically saves its donation ID.
+When an announcement or save fails, the next poll resumes from the last saved donation.
+Later donations wait for the failed donation.
+An interrupted delivery can repeat an announcement, including one already sent to only one service.
+Chat acceptance does not confirm that every viewer received the message.
+Hue celebrations and optional stream markers remain best effort.
+Stream Avatars retains its independent campaign state and silent restart baselines.
+
+Unreadable or malformed checkpoints pause donation processing and produce an error log.
+A saved ID absent from the API also pauses processing.
+These errors never silently establish a new baseline.
+After correcting the cause, the next poll retries automatically.
+
+To recover damaged state, stop the bot and restore the participant's checkpoint from a trusted backup.
+Deleting the checkpoint deliberately skips existing donations at the next startup.
+Do not delete the checkpoint when missed donations must be replayed.
+Checkpoint files contain participant and donation IDs; they do not store donor names or messages.
+Keep backups private and outside Git.
+
 ## Analytics sampling
 
 | Setting | Default | Valid values |
@@ -122,6 +158,7 @@ Normal local execution needs no `NODE_ENV` setting; the Docker image sets it to 
 ## Configuration errors
 
 Missing required settings, malformed custom commands, invalid marker amounts, and invalid sampling values prevent startup.
+An empty `DONATION_STATE_DIR` also prevents startup.
 Invalid Hue chat or overlay flags also prevent startup.
 Invalid listener settings prevent startup when the voice overlay is enabled.
 Invalid Stream Avatars settings disable that integration and produce a warning; core services continue.

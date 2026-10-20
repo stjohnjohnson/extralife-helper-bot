@@ -32,11 +32,13 @@ The OBS overlay, Stream Avatars, donation markers, and chat light control are op
 
    ```sh
    docker run --rm -it --env-file .env \
+     -v donation-state:/usr/src/app/data/donations \
      ghcr.io/stjohnjohnson/extralife-helper-bot:latest
    ```
 
 For web integrations, publish the listener port as described in the relevant guide.
 Stream Avatars also needs persistent state storage.
+The donation volume preserves [replay checkpoints](docs/configuration.md#donation-replay) across container replacements.
 
 For local execution, use Node.js **24.x, version 24.15.0 or newer**:
 

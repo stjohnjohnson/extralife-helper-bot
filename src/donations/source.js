@@ -47,16 +47,18 @@ function createDonationSource({ fetch: fetcher = globalThis.fetch, clock = { now
         return operation;
     }
     return {
-        async poll({ participantId, signal, onLatest = () => {} }) {
-            await this.pollCampaignDonations({ participantId, signal, onLatest,
+        async poll({ participantId, signal, onLatest = () => {}, announcementCheckpoint, onAnnouncements }) {
+            await this.pollCampaignDonations({ participantId, signal, onLatest, announcementCheckpoint, onAnnouncements,
                 checkpoint: { participantId: String(participantId), rawSeenDonationIds: [], baselineAtMs: null, baselineNeeded: true, recordCount: null } });
             return { scan: null };
         },
-        async pollCampaignDonations({ participantId, checkpoint, signal, onLatest = () => {}, onDonations = () => {} }) {
+        async pollCampaignDonations({ participantId, checkpoint, signal, onLatest = () => {}, onDonations = () => {}, announcementCheckpoint, onAnnouncements = () => {}, onCampaignComplete = () => {} }) {
             if (!checkpoint || String(checkpoint.participantId) !== String(participantId) || !Array.isArray(checkpoint.rawSeenDonationIds) ||
                 !(checkpoint.baselineAtMs === null || (Number.isSafeInteger(checkpoint.baselineAtMs) && checkpoint.baselineAtMs >= 0))) throw new Error('Invalid donation checkpoint');
             const throughMs = clock.nowMs(), seen = new Set(checkpoint.rawSeenDonationIds), census = new Set(), facts = new Map(), donations = [];
-            let expectedCount = null, previousTime = Infinity, discovered = 0;
+            const replayEnabled = announcementCheckpoint !== undefined, announcementRows = [];
+            let announcementDone = !replayEnabled, announcementFound = false, campaignResult = null;
+            let expectedCount = null, previousTime = Infinity, previousId = null, discovered = 0;
             for (let offset = 0; offset < 25600; offset += 100) {
                 const url = new URL(participantEndpoint(participantId) + '/donations');
                 url.searchParams.set('version', VERSION); url.searchParams.set('limit', '100'); url.searchParams.set('offset', String(offset));
@@ -74,13 +76,18 @@ function createDonationSource({ fetch: fetcher = globalThis.fetch, clock = { now
                 for (const raw of records) {
                     const rawId = raw?.donationID;
                     const validId = typeof rawId === 'string' && rawId.trim() && rawId.length <= 128;
+                    if (replayEnabled && (!validId || (raw.participantID != null && String(raw.participantID) !== String(participantId)))) throw new Error('Invalid announcement donation identity');
                     const unseen = validId && !census.has(rawId);
                     if (unseen) { census.add(rawId); uniqueRows++; }
                     let timestamp;
                     try { timestamp = parseDonationTime(raw?.createdDateUTC); }
-                    catch { logger.warn('Donation record excluded', { code: 'invalid-timestamp' }); continue; }
-                    if (timestamp > previousTime || timestamp > throughMs) throw new Error('Unstable donation ordering');
-                    previousTime = timestamp;
+                    catch (error) { if (replayEnabled) throw error; logger.warn('Donation record excluded', { code: 'invalid-timestamp' }); continue; }
+                    if (timestamp > previousTime || timestamp > throughMs || (replayEnabled && timestamp === previousTime && rawId > previousId)) throw new Error('Unstable donation ordering');
+                    previousTime = timestamp; previousId = rawId;
+                    if (!announcementDone && !announcementFound) {
+                        if (rawId === announcementCheckpoint?.lastDonationId) announcementFound = true;
+                        else if (unseen) announcementRows.push(raw);
+                    }
                     const inBaseline = checkpoint.baselineAtMs === null || timestamp >= checkpoint.baselineAtMs;
                     if (!inBaseline) passedBaseline = true;
                     if (unseen && !seen.has(rawId) && inBaseline) discovered++;
@@ -90,16 +97,27 @@ function createDonationSource({ fetch: fetcher = globalThis.fetch, clock = { now
                     const previous = facts.get(item.id);
                     if (previous && (previous.amountCents !== item.amountCents || previous.createdAtMs !== item.createdAtMs)) logger.warn('Donation record excluded', { code: 'conflicting-donation' });
                     else if (!previous) facts.set(item.id, item);
-                    if (unseen && (checkpoint.baselineNeeded || inBaseline)) page.push(item);
+                    if (!campaignResult && unseen && (checkpoint.baselineNeeded || inBaseline)) page.push(item);
                 }
                 if (offset > 0 && records.length === 100 && uniqueRows === 0) throw new Error('Repeated donation page');
-                donations.push(...page);
-                await onDonations({ donations: page, throughMs, complete: false });
-                const explained = count !== null && checkpoint.recordCount !== null && discovered >= Math.max(0, count - checkpoint.recordCount);
-                if (checkpoint.baselineNeeded || passedBaseline || records.length < 100 || (count !== null && offset + records.length === count) || explained) {
-                    if (records.length < 100 && count !== null && offset + records.length < count && !passedBaseline && !checkpoint.baselineNeeded && !explained) throw new Error('Incomplete donation page');
-                    return { complete: true, throughMs, recordCount: count, rawSeenIds: [...census], donations };
+                if (!campaignResult) {
+                    donations.push(...page);
+                    await onDonations({ donations: page, throughMs, complete: false });
                 }
+                const explained = count !== null && checkpoint.recordCount !== null && discovered >= Math.max(0, count - checkpoint.recordCount);
+                const atEnd = records.length < 100 || (count !== null && offset + records.length === count);
+                if (replayEnabled && records.length < 100 && count !== null && offset + records.length < count) throw new Error('Incomplete donation page');
+                if (!campaignResult && (checkpoint.baselineNeeded || passedBaseline || atEnd || explained)) {
+                    if (records.length < 100 && count !== null && offset + records.length < count && !passedBaseline && !checkpoint.baselineNeeded && !explained) throw new Error('Incomplete donation page');
+                    campaignResult = { complete: true, throughMs, recordCount: count, rawSeenIds: [...census], donations };
+                    await onCampaignComplete(campaignResult);
+                }
+                if (!announcementDone && (announcementCheckpoint === null || announcementFound || (announcementCheckpoint.lastDonationId === null && atEnd))) {
+                    await onAnnouncements({ donations: announcementRows, baseline: announcementCheckpoint === null });
+                    announcementDone = true;
+                }
+                if (!announcementDone && atEnd) throw new Error('Saved donation checkpoint was not found; restore the checkpoint before retrying');
+                if (campaignResult && announcementDone) return campaignResult;
             }
             throw new Error('Donation catch-up exceeds bounded page limit');
         },

@@ -102,14 +102,19 @@ Optional chat colors use the same group; see [Hue commands](commands.md#hue-colo
 
    ```sh
    docker run --rm -it --env-file .env \
+     -v donation-state:/usr/src/app/data/donations \
      ghcr.io/stjohnjohnson/extralife-helper-bot:latest
    ```
 
 For web integrations, publish the listener port described in the [voice overlay](voice-overlay.md) or [Stream Avatars](stream-avatars-setup.md) guide.
 Stream Avatars also requires a persistent state volume.
+The donation volume preserves missed-donation replay across container replacements.
+Bind mounts must be writable by the container's `node` user, UID/GID 1000.
+If `DONATION_STATE_DIR` changes, mount persistent storage at that path instead.
 
 The [Compose file](../docker-compose.yml) builds the local checkout and restarts the bot unless stopped.
-It includes a Stream Avatars state volume.
+It includes donation and Stream Avatars state volumes.
+Keep these volumes when replacing containers; `docker compose down -v` deletes them.
 If a web integration is enabled, uncomment its port mapping before starting:
 
 ```sh
@@ -130,6 +135,7 @@ The `.nvmrc` file selects the 24.x series.
 7. Run `npm start`.
 
 The bot logs to the console.
+Keep `DONATION_STATE_DIR` across restarts; see [donation replay](configuration.md#donation-replay) for delivery and recovery behavior.
 See [log capture](log-analysis.md#save-a-log) before an event if you need a report afterwards.
 
 ## Game-category behavior

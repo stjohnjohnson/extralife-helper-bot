@@ -49,6 +49,8 @@ function parseConfiguration() {
     configErrors.push(...customResponseErrors);
 
     const rawMarkerThreshold = process.env.STREAM_MARKER_DONATION_THRESHOLD?.trim();
+    const donationStateDirectory = process.env.DONATION_STATE_DIR ?? './data/donations';
+    if (!donationStateDirectory.trim()) configErrors.push('DONATION_STATE_DIR must be a nonempty directory');
     const thresholdCents = rawMarkerThreshold ? Math.round(Number(rawMarkerThreshold) * 100) : null;
     if (rawMarkerThreshold && (!/^\d+(\.\d{1,2})?$/.test(rawMarkerThreshold) ||
         !Number.isSafeInteger(thresholdCents) || thresholdCents <= 0)) {
@@ -85,6 +87,7 @@ function parseConfiguration() {
         isValid: configErrors.length === 0,
         errors: configErrors,
         participantId: process.env.EXTRALIFE_PARTICIPANT_ID,
+        donationStateDirectory,
         discord: {
             voiceSampleIntervalSeconds,
             token: process.env.DISCORD_TOKEN,
