@@ -1,3 +1,9 @@
+## [4.15.1](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v4.15.0...v4.15.1) (2026-10-20)
+
+### Changes
+
+- Donation polling now uses Extra Life's current DonorDrive host, avoiding HTTP 412 errors caused by redirects. Goal commands and Discord fundraising summaries also request participant information from the current host. ([#106](https://github.com/stjohnjohnson/extralife-helper-bot/pull/106))
+
 # [4.15.0](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v4.14.0...v4.15.0) (2026-10-14)
 
 ### Changes
