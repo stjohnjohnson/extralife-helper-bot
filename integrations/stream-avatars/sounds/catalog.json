@@ -20,6 +20,16 @@
     "sha256": "a7f5af1a3483b43e78be497871dd0de063c4262ae1bb1ae4d0924436bc9f20b7"
   },
   {
+    "name": "sa_donation_5",
+    "file": "sa_donation_5.ogg",
+    "sha256": "ecc6465f4e3c0d7745c12b3b4eb29cfa28daf6d54c0f892a2082ccc93866a713"
+  },
+  {
+    "name": "sa_donation_6",
+    "file": "sa_donation_6.ogg",
+    "sha256": "634a1889c0fa1c81ca69663fae2bd2021af460818d682ae490e9ed25da17e977"
+  },
+  {
     "name": "sa_milestone",
     "file": "sa_milestone.ogg",
     "sha256": "6cccc436ef4c426be88ab199e1c55cfbd78238b0748f09cd61402e80e4ccae77"

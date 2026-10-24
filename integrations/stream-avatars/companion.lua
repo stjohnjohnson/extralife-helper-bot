@@ -116,7 +116,7 @@ return function()
         return true
     end
     local app = getApp()
-    local soundNames={donation={"sa_donation","sa_donation_2","sa_donation_3","sa_donation_4"},milestone={"sa_milestone","sa_milestone_2"},goal="sa_goal"}
+    local soundNames={donation={"sa_donation","sa_donation_2","sa_donation_3","sa_donation_4","sa_donation_5","sa_donation_6"},milestone={"sa_milestone","sa_milestone_2"},goal="sa_goal"}
     local function soundPool(value)
         if value==false then return false end
         if type(value)=="string" then value={value} end

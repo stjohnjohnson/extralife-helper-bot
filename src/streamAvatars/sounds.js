@@ -3,7 +3,7 @@ const path = require('node:path');
 const { createHash } = require('node:crypto');
 
 const DEFAULT_SOUNDS = {
-    donation: ['sa_donation', 'sa_donation_2', 'sa_donation_3', 'sa_donation_4'],
+    donation: ['sa_donation', 'sa_donation_2', 'sa_donation_3', 'sa_donation_4', 'sa_donation_5', 'sa_donation_6'],
     milestone: ['sa_milestone', 'sa_milestone_2'], goal: 'sa_goal'
 };
 const RESERVED = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;

@@ -2,7 +2,7 @@
   "address": "BOT_LAN_IP",
   "token": "REPLACE_WITH_PRIVATE_TOKEN",
   "sounds": {
-    "donation": ["sa_donation", "sa_donation_2", "sa_donation_3", "sa_donation_4"],
+    "donation": ["sa_donation", "sa_donation_2", "sa_donation_3", "sa_donation_4", "sa_donation_5", "sa_donation_6"],
     "milestone": ["sa_milestone", "sa_milestone_2"],
     "goal": "sa_goal"
   }

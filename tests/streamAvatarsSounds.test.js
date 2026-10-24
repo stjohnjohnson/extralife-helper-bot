@@ -7,7 +7,7 @@ const { unzipSync } = require('fflate');
 const { buildPackage } = require('../src/streamAvatars/package');
 
 const shipped = path.resolve(__dirname, '../integrations/stream-avatars');
-const names = ['sa_donation', 'sa_donation_2', 'sa_donation_3', 'sa_donation_4', 'sa_milestone', 'sa_milestone_2', 'sa_goal'];
+const names = ['sa_donation', 'sa_donation_2', 'sa_donation_3', 'sa_donation_4', 'sa_donation_5', 'sa_donation_6', 'sa_milestone', 'sa_milestone_2', 'sa_goal'];
 
 describe('bundled celebration sounds', () => {
     let directory, integrationDir;
@@ -92,21 +92,21 @@ describe('bundled celebration sounds', () => {
         fs.writeFileSync(path.join(integrationDir, 'sounds/private.txt'), 'PRIVATE_SOUND_SENTINEL');
         const result = buildPackage({ integrationDir });
         const entries = unzipSync(result.archive);
-        expect(result.soundCount).toBe(7);
+        expect(result.soundCount).toBe(9);
         for (const name of names) {
             expect(Buffer.from(entries[`scripts/sa_helper_bridge/sounds/${name}.ogg`]))
                 .toEqual(fs.readFileSync(path.join(integrationDir, 'sounds', `${name}.ogg`)));
         }
         expect(Object.keys(entries).some(name => name.includes('private') || name.startsWith('sounds/') || name.includes('/recordings/') || name.endsWith('.wav'))).toBe(false);
         const settings = JSON.parse(Buffer.from(entries['scripts/sa_helper_bridge/sa_helper_bridge_settings.json']));
-        expect(settings.sounds).toEqual({ donation: ['sa_donation', 'sa_donation_2', 'sa_donation_3', 'sa_donation_4'], milestone: ['sa_milestone', 'sa_milestone_2'], goal: 'sa_goal' });
+        expect(settings.sounds).toEqual({ donation: ['sa_donation', 'sa_donation_2', 'sa_donation_3', 'sa_donation_4', 'sa_donation_5', 'sa_donation_6'], milestone: ['sa_milestone', 'sa_milestone_2'], goal: 'sa_goal' });
     });
 
     test('CLI exposes the bundled audio beside the ZIP for one-time native sound import', () => {
         const output = path.join(directory, 'output with spaces', 'bridge.zip');
         const result = spawnSync(process.execPath, [path.resolve(__dirname, '../scripts/sa-package.js'), '--output', output], { cwd: directory, encoding: 'utf8' });
         expect(result.status).toBe(0);
-        expect(result.stdout).toContain('7 sounds');
+        expect(result.stdout).toContain('9 sounds');
         for (const name of names) expect(fs.readFileSync(path.join(directory, 'output with spaces/sounds', `${name}.ogg`)))
             .toEqual(fs.readFileSync(path.join(shipped, 'sounds', `${name}.ogg`)));
     });

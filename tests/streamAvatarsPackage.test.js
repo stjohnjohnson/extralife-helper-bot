@@ -31,7 +31,7 @@ describe('portable Stream Avatars packages', () => {
         const entries = decode(result.archive);
         expect(result.imageCount).toBe(54);
         expect(Object.keys(entries).sort()).toEqual([
-            'data.txt', ...['sa_donation', 'sa_donation_2', 'sa_donation_3', 'sa_donation_4', 'sa_milestone', 'sa_milestone_2', 'sa_goal'].map(name => `${commandPath}sounds/${name}.ogg`), ...require('../src/streamAvatars/themeRelease').loadThemePack({ directory: require('../src/streamAvatars/themeRelease').BUNDLED_THEME_PACK_DIR }).catalog.assets.map(asset => `${commandPath}${asset.image}.png`), ...fs.readdirSync(path.join(shipped, 'assets')).filter(name => name.endsWith('.json')).map(name => `${commandPath}${JSON.parse(fs.readFileSync(path.join(shipped, 'assets', name))).name}.png`), `${commandPath}sa_helper_bridge.lua`, `${commandPath}sa_helper_bridge_settings.json`
+            'data.txt', ...['sa_donation', 'sa_donation_2', 'sa_donation_3', 'sa_donation_4', 'sa_donation_5', 'sa_donation_6', 'sa_milestone', 'sa_milestone_2', 'sa_goal'].map(name => `${commandPath}sounds/${name}.ogg`), ...require('../src/streamAvatars/themeRelease').loadThemePack({ directory: require('../src/streamAvatars/themeRelease').BUNDLED_THEME_PACK_DIR }).catalog.assets.map(asset => `${commandPath}${asset.image}.png`), ...fs.readdirSync(path.join(shipped, 'assets')).filter(name => name.endsWith('.json')).map(name => `${commandPath}${JSON.parse(fs.readFileSync(path.join(shipped, 'assets', name))).name}.png`), `${commandPath}sa_helper_bridge.lua`, `${commandPath}sa_helper_bridge_settings.json`
         ].sort());
         const lua = strFromU8(entries[`${commandPath}sa_helper_bridge.lua`]);
         const catalog = JSON.parse(lua.match(/local THEME_CATALOG_JSON = \[\[([^]*?)\]\]/)[1]);
@@ -51,7 +51,7 @@ describe('portable Stream Avatars packages', () => {
             } }
         });
         expect(json(entries, `${commandPath}sa_helper_bridge_settings.json`)).toEqual({
-            address: 'BOT_LAN_IP', token: 'REPLACE_WITH_PRIVATE_TOKEN', sounds: { donation: ['sa_donation', 'sa_donation_2', 'sa_donation_3', 'sa_donation_4'], milestone: ['sa_milestone', 'sa_milestone_2'], goal: 'sa_goal' }
+            address: 'BOT_LAN_IP', token: 'REPLACE_WITH_PRIVATE_TOKEN', sounds: { donation: ['sa_donation', 'sa_donation_2', 'sa_donation_3', 'sa_donation_4', 'sa_donation_5', 'sa_donation_6'], milestone: ['sa_milestone', 'sa_milestone_2'], goal: 'sa_goal' }
         });
     });
 

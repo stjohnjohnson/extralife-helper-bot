@@ -3,10 +3,10 @@ const os = require('node:os');
 const path = require('node:path');
 const { readRecordings } = require('../scripts/sa-sounds');
 
-const names = ['sa_donation', 'sa_donation_2', 'sa_donation_3', 'sa_donation_4', 'sa_milestone', 'sa_milestone_2', 'sa_goal'];
+const names = ['sa_donation', 'sa_donation_2', 'sa_donation_3', 'sa_donation_4', 'sa_donation_5', 'sa_donation_6', 'sa_milestone', 'sa_milestone_2', 'sa_goal'];
 const sources = path.resolve(__dirname, '../integrations/stream-avatars/sounds/recordings');
 
-test('recording preparation keeps seven original PCM performances with bounded trims and headroom', () => {
+test('recording preparation keeps nine original PCM performances with bounded trims and headroom', () => {
     const clips = readRecordings();
     expect(clips.map(clip => clip.name)).toEqual(names);
     for (const clip of clips) {

@@ -96,19 +96,23 @@ This indicator confirms bridge connectivity, not every rendered effect or extern
 
 ### Celebration sounds
 
-The package bundles seven original family recordings: four donation clips, two milestone clips and one goal clip. Each plays once at its natural length. Donations cycle Quinn 1 → Zac 1 → Quinn 2 → Zac 2. Milestones alternate Quinn → Zac. Goals use Zac's goal recording. Native shared state remembers the next option across F5 reloads, disconnects and reconnects. A full application restart can reset that state.
+The package bundles nine original family recordings: six donation clips, two milestone clips and one goal clip. Each plays once at its natural length. Donations cycle Quinn 1 → Zac 1 → Quinn 2 → Zac 2 → Quinn “lost the game” → Zac “lost the game”. Milestones alternate Quinn → Zac. Goals use Zac's goal recording. Native shared state remembers the next option across F5 reloads, disconnects and reconnects. A full application restart can reset that state.
 
-Run `npm run sa:package` to write the ZIP and `dist/stream-avatars/sounds/`. A custom output ZIP has an adjacent `sounds/` folder. Import all seven Oggs through **Sounds → Import Sound** with these exact names:
+Run `npm run sa:package` to write the ZIP and `dist/stream-avatars/sounds/`. A custom output ZIP has an adjacent `sounds/` folder. Import all nine Oggs through **Sounds → Import Sound** with these exact names:
 
 ```text
 sa_donation
 sa_donation_2
 sa_donation_3
 sa_donation_4
+sa_donation_5
+sa_donation_6
 sa_milestone
 sa_milestone_2
 sa_goal
 ```
+
+When upgrading, reimport the companion ZIP and restore its private connection settings. Import `sa_donation_5.ogg` and `sa_donation_6.ogg` if the other sounds are already registered. If your private settings contain the old donation list, add `sa_donation_5` and `sa_donation_6` to that list.
 
 Leave chat/soundboard triggering disabled. Adjust each sound's volume in the native settings. The content ZIP importer carries these files in the companion script's `sounds/` subfolder, but cannot register the native sound-library entries. You can import from that extracted folder when transferring only the ZIP.
 
@@ -116,7 +120,7 @@ Optional private settings accept a single imported name, `false` to disable a ki
 
 ```json
 "sounds": {
-  "donation": ["sa_donation", "sa_donation_2", "sa_donation_3", "sa_donation_4"],
+  "donation": ["sa_donation", "sa_donation_2", "sa_donation_3", "sa_donation_4", "sa_donation_5", "sa_donation_6"],
   "milestone": ["sa_milestone", "sa_milestone_2"],
   "goal": "sa_goal"
 }
