@@ -1,3 +1,18 @@
+# [4.17.0](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v4.16.0...v4.17.0) (2026-10-24)
+
+### Changes
+
+- Donation alerts cycle through six family recordings, including Quinn and Zac saying “lost the game.” Each donation selects the next clip after the four existing recordings. ([#111](https://github.com/stjohnjohnson/extralife-helper-bot/pull/111))
+
+### Upgrade actions
+
+- Run `npm run sa:package`. ([#111](https://github.com/stjohnjohnson/extralife-helper-bot/pull/111))
+- Import `dist/stream-avatars/sa-helper-bridge.zip` into Stream Avatars. ([#111](https://github.com/stjohnjohnson/extralife-helper-bot/pull/111))
+- Restore the private connection address. ([#111](https://github.com/stjohnjohnson/extralife-helper-bot/pull/111))
+- Restore the private connection token. ([#111](https://github.com/stjohnjohnson/extralife-helper-bot/pull/111))
+- Import `sa_donation_5.ogg` and `sa_donation_6.ogg` through **Sounds → Import Sound**. ([#111](https://github.com/stjohnjohnson/extralife-helper-bot/pull/111))
+- If private settings retain the old donation list, append `sa_donation_5` and `sa_donation_6`. ([#111](https://github.com/stjohnjohnson/extralife-helper-bot/pull/111))
+
 # [4.16.0](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v4.15.1...v4.16.0) (2026-10-20)
 
 ### Changes
