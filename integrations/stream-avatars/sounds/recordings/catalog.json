@@ -32,6 +32,22 @@
     "gainDb": -7.301
   },
   {
+    "name": "sa_donation_5",
+    "file": "sa_donation_5.wav",
+    "sha256": "3b12f1478ab5f16fd41f00e4b60864fd449c04604b13d682502afd8f0bfd9887",
+    "startSeconds": 0.17,
+    "endSeconds": 1.06,
+    "gainDb": -3.1
+  },
+  {
+    "name": "sa_donation_6",
+    "file": "sa_donation_6.wav",
+    "sha256": "104ebcb385f69b1916e0386cd895cd444df74ea02711518c55b8df32cf9e61cd",
+    "startSeconds": 0,
+    "endSeconds": 1.7970294784580498,
+    "gainDb": -6
+  },
+  {
     "name": "sa_milestone",
     "file": "sa_milestone.wav",
     "sha256": "76081cabec21931ffd2500544b2fb347cee72da543d100b60ab465872a899c5f",

@@ -637,7 +637,7 @@ elseif scenario=="sound-rotation" or scenario=="sound-pools" or scenario=="sound
         config.sounds.donation=false;reload();event("donation");assert(#soundPlays==3,"disabled pools must be silent")
         config.sounds.donation={"New","Next"};reload();event("donation");assert(soundPlays[4]=="Next","disabling must not consume a turn")
     else
-        local expected=scenario=="sound-pools" and {"One","Two","Three","One","Two","Three","One","Two"} or {"sa_donation","sa_donation_2","sa_donation_3","sa_donation_4","sa_donation","sa_donation_2","sa_donation_3","sa_donation_4"}
+        local expected=scenario=="sound-pools" and {"One","Two","Three","One","Two","Three","One","Two"} or {"sa_donation","sa_donation_2","sa_donation_3","sa_donation_4","sa_donation_5","sa_donation_6","sa_donation","sa_donation_2"}
         for i=1,8 do
             event("donation");assert(soundPlays[#soundPlays]==expected[i],"donation rotation mismatch at "..i)
             if i==2 then reload() end
