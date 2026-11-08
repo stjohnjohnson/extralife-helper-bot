@@ -5,8 +5,8 @@ const { parseAction } = require('../src/streamAvatars/actions');
 let directory, service, now;
 beforeEach(async () => { directory = await fs.mkdtemp(join(tmpdir(), 'sa-controls-')); now = 10000000; });
 afterEach(async () => { await service?.stop(); service = null; await fs.rm(directory, { recursive: true, force: true }); });
-async function start() {
-    service = await startStreamAvatars({ config: { participantId: '12', webServer: { host: '127.0.0.1', port: 0 }, streamAvatars: { config: { token: 'a'.repeat(32), stateDir: directory } } }, realClock: { nowMs: () => now } });
+async function start(logger) {
+    service = await startStreamAvatars({ config: { participantId: '12', webServer: { host: '127.0.0.1', port: 0 }, streamAvatars: { config: { token: 'a'.repeat(32), stateDir: directory } } }, realClock: { nowMs: () => now }, logger });
 }
 const command = text => service.dispatch(parseAction(text));
 test.each(['clock advance 1h', 'clock seek 5m', 'scenario reconnect', 'hue on', 'hue off', 'rehearsal reset', 'crowd join 1', 'crowd leave 1', 'crowd -1', 'crowd 101', 'hearts extra', 'rehearsal start extra', 'session reset confirm', 'campaign reset', 'campaign recover'])('unsupported or unconfirmed control is rejected: %s', input => {
@@ -35,4 +35,22 @@ test('confirmed campaign reset and recovery need no broadcast observation and si
     now++;
     const result = await service.acceptObservation({ expectedEpochId: service.getPollCheckpoint().epochId, batchId: 'recovered', observedAtMs: now, donations: [], complete: true, campaign: { observedAtMs: now, totalCents: 200000, goalCents: 100000 } });
     expect(result.intent).toBeNull(); expect(service.getStatus().campaignTotalCents).toBe(200000);
+});
+
+test('startup explains independent corruption and automatic lock migration preserves recovery gates', async () => {
+    const production = join(directory, 'production'); await fs.mkdir(production);
+    for (const name of ['campaign.json', 'state.json']) {
+        await fs.writeFile(join(production, name), '{private-token');
+        await fs.writeFile(join(production, name + '.lock'), '{"pid":1}');
+    }
+    const messages = []; await start({ warn: (...args) => messages.push(args) });
+    expect(service.getStatus()).toMatchObject({ recoveryRequired: true, gameRecoveryRequired: true,
+        stateError: { reason: 'invalid-state', operation: 'load' }, gameStateError: { reason: 'invalid-state', operation: 'load' } });
+    for (let i = 0; i < 3; i++) await expect(service.acceptObservation({ expectedEpochId: service.getPollCheckpoint().epochId })).rejects.toThrow(/recovery/);
+    expect(messages).toHaveLength(2); expect(JSON.stringify(messages)).not.toContain('private');
+    expect((await command('campaign reset confirm')).status).toBe('ok');
+    expect(service.getStatus()).toMatchObject({ recoveryRequired: false, stateError: null, gameRecoveryRequired: true });
+    await service.observeProduction({ status: 'offline', observedAtMs: now });
+    expect((await command('game reset confirm')).status).toBe('ok');
+    expect(service.getStatus()).toMatchObject({ gameRecoveryRequired: false, gameStateError: null });
 });

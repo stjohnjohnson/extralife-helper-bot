@@ -92,8 +92,16 @@ async function getLatestDonation(state) {
     if (!state.active || state.donationPollBusy) return;
     state.donationPollBusy = true;
     const accept = async input => {
-        try { if (state.active) await state.streamAvatars?.acceptObservation(input); }
-        catch { log.warn('Stream Avatars donation accounting unavailable'); }
+        try {
+            if (state.active) await state.streamAvatars?.acceptObservation(input);
+            state.streamAvatarsAccountingWarning = false;
+        } catch {
+            // Controllers report safe, actionable storage diagnostics once per failure.
+            if (!state.streamAvatars?.getStatus?.()?.stateError && !state.streamAvatarsAccountingWarning) {
+                log.warn('Stream Avatars donation accounting unavailable');
+                state.streamAvatarsAccountingWarning = true;
+            }
+        }
     };
     try {
         await untilAborted(state.chatReady, state.donationAbort.signal);

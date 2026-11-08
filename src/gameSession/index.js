@@ -1,18 +1,20 @@
+const { createStateDiagnostics } = require('../stateDiagnostics');
 // Persistent game lifecycle is independent of campaign donation progress.
 const { createInitialState, reduceObservation, validGameObservation } = require('./state');
 const { resolveGame } = require('../streamAvatars/themes');
 
-async function createSessionController({ store, clock, mode, channel, graceMs, cadenceMs, newSessionId, gameConfig }) {
+async function createSessionController({ store, clock, mode, channel, graceMs, cadenceMs, newSessionId, gameConfig, logger }) {
     let state = createInitialState({ mode, channel });
     let recoveryRequired = false;
     let active = true;
     let tail = Promise.resolve();
+    const diagnostics = createStateDiagnostics({ store: 'game', logger });
     const listeners = new Set();
-    try { state = await store.load() || state; } catch { recoveryRequired = true; }
+    try { state = await store.load() || state; } catch (error) { recoveryRequired = true; diagnostics.capture(error, 'load'); }
     // Advance duplicate ordering in memory without rewriting unchanged game state on every poll.
     let gameWatermark = state.game;
     const persist = async next => {
-        try { await store.save(next); } catch (error) { recoveryRequired = true; throw error; }
+        try { await store.save(next); } catch (error) { recoveryRequired = true; diagnostics.capture(error, 'save'); throw error; }
     };
     const snapshot = () => structuredClone(state);
     const publish = change => { for (const listener of listeners) { try { listener(snapshot(), change); } catch { /* A transport subscriber cannot corrupt authoritative progress. */ } } };
@@ -22,17 +24,17 @@ async function createSessionController({ store, clock, mode, channel, graceMs, c
     };
     return {
         getSnapshot: snapshot,
-        getStatus: () => ({ recoveryRequired }),
+        getStatus: () => ({ recoveryRequired, stateError: diagnostics.get() }),
         subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
         observe(observation) { return enqueue(async () => {
-            if (recoveryRequired) throw new Error('Session recovery required');
+            if (recoveryRequired) throw diagnostics.unavailable('Session recovery required');
             const next = reduceObservation(state, observation, { graceMs, cadenceMs, newSessionId });
             if (next === state) return;
             await persist(next);
             state = next; publish();
         }); },
         observeGame(observation, { announce = false } = {}) { return enqueue(async () => {
-            if (recoveryRequired) throw new Error('Session recovery required');
+            if (recoveryRequired) throw diagnostics.unavailable('Session recovery required');
             if (!validGameObservation(observation) || !gameConfig) return;
             // Successful writes order at confirmation; reads retain their request-start time.
             const orderedAtMs = observation.confirmedAtMs ?? observation.observedAtMs;
@@ -48,11 +50,13 @@ async function createSessionController({ store, clock, mode, channel, graceMs, c
             state = next; gameWatermark = game; publish({ announce: announce && identityChanged });
             return { changed: true, game: structuredClone(game) };
         }); },
-        reset() { return enqueue(async () => { state = await store.archiveAndReset(); recoveryRequired = false; gameWatermark = state.game; publish(); }); },
+        reset() { return enqueue(async () => { try { state = await store.archiveAndReset(); recoveryRequired = false; diagnostics.clear(); gameWatermark = state.game; publish(); } catch (error) { recoveryRequired = true; diagnostics.capture(error, 'reset'); throw error; } }); },
         recover() { return enqueue(async () => {
-            const recovered = await store.recoverLastBackup();
-            recovered.revision++; recovered.recoveryBaselineMs = clock.nowMs();
-            await persist(recovered); state = recovered; recoveryRequired = false; gameWatermark = state.game; publish();
+            try {
+                const recovered = await store.recoverLastBackup();
+                recovered.revision++; recovered.recoveryBaselineMs = clock.nowMs();
+                await store.save(recovered); state = recovered; recoveryRequired = false; diagnostics.clear(); gameWatermark = state.game; publish();
+            } catch (error) { recoveryRequired = true; diagnostics.capture(error, 'recover'); throw error; }
         }); },
         async stop() { active = false; await tail; await store.flush(); await store.close(); listeners.clear(); }
     };

@@ -1,3 +1,4 @@
+const { formatStateError } = require('../stateDiagnostics');
 const { isAdmin } = require('../config');
 const { parseAction } = require('./actions');
 const seen = new Map();
@@ -36,8 +37,10 @@ async function handleStreamAvatarsCommand(input, context, { config, service, log
             campaign,
             milestone !== null ? `Next milestone: ${milestone}.` : 'We’re waiting for the next milestone.',
             `Stream Avatars is ${status.companionConnected ? 'connected' : 'disconnected'}.`,
-            status.recoveryRequired ? 'The campaign needs recovery. Use !sa campaign recover confirm.' : null,
-            status.gameRecoveryRequired ? 'The game needs recovery. Use !sa game recover confirm while the stream is offline.' : null,
+            status.stateError ? `Campaign state: ${formatStateError(status.stateError)}`
+                : status.recoveryRequired ? 'The campaign needs recovery. Use !sa campaign recover confirm.' : null,
+            status.gameStateError ? `Game state: ${formatStateError(status.gameStateError)}`
+                : status.gameRecoveryRequired ? 'The game needs recovery. Use !sa game recover confirm while the stream is offline.' : null,
             status.reconciliationRequired ? 'I’m checking the latest donation totals before resuming effects.' : null
         ].filter(Boolean).join(' ');
 
@@ -46,6 +49,10 @@ async function handleStreamAvatarsCommand(input, context, { config, service, log
         const result = await service.dispatch(action, { platform: 'twitch', login, messageId: id });
         logger.info('Stream Avatars admin command', { action: action.name, status: result.status });
         return result.message;
-    } catch { return 'That didn’t work. Check the Stream Avatars connection and run !sa status for recovery details.'; }
+    } catch {
+        const status = service.getStatus();
+        const failure = action.name.startsWith('game.') ? status.gameStateError : status.stateError;
+        return failure ? `That didn’t work. ${formatStateError(failure)}` : 'That didn’t work. Check the Stream Avatars connection and run !sa status for recovery details.';
+    }
 }
 module.exports = { handleStreamAvatarsCommand };

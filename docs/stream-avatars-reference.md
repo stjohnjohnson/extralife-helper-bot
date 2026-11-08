@@ -324,7 +324,21 @@ Waiting entries do not expire through the old two-minute completed-entry cache.
 A bot restart or explicit reset discards unfinished turns.
 Old companions receive an upgrade instruction before they can receive extended caption packets.
 Accounting continues; reconnect shows current totals without replay.
+Each JSON store holds an exclusive transaction in its separate `.ownership.sqlite` database.
+SQLite releases the operating-system lock when the process closes or terminates.
+A bounded acquisition retry handles simultaneous database initialization without expiring a live owner's lock.
+The lock database remains in place after shutdown to preserve a stable ownership file.
+The bot rejects symbolic links and hard links for ownership databases.
+Legacy PID-only `.lock` files are archived after new ownership is acquired.
+This migration assumes the previous version has stopped; mixed-version concurrent writers are unsupported.
+Use local persistent volumes with reliable filesystem locking, not network filesystems.
+
 Writes are serialized, synchronized to storage, and atomically renamed.
+Transient read failures leave the primary file and corruption markers unchanged.
+Controllers retain original failures internally and expose allowlisted reason codes and fixed corrective guidance.
+Logs identify the store and operation without serializing exceptions, state contents, or private paths.
+Repeated intake failures do not repeat the same state warning.
+Successful reset or recovery clears the corresponding diagnostic.
 Corrupt state retains a durable `.recovery-required` gate.
 The independent game subsystem migrates legacy `production/state.json` and backups in place.
 Legacy money fields remain inert migration data.

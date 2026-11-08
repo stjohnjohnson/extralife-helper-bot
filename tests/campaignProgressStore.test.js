@@ -16,7 +16,8 @@ test('persists complete ledger and rejects another owner, then reloads after clo
     const first = store(); expect(await first.load()).toBeNull(); await first.save(state(1));
     await expect(store().load()).rejects.toMatchObject({
         message: expect.stringMatching(/owner/i),
-        cause: expect.objectContaining({ code: 'EEXIST', path: join(dir, 'campaign.json.lock') })
+        code: 'STATE_LOCKED',
+        cause: expect.objectContaining({ errcode: 5 })
     });
     await first.close(); expect(await store().load()).toEqual(state(1));
 });
