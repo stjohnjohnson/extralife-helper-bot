@@ -39,7 +39,7 @@ async function runIntegration({ listenerConfig, token, crowdCount = 20, scenario
         service = await startStreamAvatars({ config: { participantId: 'integration', webServer: listenerConfig,
             streamAvatars: { config: { token, stateDir: directory, donationIntervalCents: 50000 } } },
         integration: { recognitionAction: recognition, crowdIds: Array.from({ length: crowdCount }, (_, i) => 'sa_integration_' + (i + 1)) }, logger: integrationLogger, realClock: clock, timers, candidatePackDir, themePackDir });
-        logger.info(`Stream Avatars integration listener: ${service.address.address}:${service.address.port}. Import companion v3 and select Custom Lua.`, { address: service.address, stateDir: directory });
+        logger.info(`Stream Avatars integration listener: ${service.address.address}:${service.address.port}. Import the latest companion v3 with individual donations and select Custom Lua.`, { address: service.address, stateDir: directory });
         if (pack.packRevision) logger.info(`Integration ${candidatePackDir ? 'candidate preview' : 'approved'} theme pack: ${pack.packRevision}. Import the ZIP built from this same directory.`, { packRevision: pack.packRevision });
         const readyDeadline = clock.nowMs() + 60000;
         while (!service.getStatus().companionReady || (themed && !service.getStatus().themeReady)) { check(); if (clock.nowMs() >= readyDeadline) throw new Error(themed ? 'Companion v3 was not ready within 60000 ms; this preview requires themes capability and the matching imported theme ZIP.' : 'Companion v3 was not ready within 60000 ms'); await wait(100); }
@@ -65,7 +65,7 @@ async function runIntegration({ listenerConfig, token, crowdCount = 20, scenario
         for (const item of selected) {
             check(); if (!service.getStatus().companionReady) throw new Error('Companion disconnected before scenario');
             await service.resetIntegration(); donations = []; campaign = { sumDonations: item.startingCampaignCents / 100, fundraisingGoal: item.goalCents / 100 };
-            const gift = (id, cents) => ({ donationID: id, participantID: 'integration', createdDateUTC: new Date(clock.nowMs()).toISOString(), amount: cents / 100, displayName: item.anonymous ? null : 'Integration gift', isRegFee: false });
+            const gift = (id, cents, index) => ({ donationID: id, participantID: 'integration', createdDateUTC: new Date(clock.nowMs()).toISOString(), amount: cents === null ? null : cents / 100, displayName: item.anonymous ? null : item.names?.[index] || 'Integration donor', isRegFee: false });
             await poll(); await wait(500); check();
             if (focusedTheme) {
                 if (!service.getStatus().themeReady) throw new Error('Theme companion disconnected before preview');
@@ -73,12 +73,12 @@ async function runIntegration({ listenerConfig, token, crowdCount = 20, scenario
                 if (preview.changed && !preview.delivered) throw new Error('Theme preview was not dispatched');
                 logger.info(`Theme preview ${theme || game}: dispatched; verify scenery and the entrance jump visually.`);
             }
-            for (const [index,cents] of item.gifts.entries()) donations.push(gift(item.name + '-' + index,cents));
+            for (const [index,cents] of item.gifts.entries()) donations.push(gift(item.name + '-' + index,cents,index));
             campaign.sumDonations = item.totalCents / 100;
-            logger.info(`${item.name}: next ${item.caption} for 5s${item.partyCaption ? '; then ' + item.partyCaption : ''}.`);
+            logger.info(`${item.name}: next ${item.caption} for 15s per donor${item.partyCaption ? '; then ' + item.partyCaption : ''}.`);
             const result = await poll();
             if (!result?.delivered || result.campaignTotalCents !== item.totalCents) throw new Error('Scenario was not dispatched to a ready companion');
-            logger.info(`${item.name}: expect ${item.caption} for 5s; dispatched. Verify visually.`);
+            logger.info(`${item.name}: expect ${item.caption} for 15s per donor; dispatched. Verify visually.`);
             if (item.partyCaption) logger.info(`${item.name}: then expect ${item.partyCaption} for ${item.kind === 'goal' ? 20 : 18}s; verify visually.`);
             if (hueOutput) void hueOutput.celebrateDonation().catch(() => logger.warn('Optional Hue celebration failed'));
             await wait(item.durationMs + 250); check();

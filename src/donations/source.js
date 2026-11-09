@@ -1,5 +1,6 @@
 const { setTimeout: delay } = require('node:timers/promises');
 const { parseCents } = require('./money');
+const { normalizeDonationDisplayName } = require('./displayName');
 const { participantEndpoint } = require('../extralife');
 // v1.0 has different offset conventions. Pin the documented zero-based contract.
 const VERSION = '1.4';
@@ -18,7 +19,7 @@ function normalizeDonation(raw, participantId, throughMs) {
         (raw.participantID != null && String(raw.participantID) !== String(participantId)) || raw.isRegFee === true) throw new Error('Invalid donation identity');
     const createdAtMs = parseDonationTime(raw.createdDateUTC);
     if (createdAtMs > throughMs) throw new Error('Future donation timestamp');
-    return { id: raw.donationID, participantId: String(participantId), createdAtMs, amountCents: parseCents(raw.amount) };
+    return { id: raw.donationID, participantId: String(participantId), createdAtMs, amountCents: parseCents(raw.amount), displayName: normalizeDonationDisplayName(raw.displayName) };
 }
 function createDonationSource({ fetch: fetcher = globalThis.fetch, clock = { nowMs: Date.now }, requestGapMs = 15000, logger = { warn() {} }, wait = delay } = {}) {
     const controller = new AbortController();

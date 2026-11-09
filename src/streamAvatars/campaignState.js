@@ -1,4 +1,5 @@
 const { addCents } = require('../donations/money');
+const { normalizeDonationDisplayName } = require('../donations/displayName');
 const safe = n => Number.isSafeInteger(n) && n >= 0;
 const id = s => typeof s === 'string' && s.length > 0 && s.length <= 128;
 const ids = list => Array.isArray(list) && list.every(id) && new Set(list).size === list.length;
@@ -22,7 +23,7 @@ function validateCampaignState(value, { mode, participantId }) {
 function reduceCampaignProgress(state, { batchId, donations = [], rawSeenIds, recordCount, complete = false, campaign, observedAtMs, throughMs = observedAtMs, baseline = false, campaignBaseline = false, intervalCents = 50000 }, { pendingConfirmations = [] } = {}) {
     if (!id(batchId) || !safe(throughMs) || throughMs > observedAtMs || !safe(observedAtMs) || !Array.isArray(donations) || !safe(intervalCents) || intervalCents < 1 || intervalCents > 100000000 ||
         (rawSeenIds !== undefined && !ids(rawSeenIds)) || (recordCount !== undefined && recordCount !== null && !safe(recordCount))) throw new Error('Invalid campaign input');
-    const next = structuredClone(state), diagnostics = new Set(), fresh = [];
+    const next = structuredClone(state), diagnostics = new Set(), fresh = [], individual = [];
     const seen = new Set(next.processedDonationIds);
     let pending = pendingConfirmations.filter(p => p.expiresAtMs >= observedAtMs).map(p => ({ ...p }));
     let amount = 0, positive = false;
@@ -36,6 +37,7 @@ function reduceCampaignProgress(state, { batchId, donations = [], rawSeenIds, re
         seen.add(donation.id); next.processedDonationIds.push(donation.id);
         if (baseline || (next.baselineAtMs !== null && donation.createdAtMs < next.baselineAtMs)) continue;
         fresh.push(donation.id);
+        individual.push({ id: donation.id, participantId: next.participantId, createdAtMs: donation.createdAtMs, amountCents: donation.amountCents, displayName: normalizeDonationDisplayName(donation.displayName) });
         amount = amount === null || donation.amountCents === null ? null : addCents(amount, donation.amountCents);
         positive ||= donation.amountCents === null || donation.amountCents > 0;
     }
@@ -67,7 +69,8 @@ function reduceCampaignProgress(state, { batchId, donations = [], rawSeenIds, re
         if (silent) pending = [];
     } else if (campaign !== undefined && !validCampaign(campaign)) diagnostics.add('invalid-campaign');
     if (changedInterval && next.campaignObservation) next.donationCheckpointCount = checkpoints(next.campaignObservation.totalCents, intervalCents);
-    const intent = fresh.length || milestoneCents !== null || goalReached ? { batchId: rewardBatchId, donationIds: fresh, donationCount: fresh.length,
+    individual.sort((a, b) => a.createdAtMs - b.createdAtMs || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+    const intent = fresh.length || milestoneCents !== null || goalReached ? { batchId: rewardBatchId, donationIds: individual.map(d => d.id), donations: individual, donationCount: fresh.length,
         donationTotalCents: amount, campaignTotalCents: next.campaignObservation?.totalCents ?? null, milestoneCents, goalReached } : null;
     return { state: next, intent, diagnostics: [...diagnostics], pendingConfirmations: pending };
 }

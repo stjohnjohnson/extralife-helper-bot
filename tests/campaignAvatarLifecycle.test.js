@@ -8,7 +8,7 @@ const accept=input=>service.acceptObservation({expectedEpochId:service.getPollCh
 async function connect(ready=true){
     const s=new WebSocket(`ws://127.0.0.1:${service.address.port}/sa/socket`);sockets.push(s);await once(s,'open');s.on('message',r=>packets.push(JSON.parse(r)));
     const snap=once(s,'message');s.send(JSON.stringify({version:3,type:'auth',token:'t'.repeat(32)}));await snap;
-    if(ready){s.send(JSON.stringify({version:3,type:'ready',capabilities:['campaign','celebrations','donation-recognition'],resolution:{width:1920,height:1080}}));await flush();}
+    if(ready){s.send(JSON.stringify({version:3,type:'ready',capabilities:['campaign','celebrations','donation-recognition','individual-donations'],resolution:{width:1920,height:1080}}));await flush();}
     return s;
 }
 beforeEach(async()=>{
@@ -25,25 +25,30 @@ test('campaign intake works without a stream session and thanks precedes a miles
     expect(service.getPollCheckpoint()).toEqual(before);
     await baseline();await connect();await accept({donations:[gift('fresh')],campaign:campaign(252500)});await flush();
     expect(effects().map(p=>p.phase)).toEqual(['recognition']);expect(effects()[0]).toMatchObject({donationTotalCents:5000,kind:'donation'});
-    await time.advance(5000);await flush();expect(effects().map(p=>p.phase)).toEqual(['recognition','party']);expect(effects()[1]).toMatchObject({campaignTotalCents:252500,kind:'milestone'});
+    await time.advance(15000);await flush();expect(effects().map(p=>p.phase)).toEqual(['recognition','party']);expect(effects()[1]).toMatchObject({campaignTotalCents:252500,kind:'milestone'});
 });
 test('delayed aggregate never delays thanks and confirms its party without repeating it',async()=>{
-    await baseline();await connect();await accept({donations:[gift('fresh')]});await time.advance(6000);await flush();expect(effects()).toHaveLength(1);
+    await baseline();await connect();await accept({donations:[gift('fresh')]});await time.advance(16000);await flush();expect(effects()).toHaveLength(1);
     await accept({campaign:campaign(252500)});await flush();expect(effects().map(p=>p.phase)).toEqual(['recognition','party']);
 });
-test('final ready companion disconnect cancels timers and pending gifts; reconnect does not replay',async()=>{
+test('last companion disconnect pauses queued donors and replays the active turn without cues',async()=>{
     await baseline();const s=await connect();await accept({donations:[gift('fresh')],campaign:campaign(252500)});
+    await accept({batchId:'later',donations:[gift('later')]});
     const closed=once(s,'close');s.terminate();await closed;await flush();expect(time.pending.size).toBe(0);
-    packets=[];await connect();await time.advance(30000);await flush();expect(effects()).toEqual([]);expect(service.getStatus().campaignTotalCents).toBe(252500);
+    await time.advance(180000);packets=[];await connect();await flush();
+    expect(effects()).toHaveLength(1);expect(effects()[0]).toMatchObject({replay:true,heartsUntilMs:time.clock.nowMs()+15000});
+    await time.advance(15000);await flush();expect(effects()[1].kind).toBe('milestone');
+    await time.advance(18000);await flush();expect(effects()[2]).toMatchObject({replay:false,phase:'recognition'});
 });
-test('unauthenticated or merely authenticated companions cannot queue a delayed party',async()=>{
-    await baseline();await connect(false);await accept({donations:[gift('missed')]});await flush();expect(effects()).toEqual([]);
-    await connect();await accept({campaign:campaign(252500)});await time.advance(6000);await flush();expect(effects()).toEqual([]);
+test('merely authenticated companions do not consume queued turns before readiness',async()=>{
+    await baseline();await connect(false);await accept({donations:[gift('waiting')]});await flush();expect(effects()).toEqual([]);
+    await connect();await accept({campaign:campaign(252500)});await time.advance(15000);await flush();
+    expect(effects().map(p=>p.phase)).toEqual(['recognition','party']);
 });
 test('one remaining ready companion retains active timing, but a late connection gets no active updates',async()=>{
     await baseline();const first=await connect();await connect();await accept({donations:[gift('fresh')],campaign:campaign(252500)});await time.advance(1000);
     const closed=once(first,'close');first.terminate();await closed;await flush();expect(time.pending.size).toBe(1);
-    await time.advance(4000);await flush();expect(effects().filter(p=>p.phase==='party')).toHaveLength(1);
+    await time.advance(14000);await flush();expect(effects().filter(p=>p.phase==='party')).toHaveLength(1);
     await time.advance(1);const late=await connect();const lateEffects=[];late.on('message',r=>{const p=JSON.parse(r);if(p.type==='celebration')lateEffects.push(p);});
     await accept({campaign:campaign(300000)});await flush();expect(lateEffects).toEqual([]);
 });
@@ -57,20 +62,20 @@ test('shutdown clears the phase timer and rejects future intake',async()=>{
     await baseline();await connect();await accept({donations:[gift('fresh')],campaign:campaign(252500)});await service.stop();expect(time.pending.size).toBe(0);
     expect((await accept({donations:[gift('later')]})).accepted).toBe(false);
 });
-test('rejected ready client cancels the phase before a new connection can revive it',async()=>{
+test('rejected ready client pauses the turn until a compatible reconnect',async()=>{
     await baseline();const s=await connect();await accept({donations:[gift('fresh')],campaign:campaign(252500)});
     const closed=once(s,'close');s.send(JSON.stringify({version:3,type:'command',text:'invalid'}));await closed;await flush();
-    expect(time.pending.size).toBe(0);packets=[];await connect();await time.advance(5000);await flush();expect(effects()).toEqual([]);
+    expect(time.pending.size).toBe(0);packets=[];await connect();await flush();expect(effects()[0]).toMatchObject({replay:true});
 });
-test('repeated readiness after a snapshot still permits combined recognition updates',async()=>{
+test('repeated readiness does not restart a turn or combine the next donor',async()=>{
     await baseline();const s=await connect();await accept({donations:[gift('first')]});await time.advance(1000);
-    s.send(JSON.stringify({version:3,type:'ready',capabilities:['campaign','celebrations','donation-recognition'],resolution:{width:1920,height:1080}}));await flush();
+    s.send(JSON.stringify({version:3,type:'ready',capabilities:['campaign','celebrations','donation-recognition','individual-donations'],resolution:{width:1920,height:1080}}));await flush();
     await accept({batchId:'second',donations:[gift('second')]});await flush();
-    expect(effects().filter(p=>p.phase==='recognition').map(p=>p.donationCount)).toEqual([1,2]);
+    expect(effects().filter(p=>p.phase==='recognition').map(p=>p.donationCount)).toEqual([1]);await time.advance(14000);await flush();expect(effects().filter(p=>p.phase==='recognition').map(p=>p.donationCount)).toEqual([1,1]);
 });
 test('confirmation during recognition schedules its reward without another thank-you packet',async()=>{
     await baseline();await connect();await accept({donations:[gift('fresh')]});await accept({campaign:campaign(252500)});await flush();
-    expect(effects().map(p=>p.phase)).toEqual(['recognition']);await time.advance(5000);await flush();expect(effects().map(p=>p.phase)).toEqual(['recognition','party']);
+    expect(effects().map(p=>p.phase)).toEqual(['recognition']);await time.advance(15000);await flush();expect(effects().map(p=>p.phase)).toEqual(['recognition','party']);
 });
 
 test('aborting a service with its own listener delivers final clear before closing sockets',async()=>{

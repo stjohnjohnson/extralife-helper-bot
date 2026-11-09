@@ -18,7 +18,7 @@ test.each(['missing-theme-image', 'theme-render-error'])('accepts bounded diagno
 test.each(['{bad', JSON.stringify({ version: 3, type: 'command', text: 'loadstring' }), JSON.stringify({ version: 2, type: 'heartbeat' }), JSON.stringify({ version: 3, type: 'auth', token: 'secret', lua: 'execute' }), JSON.stringify({ version: 3, type: 'diagnostic', code: 'secret token' }), JSON.stringify({ version: 3, type: 'ready', capabilities: ['arbitrary-script'], resolution: { width: 0, height: 1 } })])('rejects malformed or executable client payload', raw => { expect(() => decodeClientMessage(raw)).toThrow('Invalid Stream Avatars message'); });
 test.each([{ ...snapshot, elapsedMs: NaN }, { ...snapshot, generation: -1 }, { ...snapshot, campaign: { ...snapshot.campaign, totalCents: -1 } }, { version: 3, type: 'hearts', mode: 'production', generation: 1, campaignId: 's', id: 'i', issuedAtMs: 1000, expiresAtMs: 900, durationMs: 5000 }, { version: 3, type: 'crowd', mode: 'production', generation: 1, crowdIds: ['arbitrary user'] }])('rejects invalid server payload', value => { expect(() => validateServerMessage(value)).toThrow(/message/i); });
 
-const recognitionPacket = { version: 3, type: 'celebration', mode: 'production', generation: 1, campaignId: '12', id: 'event', sequenceId: 'sequence', issuedAtMs: 1000, expiresAtMs: 11000, phase: 'recognition', kind: 'donation', campaignTotalCents: 50000, milestoneCents: null, donationCount: 2, donationTotalCents: 2500, recognitionStartedAtMs: 1000, recognitionAction: 'hug', heartsUntilMs: 6000, partyStartedAtMs: null, partyUntilMs: 0 };
+const recognitionPacket = { version: 3, type: 'celebration', mode: 'production', generation: 1, campaignId: '12', id: 'event', sequenceId: 'sequence', donorName: 'ALICE', replay: false, issuedAtMs: 1000, expiresAtMs: 11000, phase: 'recognition', kind: 'donation', campaignTotalCents: 50000, milestoneCents: null, donationCount: 1, donationTotalCents: 2500, recognitionStartedAtMs: 1000, recognitionAction: 'hug', heartsUntilMs: 16000, partyStartedAtMs: null, partyUntilMs: 0 };
 test.each([{}, { donationTotalCents: null }])('recognition wire accepts bounded numeric/action metadata %j', patch => expect(validateServerMessage({ ...recognitionPacket, ...patch })).toMatchObject(patch));
 test.each([{ donationCount: -1 }, { donationCount: 1.5 }, { donationCount: Number.MAX_SAFE_INTEGER + 1 }, { donationTotalCents: -1 }, { donationTotalCents: 1.2 }, { donationTotalCents: Number.MAX_SAFE_INTEGER + 1 }, { recognitionAction: 'explode' }, { recognitionStartedAtMs: 1001 }, { recognitionStartedAtMs: null }, { donationCount: 0 }, { recognitionStartedAtMs: 0, heartsUntilMs: 10001 }, { extra: 'command' }])('recognition wire rejects inconsistent metadata %j', patch => expect(() => validateServerMessage({ ...recognitionPacket, ...patch })).toThrow());
 
@@ -45,4 +45,11 @@ test('entrance expiry must be a finite numeric timestamp rather than a coercible
 
 test.each(['unsupported-avatar', 'gear-permission-required', 'missing-theme-gear', 'foreign-gear', 'gear-render-error'])('rejects retired cosmetic diagnostic %s', code => {
     expect(() => decodeClientMessage(JSON.stringify({ version: 3, type: 'diagnostic', code }))).toThrow('Invalid Stream Avatars message');
+});
+
+test.each([{donorName:''},{donorName:'a'},{donorName:'A'.repeat(33)},{donorName:'<B>'},{donorName:null},{replay:null},{donationCount:2}])('individual captions reject malformed name or replay data %j',patch=>{
+    expect(()=>validateServerMessage({...recognitionPacket,...patch})).toThrow();
+});
+test('reconnected individual caption carries explicit replay suppression',()=>{
+    expect(validateServerMessage({...recognitionPacket,replay:true,donorName:'A. B, C: D- E\'F"'})).toMatchObject({replay:true});
 });

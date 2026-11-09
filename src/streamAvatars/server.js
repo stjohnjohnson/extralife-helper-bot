@@ -14,7 +14,7 @@ async function startBridgeServer({ config, getSnapshot, onClientMessage = async 
         if (clients.size >= 4 || signal?.aborted) { socket.destroy(); return; }
         wss.handleUpgrade(req, socket, head, connection => wss.emit('connection', connection));
     };
-    const isReady = record => record.alive && record.socket.readyState === WebSocket.OPEN && record.capabilities?.includes('campaign') && record.capabilities.includes('celebrations') && record.capabilities.includes('donation-recognition');
+    const isReady = record => record.alive && record.socket.readyState === WebSocket.OPEN && record.capabilities?.includes('campaign') && record.capabilities.includes('celebrations') && record.capabilities.includes('donation-recognition') && record.capabilities.includes('individual-donations');
     const reportReadinessLoss = () => {
         if (hadReady && ![...clients.values()].some(isReady)) {
             hadReady = false;
@@ -22,7 +22,7 @@ async function startBridgeServer({ config, getSnapshot, onClientMessage = async 
         }
     };
     function sendTo(socket, record, message) {
-        if (!record.authenticated || socket.readyState !== WebSocket.OPEN || (message.type === 'celebration' && !record.capabilities?.includes('donation-recognition'))) return false;
+        if (!record.authenticated || socket.readyState !== WebSocket.OPEN || (message.type === 'celebration' && !record.capabilities?.includes('individual-donations'))) return false;
         if (message.type === 'celebration' && (message.phase === 'party' ? message.partyStartedAtMs : message.recognitionStartedAtMs) < record.readyAtMs) return false;
         if (message.type === 'game-entrance' && !record.capabilities?.includes('themes')) return false;
         // Older v3 companions validate exact snapshot keys before advertising capabilities.
@@ -42,7 +42,7 @@ async function startBridgeServer({ config, getSnapshot, onClientMessage = async 
         socket.on('close', () => {
             record.alive = false; clearTimeout(timeout); clients.delete(socket); reportReadinessLoss();
         });
-        const reject = () => { record.alive = false; reportReadinessLoss(); logger.warn('Stream Avatars connection rejected'); socket.close(1008, 'Invalid message; import latest companion v3'); };
+        const reject = () => { record.alive = false; reportReadinessLoss(); logger.warn('Stream Avatars connection rejected'); socket.close(1008, 'Invalid message; import latest companion v3 with individual donations'); };
         socket.on('message', (raw, binary) => {
             try {
                 if (!record.alive) return;
@@ -61,7 +61,7 @@ async function startBridgeServer({ config, getSnapshot, onClientMessage = async 
                 record.inboundTail = record.inboundTail.then(async () => {
                     if (record.alive && socket.readyState === WebSocket.OPEN) {
                         if (message.type === 'ready') {
-                            if (!message.capabilities.includes('campaign') || !message.capabilities.includes('celebrations') || !message.capabilities.includes('donation-recognition')) throw new Error('Import latest companion v3');
+                            if (!message.capabilities.includes('campaign') || !message.capabilities.includes('celebrations') || !message.capabilities.includes('donation-recognition') || !message.capabilities.includes('individual-donations')) throw new Error('Import latest companion v3 with individual donations');
                             const hadThemes = record.capabilities.includes('themes');
                             const previouslyReady = isReady(record); reportReadinessLoss();
                             record.capabilities = message.capabilities; if (!previouslyReady) record.readyAtMs = clock.nowMs(); hadReady = true;

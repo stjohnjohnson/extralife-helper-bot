@@ -23,7 +23,7 @@ function companion(address, packets, themes = false) {
     socket.on('open', () => socket.send(JSON.stringify({ version: 3, type: 'auth', token })));
     socket.on('message', raw => {
         const value = JSON.parse(raw); packets.push(value);
-        if (value.type === 'snapshot') socket.send(JSON.stringify({ version: 3, type: 'ready', capabilities: ['campaign', 'celebrations', 'donation-recognition', ...(themes ? ['themes'] : [])], resolution: { width: 1920, height: 1080 } }));
+        if (value.type === 'snapshot') socket.send(JSON.stringify({ version: 3, type: 'ready', capabilities: ['campaign', 'celebrations', 'donation-recognition','individual-donations', ...(themes ? ['themes'] : [])], resolution: { width: 1920, height: 1080 } }));
         if (value.type === 'heartbeat') socket.send(JSON.stringify({ version: 3, type: 'heartbeat' }));
     }); return socket;
 }
@@ -34,21 +34,24 @@ test.each(['random','jump','hug'])('temporary subsystem runs every fixture with 
     try {
         const result = await runIntegration({ listenerConfig: { host: '127.0.0.1', port: 0 }, token, candidatePackDir: candidatePack.directory, logger, recognition, clock: time.clock, timers: time.timers, hueOutput: hue,
             wait: async ms => { await time.advance(ms); await new Promise(resolve => setTimeout(resolve, 2)); } });
-        expect(result).toMatchObject({ completedScenarios: ['ordinary','anonymous','batch','milestone','large','goal','block-world','kitchen','outdoor','puzzle','space-salvage','party','Raft','PEAK','Minecraft Bedrock','neutral'], finalTotalCents: 100000 });
+        expect(result).toMatchObject({ completedScenarios: ['ordinary','anonymous','batch','milestone','large','goal','hidden','punctuation','long-name','block-world','kitchen','outdoor','puzzle','space-salvage','party','Raft','PEAK','Minecraft Bedrock','neutral'], finalTotalCents: 92500 });
         expect(packets.filter(value => value.type === 'game-entrance').map(value => value.themeId)).toEqual(['block-world','kitchen','outdoor','puzzle','space-salvage','party','outdoor','outdoor','block-world',null]);
         expect(packets.filter(value => value.type === 'snapshot' && value.theme).at(-1).theme).toMatchObject({ themeId: null, packRevision: candidatePack.packRevision });
         const effects = packets.filter(value => value.type === 'celebration');
         expect(effects.map(value => [value.phase,value.kind])).toEqual([
-            ['recognition','donation'],['recognition','donation'],['recognition','donation'],
-            ['recognition','donation'],['party','milestone'],['recognition','donation'],['party','milestone'],['recognition','donation'],['party','goal']
+            ['recognition','donation'],['recognition','donation'],['recognition','donation'],['recognition','donation'],
+            ['recognition','donation'],['party','milestone'],['recognition','donation'],['party','milestone'],['recognition','donation'],['party','goal'],
+            ['recognition','donation'],['recognition','donation'],['recognition','donation']
         ]);
         expect(effects.filter(value=>value.phase==='party').map(value=>value.campaignTotalCents)).toEqual([250000,355000,100000]);
-        expect(messages).toContain('batch: expect $25 FROM 2 DONATIONS - THANK YOU! for 5s; dispatched. Verify visually.');
+        expect(messages).toContain('batch: expect $10 - THANK YOU!; then $15 - THANK YOU! for 15s per donor; dispatched. Verify visually.');
         const recognitionEffects=effects.filter(value=>value.phase==='recognition');
-        expect(recognitionEffects.map(value=>[value.donationCount,value.donationTotalCents])).toEqual([[1,2500],[1,2500],[2,2500],[1,1000],[1,106000],[1,1000]]);
+        expect(recognitionEffects.map(value=>[value.donationCount,value.donationTotalCents])).toEqual([[1,2500],[1,2500],[1,1000],[1,1500],[1,1000],[1,106000],[1,1000],[1,null],[1,2500],[1,2500]]);
+        expect(recognitionEffects.map(e=>e.donorName).slice(0,4)).toEqual(['ALEX JOHNSON','ANONYMOUS','CASEY','JORDAN']);
+        for(const effect of recognitionEffects)expect(effect.heartsUntilMs-effect.recognitionStartedAtMs).toBe(15000);
         for(const effect of recognitionEffects)expect(recognition==='random'?['jump','hug']:[recognition]).toContain(effect.recognitionAction);
         expect(packets.filter(value => value.type === 'snapshot').every(value => value.mode === 'integration')).toBe(true);
-        expect(hue.celebrateDonation).toHaveBeenCalledTimes(6); expect(hue.stop).toHaveBeenCalledTimes(1);
+        expect(hue.celebrateDonation).toHaveBeenCalledTimes(9); expect(hue.stop).toHaveBeenCalledTimes(1);
         for (const dir of dirs) await expect(fs.stat(dir)).rejects.toMatchObject({ code: 'ENOENT' });
         expect(Object.keys(require.cache).some(path => /(?:discord\.js|tmi\.js|streamMarkers\.js|\/app\.js)$/.test(path))).toBe(false);
     } finally { socket?.terminate(); }
@@ -106,9 +109,9 @@ test.each([
     [{ scenario: 'themes', theme: 'all' }, ['block-world','kitchen','outdoor','puzzle','space-salvage','party','Raft','PEAK','Minecraft Bedrock','neutral'], 10],
     [{ scenario: 'ordinary', theme: 'kitchen' }, ['ordinary'], 1],
     [{ scenario: 'themes', game: 'PEAK' }, ['PEAK'], 1],
-    [{ scenario: 'all', theme: 'all' }, ['ordinary','anonymous','batch','milestone','large','goal','block-world','kitchen','outdoor','puzzle','space-salvage','party','Raft','PEAK','Minecraft Bedrock','neutral'], 10],
-    [{ scenario: 'all', theme: 'block-world' }, ['ordinary','anonymous','batch','milestone','large','goal','block-world','kitchen','outdoor','puzzle','space-salvage','party','Raft','PEAK','Minecraft Bedrock','neutral'], 11],
-    [{ scenario: 'all', game: 'Keep Talking and Nobody Explodes' }, ['ordinary','anonymous','batch','milestone','large','goal','block-world','kitchen','outdoor','puzzle','space-salvage','party','Raft','PEAK','Minecraft Bedrock','neutral'], 11]
+    [{ scenario: 'all', theme: 'all' }, ['ordinary','anonymous','batch','milestone','large','goal','hidden','punctuation','long-name','block-world','kitchen','outdoor','puzzle','space-salvage','party','Raft','PEAK','Minecraft Bedrock','neutral'], 10],
+    [{ scenario: 'all', theme: 'block-world' }, ['ordinary','anonymous','batch','milestone','large','goal','hidden','punctuation','long-name','block-world','kitchen','outdoor','puzzle','space-salvage','party','Raft','PEAK','Minecraft Bedrock','neutral'], 11],
+    [{ scenario: 'all', game: 'Keep Talking and Nobody Explodes' }, ['ordinary','anonymous','batch','milestone','large','goal','hidden','punctuation','long-name','block-world','kitchen','outdoor','puzzle','space-salvage','party','Raft','PEAK','Minecraft Bedrock','neutral'], 11]
 ])('existing theme previews run over the new real socket runner: %j', async (options, completed, entranceCount) => {
     const packets = [], dirs = []; let socket; const time = createManualClock(Date.now());
     const logger = { warn: jest.fn(), info(message, details) {
@@ -118,7 +121,7 @@ test.each([
         socket.on('open', () => socket.send(JSON.stringify({ version: 3, type: 'auth', token })));
         socket.on('message', raw => {
             const value = JSON.parse(raw); packets.push(value);
-            if (value.type === 'snapshot') socket.send(JSON.stringify({ version: 3, type: 'ready', capabilities: ['campaign','celebrations','donation-recognition','themes'], resolution: { width: 1920, height: 1080 } }));
+            if (value.type === 'snapshot') socket.send(JSON.stringify({ version: 3, type: 'ready', capabilities: ['campaign','celebrations','donation-recognition','individual-donations','themes'], resolution: { width: 1920, height: 1080 } }));
         });
     } };
     try {
@@ -136,7 +139,7 @@ test.each([
             expect(packets.filter(value => value.type === 'snapshot' && value.theme).every(value => value.theme.themeId === 'kitchen')).toBe(true);
         } else {
             expect(packets.filter(value => value.type === 'snapshot' && value.theme).at(-1).theme.themeId).toBe(options.game === 'PEAK' ? 'outdoor' : null);
-            if (options.scenario === 'all') expect(packets.filter(value => value.type === 'celebration' && value.phase === 'recognition')).toHaveLength(6);
+            if (options.scenario === 'all') expect(packets.filter(value => value.type === 'celebration' && value.phase === 'recognition')).toHaveLength(10);
         }
         for (const dir of dirs) await expect(fs.stat(dir)).rejects.toMatchObject({ code: 'ENOENT' });
     } finally { socket?.terminate(); }

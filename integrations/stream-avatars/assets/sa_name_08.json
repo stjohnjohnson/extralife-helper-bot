@@ -1,0 +1,11 @@
+{
+  "name": "sa_name_08",
+  "file": "sa_name_08.png",
+  "frameWidth": 17,
+  "frameHeight": 23,
+  "frames": 1,
+  "rows": 1,
+  "framesPerSecond": 1,
+  "loop": true,
+  "transparent": true
+}

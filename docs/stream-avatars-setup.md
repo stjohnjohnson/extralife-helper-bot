@@ -128,7 +128,7 @@ Optional private settings accept a single imported name, `false` to disable a ki
 
 For custom sounds, replace a list with names such as `["Quinn Thanks", "Zac Thanks"]`. Names must already be imported, start with a letter or number, and contain only letters, numbers, spaces, underscores or hyphens. Each name is limited to 64 characters. Lists must be dense and have no duplicates ignoring case. Invalid settings disable only the affected kind and produce a warning. Omitted keys use defaults. A changed list restarts at its first option; disabling a kind does not consume its next turn.
 
-Audio starts with a validated active recognition or party phase. Repeated packets, caption/amount updates, recognition extensions, snapshots, startup and reconnect do not play or advance the rotation. An expired or rejected packet does not consume a turn. Each kind rotates independently. An unavailable clip consumes its turn, allowing the next event to try the next option. Playback identities are remembered for two minutes, up to 256 identities, across clears and reloads.
+Audio starts with a validated active recognition or party phase. Repeated packets, caption updates, resumed turns, snapshots, and startup do not play or advance the rotation. An expired or rejected packet does not consume a turn. Each kind rotates independently. An unavailable clip consumes its turn, allowing the next event to try the next option. Playback identities are remembered for two minutes, up to 256 identities, across clears and reloads.
 
 A goal wins its simultaneous milestone. A valid later milestone-to-goal upgrade plays the goal cue once and stops the companion's prior audio. A new phase replaces only its owned sound. Expiry, clear, disconnect, reload and identity changes stop only companion-owned audio. Missing sounds or host errors leave visuals and connectivity running. The console reports audio unavailability once per run.
 
@@ -138,23 +138,46 @@ The catalog is allowlisted, checksummed and bounded. Node-only packaging validat
 
 | Event | Display |
 | --- | --- |
-| Fresh donation, including matching | Five seconds of hearts, amount/thank-you caption, and a random jump or paired hug |
-| Nearby donations | Combined recognition lasting at most ten seconds from its original start |
-| Campaign interval crossed | Recognition first, then an 18-second confetti and dance party |
-| Campaign goal reached | Recognition first, then a distinct 20-second goal party |
+| Fresh donation, including matching | Fifteen seconds of hearts and a two-line name/amount caption, with one jump or paired hug |
+| Nearby donations | Separate 15-second turns in queue order; no combined amounts or shortened turns |
+| Campaign interval crossed | Triggering donation first, then an 18-second confetti and dance party before the next donor |
+| Campaign goal reached | Triggering donation first, then a distinct 20-second goal party before the next donor |
 | Later live game identity change | Mapped scenery and one welcoming jump; no game-title text |
 
 The default milestone interval is $500 of cumulative campaign progress.
 Change it with `STREAM_AVATARS_DONATION_INTERVAL_CENTS`; values are cents, not dollars.
 Crossing multiple intervals produces one party.
 A simultaneous goal crossing takes priority over its milestone.
-New donations during a party wait for the next combined recognition.
+New donations during a party wait for their individual turns.
+For a batch crossing, the party follows the last donor in that batch.
 
 Campaign totals come from Extra Life, independently of Twitch stream status.
-Hidden donation amounts use a generic thank-you caption.
+Donation captions show the uppercase public donation name above the amount and `THANK YOU!`.
+Hidden amounts show the name above `THANK YOU!` without an amount.
+Absent public names show `ANONYMOUS`.
+Names support A–Z, digits, spaces, and `.,:-'"`.
+Decomposable accents become plain letters. Unsupported characters become `?`.
+Long names end with `...` within 32 characters, or earlier when canvas width requires it.
+Both rows use the existing gold pixel lettering.
+
+Every fresh donation receives a full 15-second turn, even during bursts.
+Long queues can delay recognition for several minutes.
+The bot pauses the queue when no compatible companion is ready.
+An interrupted donor receives a fresh turn on reconnect without repeated sounds or avatar actions.
+The queue stays in memory. Bot restarts, explicit resets, and shutdown discard unfinished turns.
+Startup still establishes a silent baseline and does not replay historical donations.
+
+This feature requires the latest companion with the `individual-donations` capability.
+To update the companion:
+
+1. Run `npm run sa:package`.
+2. Import `dist/stream-avatars/sa-helper-bridge.zip` into Stream Avatars.
+3. Restore the private connection address.
+4. Restore the private connection token.
+5. Reload the companion.
 The bot does not associate donor names with Twitch avatars.
 Startup, restart, and reset silently establish current baselines.
-Reconnect restores current state without replaying missed effects or entrances.
+Reconnect restores current state and retained donation turns without replaying completed turns or entrances.
 Donation parties do not add an extra Hue celebration.
 
 Production scenery follows the confirmed Twitch category.

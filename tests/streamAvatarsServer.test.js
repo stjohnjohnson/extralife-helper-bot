@@ -51,7 +51,7 @@ test('valid coalesced client frames are serialized rather than rejected', async 
     socket.send(JSON.stringify({ version: 3, type: 'auth', token })); await snapshotReceived;
     const closed = once(socket, 'close').then(() => 'closed');
     socket._socket.cork();
-    socket.send(JSON.stringify({ version: 3, type: 'ready', capabilities: ['hearts', 'campaign', 'celebrations', 'donation-recognition'], resolution: { width: 1920, height: 200 } }));
+    socket.send(JSON.stringify({ version: 3, type: 'ready', capabilities: ['hearts', 'campaign', 'celebrations', 'donation-recognition','individual-donations'], resolution: { width: 1920, height: 200 } }));
     socket.send(JSON.stringify({ version: 3, type: 'heartbeat' })); socket._socket.uncork();
     expect(await Promise.race([handled.then(() => 'handled'), closed])).toBe('handled');
     expect(seen).toEqual(['ready', 'heartbeat']); expect(socket.readyState).toBe(WebSocket.OPEN);
@@ -72,7 +72,7 @@ async function rejectsOldCompanion(startServer) {
     server=await startServer({config:{host:'127.0.0.1',port:0,token},getSnapshot:snapshot,onClientMessage:async()=>admitted({accepted:true})});
     const socket=await connect();const first=once(socket,'message');socket.send(JSON.stringify({version:3,type:'auth',token}));await first;
     const result=Promise.race([once(socket,'close').then(([code,reason])=>({code,reason:reason.toString()})),accepted]);
-    socket.send(JSON.stringify({version:3,type:'ready',capabilities:['campaign','celebrations'],resolution:{width:1920,height:1080}}));socket.send(JSON.stringify({version:3,type:'heartbeat'}));
+    socket.send(JSON.stringify({version:3,type:'ready',capabilities:['campaign','celebrations','donation-recognition'],resolution:{width:1920,height:1080}}));socket.send(JSON.stringify({version:3,type:'heartbeat'}));
     expect(await result).toMatchObject({code:1008,reason:expect.stringContaining('latest companion')});expect(server.getStatus().readyClients).toBe(0);
 }
 test('old celebration-only companion is rejected before being counted ready', () => rejectsOldCompanion(startBridgeServer));
@@ -81,7 +81,7 @@ test('old companion readiness regression detects a removed capability gate', asy
     const Module = require('node:module');
     const file = require.resolve('../src/streamAvatars/server');
     const source = readFileSync(file, 'utf8');
-    const gate = ' || !message.capabilities.includes(\'donation-recognition\')';
+    const gate = ' || !message.capabilities.includes(\'individual-donations\')';
     expect(source).toContain(gate);
     const mutated = new Module(file, module); mutated.filename = file; mutated.paths = Module._nodeModulePaths(require('node:path').dirname(file));
     mutated._compile(source.replace(gate, ''), file);
@@ -96,7 +96,7 @@ test('entrances require themes ready capability per connection while hearts reta
     const value = { version: 3, type: 'game-entrance', mode: 'production', generation: 1, campaignId: 's', id: 'e', gameIdentity: 'a'.repeat(64), themeId: 'party', issuedAtMs: 1000, expiresAtMs: 11000, durationMs: 6000 };
     expect(server.send(value)).toBe(false);
     const upgraded = once(modern, 'message');
-    modern.send(JSON.stringify({ version: 3, type: 'ready', capabilities: ['campaign','celebrations','donation-recognition','themes'], resolution: { width: 1920, height: 1080 } })); await readyHandled; await upgraded;
+    modern.send(JSON.stringify({ version: 3, type: 'ready', capabilities: ['campaign','celebrations','donation-recognition','individual-donations','themes'], resolution: { width: 1920, height: 1080 } })); await readyHandled; await upgraded;
     const oldMessages = []; old.on('message', raw => oldMessages.push(JSON.parse(raw))); pending = once(modern, 'message');
     expect(server.send(value)).toBe(true); expect(JSON.parse((await pending)[0]).type).toBe('game-entrance');
     pending = once(old, 'message'); server.send({ version: 3, type: 'hearts', mode: 'production', generation: 1, campaignId: 's', id: 'h', issuedAtMs: 1000, expiresAtMs: 11000, durationMs: 5000 }); await pending;
@@ -109,7 +109,7 @@ test('old v3 companions receive their exact snapshot shape even when themes are 
     server = await startBridgeServer({ config: { host: '127.0.0.1', port: 0, token }, getSnapshot: () => themed, onClientMessage: async message => { if (message.type === 'ready') admitted(); } });
     const old = await connect(); let pending = once(old, 'message'); old.send(JSON.stringify({ version: 3, type: 'auth', token }));
     const first = JSON.parse((await pending)[0]); expect(first).not.toHaveProperty('theme'); expect(first.features).not.toContain('themes');
-    old.send(JSON.stringify({ version: 3, type: 'ready', capabilities: ['campaign','celebrations','donation-recognition'], resolution: { width: 1920, height: 1080 } })); await ready;
+    old.send(JSON.stringify({ version: 3, type: 'ready', capabilities: ['campaign','celebrations','donation-recognition','individual-donations'], resolution: { width: 1920, height: 1080 } })); await ready;
     pending = once(old, 'message'); server.send(themed); expect(JSON.parse((await pending)[0])).toEqual(first);
     const { spawnSync } = require('node:child_process'); const { mkdtempSync, writeFileSync, rmSync } = require('node:fs'); const { join, resolve } = require('node:path'); const { tmpdir } = require('node:os');
     const directory = mkdtempSync(join(tmpdir(), 'old-v3-wire-'));

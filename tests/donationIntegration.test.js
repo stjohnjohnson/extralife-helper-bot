@@ -15,7 +15,7 @@ async function accept(donations, total) { return service.acceptObservation({ exp
 async function connect() {
     socket = new WebSocket(`ws://127.0.0.1:${service.address.port}/sa/socket`); await once(socket, 'open');
     const received = once(socket, 'message'); socket.send(JSON.stringify({ version: 3, type: 'auth', token: 't'.repeat(32) })); const [raw] = await received;
-    socket.send(JSON.stringify({ version: 3, type: 'ready', capabilities: ['campaign', 'celebrations', 'donation-recognition'], resolution: { width: 1920, height: 1080 } }));
+    socket.send(JSON.stringify({ version: 3, type: 'ready', capabilities: ['campaign', 'celebrations', 'donation-recognition','individual-donations'], resolution: { width: 1920, height: 1080 } }));
     for (let i = 0; i < 30 && !service.getStatus().companionReady; i++) await new Promise(resolve => setTimeout(resolve, 2));
     expect(service.getStatus().companionReady).toBe(true); return JSON.parse(raw);
 }
@@ -57,11 +57,18 @@ test('fresh campaign observation can confirm a delayed goal without a duplicate 
     now++; expect((await accept(donations, campaign(100000))).intent).toMatchObject({ goalReached: true, donationIds: [] });
     expect(service.getStatus().campaignTotalCents).toBe(100000);
 });
-test('donations received without a companion persist progress but never replay effects on reconnect', async () => {
+test('fresh donations received without a companion queue until readiness', async () => {
     await accept([], campaign()); now++;
     expect((await accept([gift('offline', 1000)], campaign(50000))).delivered).toBe(false);
     const snapshot = await connect(); const packets = []; socket.on('message', raw => packets.push(JSON.parse(raw)));
     await new Promise(resolve => setTimeout(resolve, 10));
-    expect(snapshot.campaign.totalCents).toBe(50000); expect(packets.some(p => p.type === 'celebration')).toBe(false);
+    expect(snapshot.campaign.totalCents).toBe(50000);
+    // A readiness-triggered packet can precede connect() returning; consume it through a fresh reconnect.
+    const closed=once(socket,'close');socket.terminate();await closed;
+    await new Promise(resolve=>setTimeout(resolve,5));
+    const pending=new WebSocket(`ws://127.0.0.1:${service.address.port}/sa/socket`);socket=pending;await once(socket,'open');
+    const first=once(socket,'message');socket.send(JSON.stringify({version:3,type:'auth',token:'t'.repeat(32)}));await first;
+    const recognized=once(socket,'message');socket.send(JSON.stringify({version:3,type:'ready',capabilities:['campaign','celebrations','donation-recognition','individual-donations'],resolution:{width:1920,height:1080}}));
+    expect(JSON.parse((await recognized)[0])).toMatchObject({type:'celebration',donationTotalCents:1000,replay:true});
     now++; expect((await accept([gift('offline', 1000)], campaign(50000))).intent).toBeNull();
 });
