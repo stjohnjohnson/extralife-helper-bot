@@ -135,16 +135,16 @@ async function startStreamAvatars({ config, logger = { warn() {} }, signal, webS
             if (action.name === 'status') return { status: 'ok', message: 'Campaign progress available.' };
             if (['game.reset', 'game.recover'].includes(action.name) && !integration) return enqueueObservation(async () => {
                 if (lastRealObservation?.status !== 'offline' || realClock.nowMs() - lastRealObservation.observedAtMs > 2 * cadenceMs) {
-                    return { status: 'denied', message: 'Game controls require a fresh confirmed offline Twitch observation.' };
+                    return { status: 'denied', message: 'I need to confirm the stream is offline before changing the game.' };
                 }
                 if (action.name === 'game.reset') await gameSession.reset(); else await gameSession.recover();
                 reconciledGame = false;
-                return { status: 'ok', message: 'Game state ' + (action.name === 'game.reset' ? 'reset' : 'recovered') + '; campaign progress and donation effects are unchanged.' };
+                return { status: 'ok', message: 'Game ' + (action.name === 'game.reset' ? 'reset' : 'recovered') + '. Your campaign progress and donation effects haven’t changed.' };
             });
             if (!['campaign.reset','campaign.recover'].includes(action.name) || integration) return { status: 'invalid', message: 'Use npm run sa:integration for development effects.' };
             invalidate();
             if (action.name === 'campaign.reset') await progress.reset(); else await progress.recover();
-            return { status: 'ok', message: 'Campaign ' + (action.name === 'campaign.reset' ? 'reset' : 'recovered') + '; current donations and totals will be baselined without replay.' };
+            return { status: 'ok', message: 'Campaign ' + (action.name === 'campaign.reset' ? 'reset' : 'recovered') + '. I’ll use the current donation totals as the starting point. Earlier donations won’t trigger effects again.' };
         }, stop };
 }
 module.exports = { startStreamAvatars };

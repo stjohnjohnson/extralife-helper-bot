@@ -203,7 +203,7 @@ describe('Commands Module', () => {
             controller.requestColor.mockResolvedValueOnce({ status: 'invalid' });
             expect(await run()).toContain('!color');
             controller.requestColor.mockResolvedValueOnce({ status: 'party' });
-            expect(await run()).toMatch(/party started/i);
+            expect(await run()).toBe('Party time! 🎉');
         });
 
         test('reports disabled control without requesting a light change', async () => {
