@@ -63,7 +63,8 @@ Delayed totals can leave a gap after recognition without repeating it.
 
 A late goal from the same batch can upgrade or resume its milestone party within 38 seconds of the original start.
 It retains existing dance attempts.
-An upgrade outside that limit, or while a newer phase owns the display, is discarded.
+A late upgrade waits for the current full donor turn or party. It expires if its original upgrade deadline passes before dispatch.
+Active party deadlines and their upgrade cap pause together during a companion disconnect.
 Donor names are not linked to Twitch avatars.
 
 ### Capacity and cleanup

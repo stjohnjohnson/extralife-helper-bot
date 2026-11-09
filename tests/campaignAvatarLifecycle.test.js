@@ -85,3 +85,22 @@ test('aborting a service with its own listener delivers final clear before closi
     const closed=once(s,'close');controller.abort();await closed;await service.stop();
     expect(packets.some(p=>p.type==='clear')).toBe(true);expect(time.pending.size).toBe(0);
 });
+
+test('goal confirmed during disconnect resumes the upgraded party for its full remaining goal time',async()=>{
+    await accept({donations:[],complete:true,campaign:campaign(949000)});await time.advance(1);
+    const socket=await connect();await accept({batchId:'a',donations:[gift('a')],campaign:campaign(954000)});
+    await time.advance(15000);await time.advance(17000);
+    const closed=once(socket,'close');socket.terminate();await closed;await flush();
+    await time.advance(8000);await accept({batchId:'a',campaign:campaign(1000000)});await time.advance(1000);
+    packets=[];await connect();await flush();
+    expect(effects()).toHaveLength(1);expect(effects()[0]).toMatchObject({kind:'goal',replay:true,partyStartedAtMs:time.clock.nowMs(),partyUntilMs:time.clock.nowMs()+20000});
+});
+test('late goal is delivered after the next donor without shortening its full recognition',async()=>{
+    await accept({donations:[],complete:true,campaign:campaign(949000)});await time.advance(1);await connect();
+    await accept({batchId:'a',donations:[gift('a')],campaign:campaign(954000)});await time.advance(33000);
+    await accept({batchId:'b',donations:[gift('b')]});await time.advance(1000);await accept({batchId:'a',campaign:campaign(1000000)});await flush();
+    expect(effects().map(p=>p.kind)).toEqual(['donation','milestone','donation']);
+    await time.advance(14000);await flush();expect(effects().at(-1)).toMatchObject({kind:'goal'});
+    expect(effects()[2].heartsUntilMs-effects()[2].recognitionStartedAtMs).toBe(15000);
+    expect(effects().at(-1).partyUntilMs-time.clock.nowMs()).toBe(5000);
+});

@@ -64,11 +64,13 @@ test('late goal upgrade can resume only within the original party bound',()=>{
     const first=completedMilestone();now=46000;expect(c.accept(reward('a',{goalReached:true}))[0]).toMatchObject({sequenceId:first.sequenceId,kind:'goal',partyStartedAtMs:20000,partyUntilMs:58000});
     now=58000;c.advance();expect(c.accept(reward('a',{goalReached:true}))).toEqual([]);
 });
-test.each(['expired','recognition','party'])('completed party upgrade does not escape its bound or interrupt newer %s',kind=>{
+test.each(['expired','recognition','party'])('completed goal waits for newer %s without escaping its original bound',kind=>{
     completedMilestone();now=kind==='expired'?59000:39000;
     if(kind!=='expired')c.accept(gift('b',kind==='party'?{milestoneCents:300000,campaignTotalCents:305000}:{}));
     if(kind==='party'){now=54000;c.advance();}
     const deadline=c.nextTransitionAt();expect(c.accept(reward('a',{goalReached:true}))).toEqual([]);expect(c.nextTransitionAt()).toBe(deadline);
+    if(kind==='recognition'){now=54000;expect(c.advance()[0]).toMatchObject({kind:'goal',partyUntilMs:58000});}
+    if(kind==='party'){now=72000;expect(c.advance()).toEqual([]);expect(c.nextTransitionAt()).toBeNull();}
 });
 test('expired completed batches cannot revive but stalled queued work is retained',()=>{
     c.accept(gift());now=16000;c.advance();now=121001;expect(c.accept(reward())).toEqual([]);
@@ -110,4 +112,28 @@ test.each([-1,1,NaN])('invalid draw %s cannot corrupt the queue',draw=>{
 });
 test.each([{donationCount:2},{donationTotalCents:-1},{campaignTotalCents:1.5},{milestoneCents:300000},{goalReached:'yes'},{donations:[{id:'a',displayName:'lower',amountCents:5000}]}])('invalid intent %j leaves no effects',patch=>{
     expect(()=>c.accept(gift('a',patch))).toThrow();expect(c.nextTransitionAt()).toBeNull();
+});
+
+test('late goal follows the current full donor before its original upgrade deadline',()=>{
+    now=0;c.accept(gift('a',{milestoneCents:250000}));now=15000;c.advance();now=33000;c.advance();c.accept(gift('b'));
+    now=34000;expect(c.accept(reward('a',{goalReached:true}))).toEqual([]);
+    expect(c.nextTransitionAt()).toBe(48000);now=48000;
+    expect(c.advance()[0]).toMatchObject({kind:'goal',partyStartedAtMs:15000,partyUntilMs:53000});
+    now=53000;expect(c.advance()).toEqual([]);
+});
+test('completed goal upgrade waits through a pause and uses a fresh delivery epoch',()=>{
+    now=0;c.accept(gift('a',{milestoneCents:250000}));now=15000;c.advance();now=33000;c.advance();c.pause();
+    now=34000;expect(c.accept(reward('a',{goalReached:true}))).toEqual([]);now=35000;
+    expect(c.resume()[0]).toMatchObject({kind:'goal',partyStartedAtMs:35000,partyUntilMs:53000,replay:true});
+});
+test('goal confirmation during a paused milestone updates its saved duration and cap',()=>{
+    now=0;c.accept(gift('a',{milestoneCents:250000}));now=15000;c.advance();now=32000;c.pause();
+    now=40000;expect(c.accept(reward('a',{goalReached:true}))).toEqual([]);now=41000;
+    expect(c.resume()[0]).toMatchObject({kind:'goal',partyStartedAtMs:41000,partyUntilMs:61000,replay:true});
+    now=61000;expect(c.advance()).toEqual([]);expect(c.nextTransitionAt()).toBeNull();
+});
+test('an expired completed goal upgrade cannot block the next queued donor after reconnect',()=>{
+    now=0;c.accept(gift('a',{milestoneCents:250000}));now=15000;c.advance();now=33000;c.advance();c.pause();now=34000;
+    c.accept(reward('a',{goalReached:true}));c.accept(gift('b'));now=60000;
+    expect(c.resume()[0]).toMatchObject({donorName:'B',phase:'recognition',replay:false,heartsUntilMs:75000});
 });

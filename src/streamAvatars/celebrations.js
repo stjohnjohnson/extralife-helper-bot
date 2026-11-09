@@ -17,7 +17,7 @@ function validateIntent(intent) {
     if (amount !== intent.donationTotalCents) throw new Error('Invalid donation total');
 }
 function createCampaignCelebrationComposer({ clock, random = Math.random, newSequenceId = require('node:crypto').randomUUID }) {
-    let active = null, queue = [], late = [], batches = new Map(), known = new Set(), paused = false, stopped = false;
+    let active = null, queue = [], late = [], batches = new Map(), known = new Set(), paused = false, pausedAt = null, stopped = false;
     const message = g => ({ sequenceId: g.sequenceId, phase: g.phase, kind: g.phase === 'recognition' ? 'donation' : g.reward,
         donorName: g.phase === 'recognition' ? g.name : null, replay: g.replay,
         campaignTotalCents: g.campaignTotal, milestoneCents: g.phase === 'party' ? g.milestone : null,
@@ -33,7 +33,7 @@ function createCampaignCelebrationComposer({ clock, random = Math.random, newSeq
         return message(g);
     }
     function party(g, now) {
-        g.phase = 'party'; g.partyStartedAt = now; g.until = now + (g.reward === 'goal' ? 20000 : 18000);
+        g.phase = 'party'; g.partyStartedAt = now; g.partyCapAt = now + 38000; g.until = now + (g.reward === 'goal' ? 20000 : 18000);
         g.rewardShown = true; g.goalShown ||= g.reward === 'goal'; g.replay = false;
         return message(g);
     }
@@ -45,10 +45,19 @@ function createCampaignCelebrationComposer({ clock, random = Math.random, newSeq
             if (active.phase === 'recognition' && hasReward(active)) messages.push(party(active, now));
             else { active.phase = 'completed'; active = null; }
         }
-        if (!active) {
-            if (late.length) { active = late.shift(); messages.push(party(active, now)); }
-            else if (queue.length) { active = queue.shift(); messages.push(recognize(active, now)); }
+        while (!active && late.length) {
+            const next = late.shift();
+            if (next.goalUpgrade) {
+                next.goalUpgrade = false; next.goalShown = true;
+                if (next.partyCapAt <= now) continue;
+                active = next; active.phase = 'party'; active.until = Math.min(now + 20000, active.partyCapAt);
+                active.replay = Boolean(active.freshDelivery);
+                // A reconnected recipient requires a fresh admission epoch; the original upgrade cap remains internal.
+                if (active.freshDelivery) active.partyStartedAt = now;
+                active.freshDelivery = false; messages.push(message(active));
+            } else { active = next; messages.push(party(active, now)); }
         }
+        if (!active && queue.length) { active = queue.shift(); messages.push(recognize(active, now)); }
         return messages;
     }
     function accept(intent) {
@@ -78,17 +87,18 @@ function createCampaignCelebrationComposer({ clock, random = Math.random, newSeq
                 g.campaignTotal = Math.max(g.campaignTotal || 0, intent.campaignTotalCents);
                 const changed = oldReward !== g.reward || oldMilestone !== g.milestone || oldTotal !== g.campaignTotal;
                 if (g === active && g.phase === 'party' && changed) {
-                    if (g.reward === 'goal' && !g.goalShown) { g.goalShown = true; g.until = Math.min(now + 20000, g.partyStartedAt + 38000); }
+                    if (g.reward === 'goal' && !g.goalShown) {
+                        const at = paused ? pausedAt : now;
+                        g.goalShown = true; g.until = Math.min(at + 20000, g.partyCapAt);
+                        if (paused) g.remaining = Math.max(1, g.until - at);
+                    }
                     if (!paused) messages.push(message(g));
                 } else if (g.phase === 'completed' && !g.rewardShown && !late.includes(g)) {
                     late.push(g);
-                } else if (g.phase === 'completed' && g.reward === 'goal' && !g.goalShown) {
-                    // A completed party may resume only within its original bound, without interrupting newer work.
-                    g.goalShown = true;
-                    const until = Math.min(now + 20000, g.partyStartedAt + 38000);
-                    if (!active && !paused && until > now) {
-                        active = g; g.phase = 'party'; g.until = until; g.replay = false; messages.push(message(g));
-                    }
+                } else if (g.phase === 'completed' && g.rewardShown && g.reward === 'goal' && !g.goalShown && !g.goalUpgrade) {
+                    // Queue behind the current full turn; expire deliberately only when the original cap has passed.
+                    if (g.partyCapAt > now) { g.goalUpgrade = true; late.push(g); }
+                    else g.goalShown = true;
                 }
             }
             messages.push(...advance());
@@ -101,15 +111,16 @@ function createCampaignCelebrationComposer({ clock, random = Math.random, newSeq
         pause() {
             if (paused || stopped) return;
             if (active?.phase === 'party') active.remaining = Math.max(1, active.until - clock.nowMs());
-            paused = true;
+            pausedAt = clock.nowMs(); paused = true;
         },
         resume() {
             if (!paused || stopped) return [];
             paused = false;
+            for (const pending of late) if (pending.goalUpgrade) pending.freshDelivery = true;
             if (!active) return advance();
             const now = clock.nowMs(); active.replay = true;
             if (active.phase === 'recognition') { active.startedAt = now; active.until = now + 15000; }
-            else { active.partyStartedAt = now; active.until = now + active.remaining; }
+            else { active.partyCapAt += now - pausedAt; active.partyStartedAt = now; active.until = now + active.remaining; }
             return [message(active)];
         },
         clear() { active = null; queue = []; late = []; batches.clear(); known.clear(); },
