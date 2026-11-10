@@ -74,7 +74,7 @@ async function handleColorCommand(input, platform, context, config, hueControlle
         case 'applied':
             return null;
         case 'party':
-            return 'Party started! Lights will return to their previous state afterward.';
+            return 'Party time! 🎉';
         case 'disabled':
             return 'Chat light control is disabled.';
         case 'busy':

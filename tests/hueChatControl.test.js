@@ -77,7 +77,7 @@ describe('coordinated Hue chat effects', () => {
 
     test('Twitch and Discord share party limits and donation busy replies', async () => {
         const run = (platform, command) => handleCommand(command, platform, { userId: 'viewer', username: 'viewer' }, controller.config, {}, logger, controller);
-        expect(await run('discord', 'color party')).toMatch(/party started/i);
+        expect(await run('discord', 'color party')).toBe('Party time! 🎉');
         expect(await run('twitch', 'color red')).toMatch(/busy/i);
         await controller.celebrateDonation();
         expect(await run('discord', 'color red')).toMatch(/busy/i);
