@@ -498,11 +498,14 @@ test('artWorkflowRetainsFoundationScriptsAndCatalog', () => {
         'sa:package': 'node scripts/sa-package.js',
         'sa:integration': 'node scripts/sa-integration.js'
     });
-    expect(packageJson.dependencies).toMatchObject({ pngjs: '7.0.0', ws: '8.22.0', fflate: '0.8.3' });
-    expect(packageJson.devDependencies).not.toHaveProperty('pngjs');
-    expect(lock.packages[''].dependencies.pngjs).toBe('7.0.0');
-    expect(lock.packages[''].devDependencies).not.toHaveProperty('pngjs');
-    expect(lock.packages['node_modules/pngjs'].version).toBe('7.0.0');
+    // Preserve production dependencies without freezing their release versions.
+    for (const dependency of ['pngjs', 'ws', 'fflate']) {
+        expect(packageJson.dependencies[dependency]).toEqual(expect.stringMatching(/\S/));
+        expect(lock.packages[''].dependencies[dependency]).toBe(packageJson.dependencies[dependency]);
+        expect(packageJson.devDependencies).not.toHaveProperty(dependency);
+        expect(lock.packages[''].devDependencies).not.toHaveProperty(dependency);
+    }
+    expect(lock.packages['node_modules/pngjs'].version).toBe(require('pngjs/package.json').version);
     expect(lock.packages['node_modules/pngjs'].dev).not.toBe(true);
     expect(Object.keys(lock.packages).filter(key => /(?:^|\/)node_modules\/pngjs$/.test(key)))
         .toEqual(['node_modules/pngjs']);
