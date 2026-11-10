@@ -60,3 +60,13 @@ test.each([
     expect(await run('status', context(), statusWith(patch))).toContain(message);
     expect(count).toBe(0);
 });
+
+test('status explains safe state failure reasons and required actions for each store', async () => {
+    const target = { ...service, getStatus: () => ({ ...service.getStatus(), recoveryRequired: true, gameRecoveryRequired: true,
+        stateError: { reason: 'permission-denied', operation: 'load', code: 'EACCES', message: 'private-token' },
+        gameStateError: { reason: 'ownership-conflict', operation: 'load', message: 'private-donor' } }) };
+    const status = await run('status', context(), target);
+    expect(status).toMatch(/campaign.*permission-denied.*EACCES.*writ/i);
+    expect(status).toMatch(/game.*ownership-conflict.*instance/i);
+    expect(status).not.toContain('private');
+});

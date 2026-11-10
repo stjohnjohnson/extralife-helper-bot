@@ -14,7 +14,7 @@ Unknown commands receive no response.
 | `!promote` | Admin; both platforms | Move all members from the waiting voice room into the live voice room |
 | `!testlights` | Admin; both platforms | Test the Hue donation celebration |
 | `!color <value>` | Everyone; both platforms, when enabled | Change the configured Hue group's color |
-| `!sa status` | Twitch admin | Show campaign progress, companion connectivity, and recovery status |
+| `!sa status` | Twitch admin | Show campaign progress, companion connectivity, and separate state failure reasons with corrective actions |
 | `!sa campaign recover confirm` | Twitch admin | Restore the validated campaign backup and silently establish current baselines |
 | `!sa campaign reset confirm` | Twitch admin | Archive and reset campaign progress, then silently establish current baselines |
 | `!sa game recover confirm` | Twitch admin; recent offline observation required | Restore the validated game-state backup |

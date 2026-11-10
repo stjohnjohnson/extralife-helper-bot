@@ -1,3 +1,4 @@
+const { acquireStateOwnership } = require('../stateOwnership');
 const defaultFs = require('node:fs/promises');
 const { resolve, dirname, join } = require('node:path');
 const { randomUUID } = require('node:crypto');
@@ -20,9 +21,8 @@ async function assertDistinctPaths(first, second) {
 }
 function createCampaignStore({ path, mode, participantId, intervalCents, fs = defaultFs }) {
     const file = resolve(path);
-    const lock = file + '.lock';
     const recovery = file + '.recovery-required';
-    let owned = false;
+    let ownership = null;
     let closed = false;
     let lastRevision = -1;
     let tail = Promise.resolve();
@@ -32,8 +32,14 @@ function createCampaignStore({ path, mode, participantId, intervalCents, fs = de
         tail = result.catch(() => {});
         return result;
     };
-    const assertOwner = () => { if (closed) throw new Error('Campaign store closed'); if (!owned) throw new Error('Campaign store requires its owner'); };
-    const read = async source => validateCampaignState(JSON.parse(await fs.readFile(source, 'utf8')), { mode, participantId, intervalCents });
+    const assertOwner = () => { if (closed) throw new Error('Campaign store closed'); if (!ownership) throw new Error('Campaign store requires its owner'); };
+    const read = async (source, savedParticipant = false) => {
+        const text = await fs.readFile(source, 'utf8');
+        try {
+            const raw = JSON.parse(text);
+            return validateCampaignState(raw, { mode, participantId: savedParticipant ? raw?.participantId : participantId });
+        } catch (error) { error.code = 'STATE_INVALID'; throw error; }
+    };
     const syncDirectory = async () => {
         if (process.platform !== 'linux') return;
         const directory = await fs.open(dirname(file), 'r');
@@ -63,23 +69,16 @@ function createCampaignStore({ path, mode, participantId, intervalCents, fs = de
                 const info = await fs.lstat(file);
                 if (info.isSymbolicLink() || info.nlink > 1) throw new Error('Campaign state must not use links');
             } catch (error) { if (error.code !== 'ENOENT') throw error; }
-            if (!owned) {
-                let handle;
-                try { handle = await fs.open(lock, 'wx', 0o600); }
-                catch (error) { if (error.code === 'EEXIST') throw new Error('Campaign store already has an owner; validate stale lock before removal', { cause: error }); throw error; }
-                owned = true;
-                try { await handle.writeFile(JSON.stringify({ pid: process.pid })); } finally { await handle.close(); }
-            }
+            if (!ownership) ownership = await acquireStateOwnership(file);
             let requiresRecovery = false;
             try { await fs.access(recovery); requiresRecovery = true; } catch (error) { if (error.code !== 'ENOENT') throw error; }
             if (requiresRecovery) {
                 // Finish an interrupted quarantine without replacing the last valid backup.
-                try { await read(file); } catch (error) { if (error.code !== 'ENOENT') await quarantine(); }
-                throw new Error('Campaign state requires recovery');
+                try { await read(file); } catch (error) { if (error.code === 'STATE_INVALID') await quarantine(); else if (error.code !== 'ENOENT') throw error; }
+                throw Object.assign(new Error('Campaign state requires recovery'), { code: 'STATE_RECOVERY_REQUIRED' });
             }
             try {
-                const raw = JSON.parse(await fs.readFile(file, 'utf8'));
-                const state = validateCampaignState(raw, { mode, participantId: raw.participantId });
+                const state = await read(file, true);
                 lastRevision = state.revision;
                 if (state.participantId !== String(participantId)) {
                     await fs.copyFile(file, file + '.archive-' + randomUUID());
@@ -89,12 +88,13 @@ function createCampaignStore({ path, mode, participantId, intervalCents, fs = de
                 return state;
             } catch (error) {
                 if (error.code === 'ENOENT') return null;
+                if (error.code !== 'STATE_INVALID') throw error;
                 // Persist the recovery gate before moving the corrupt original, including across crashes.
                 const marker = await fs.open(recovery, 'wx', 0o600);
                 try { await marker.writeFile('corrupt-state'); await marker.sync(); } finally { await marker.close(); }
                 await syncDirectory();
                 await quarantine();
-                throw new Error('Campaign state requires recovery', { cause: error });
+                throw Object.assign(new Error('Campaign state requires recovery', { cause: error }), { code: 'STATE_INVALID' });
             }
         },
         save,
@@ -111,7 +111,7 @@ function createCampaignStore({ path, mode, participantId, intervalCents, fs = de
             await save(backup); await clearRecovery(); return backup;
         },
         flush: () => tail,
-        async close() { await tail; if (owned) { await fs.rm(lock, { force: true }); owned = false; } closed = true; }
+        async close() { await tail; if (ownership) { ownership.close(); ownership = null; } closed = true; }
     };
 }
 module.exports = { createCampaignStore, assertDistinctPaths };

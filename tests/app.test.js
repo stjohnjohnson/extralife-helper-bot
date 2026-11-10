@@ -433,9 +433,9 @@ describe('application lifecycle', () => {
         expect(mockHueController.celebrateDonation).toHaveBeenCalledTimes(1);
     });
 
-    test('campaign intake keeps first-page announcements ahead of delayed totals and hides storage details', async () => {
+    test.each(['generic', 'diagnosed'])('campaign intake preserves notifications and reports %s accounting failure once', async failure => {
         const later = deferred(); const checkpoint = { epochId: 'epoch', participantId: '12', baselineNeeded: true };
-        const service = { getPollCheckpoint: () => checkpoint, acceptObservation: jest.fn().mockRejectedValue(new Error('private store details')), stop: jest.fn().mockResolvedValue() };
+        const service = { getPollCheckpoint: () => checkpoint, getStatus: () => ({ stateError: failure === 'diagnosed' ? { reason: 'permission-denied' } : null }), acceptObservation: jest.fn().mockRejectedValue(new Error('private store details')), stop: jest.fn().mockResolvedValue() };
         startStreamAvatars.mockResolvedValue(service);
         const source = { poll: jest.fn(), pollCampaignDonations: jest.fn().mockImplementationOnce(async ({ onAnnouncements, onDonations }) => {
             await onAnnouncements({ donations: [], baseline: true }); await onDonations({ donations: [], complete: false, throughMs: Date.now() }); return { donations: [], complete: true, throughMs: Date.now(), rawSeenIds: [], recordCount: 0 };
@@ -449,7 +449,8 @@ describe('application lifecycle', () => {
         expect(mockTwitchClient.say).toHaveBeenCalledTimes(1); expect(mockHueController.celebrateDonation).toHaveBeenCalledTimes(1);
         expect(service.acceptObservation).toHaveBeenCalledWith(expect.objectContaining({expectedEpochId:'epoch',donations:expect.arrayContaining([expect.objectContaining({id:'live'})])}));
         later.resolve({ donations: [], complete: true, throughMs: Date.now(), rawSeenIds: ['live'], recordCount: 1 }); await jest.advanceTimersByTimeAsync(0);
-        expect(mockLogger.warn).toHaveBeenCalledWith('Stream Avatars donation accounting unavailable');
+        expect(mockLogger.warn.mock.calls.filter(([message]) => message === 'Stream Avatars donation accounting unavailable')).toHaveLength(failure === 'diagnosed' ? 0 : 1);
+        expect(JSON.stringify(mockLogger.warn.mock.calls)).not.toContain('private store details');
         expect(mockTwitchClient.say).toHaveBeenCalledTimes(1);
     });
 

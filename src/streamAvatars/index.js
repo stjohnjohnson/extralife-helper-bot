@@ -19,14 +19,14 @@ async function startStreamAvatars({ config, logger = { warn() {} }, signal, webS
     const catalog = loadThemePack({ directory, previewOnly: Boolean(candidatePackDir && integration) }).catalog;
     const crowdIds = integration ? [...integration.crowdIds] : [], participantId = String(config.participantId), intervalCents = settings.donationIntervalCents ?? 50000;
     const progress = await createCampaignProgress({ store: createCampaignStore({ path: join(settings.stateDir, mode, 'campaign.json'), mode, participantId, intervalCents }),
-        clock: realClock, mode, participantId, intervalCents });
+        clock: realClock, mode, participantId, intervalCents, logger });
     const themes = settings.themes || loadThemeConfiguration();
     for (const error of themes.errors) logger.warn(error);
     const cadenceMs = (config.twitch?.viewerSampleIntervalSeconds || 60) * 1000;
     const channel = config.twitch?.channel || 'integration';
     const gameSession = integration ? null : await createSessionController({
         store: createSessionStore({ path: join(settings.stateDir, 'production', 'state.json'), mode: 'production', channel }),
-        clock: realClock, mode: 'production', channel, graceMs: 900000, cadenceMs, gameConfig: themes.enabled ? themes.config : null
+        clock: realClock, logger, mode: 'production', channel, graceMs: 900000, cadenceMs, gameConfig: themes.enabled ? themes.config : null
     });
     let previewGame = null, reconciledGame = false, lastRealObservation = null, observationTail = Promise.resolve();
     const enqueueObservation = operation => {
@@ -127,7 +127,7 @@ async function startStreamAvatars({ config, logger = { warn() {} }, signal, webS
         async resetIntegration() { if (!integration || !active) throw new Error('Integration reset unavailable'); invalidate(); await progress.reset(); },
         getStatus() {
             const state = progress.getSnapshot(), c = publicCampaign(state);
-            return { mode, state, game: currentGame(), gameRecoveryRequired: gameSession?.getStatus().recoveryRequired, crowdCount: crowdIds.length, ...progress.getStatus(), initialized: c.initialized,
+            return { mode, state, game: currentGame(), gameRecoveryRequired: gameSession?.getStatus().recoveryRequired, gameStateError: gameSession?.getStatus().stateError, crowdCount: crowdIds.length, ...progress.getStatus(), initialized: c.initialized,
                 campaignTotalCents: c.totalCents, campaignGoalCents: c.goalCents, nextMilestoneCents: c.nextMilestoneCents,
                 themeReady: Boolean(server.getStatus().themeReadyClients), companionReady: ready(), companionConnected: server.getStatus().authenticatedClients > 0, resolution: lastResolution };
         },

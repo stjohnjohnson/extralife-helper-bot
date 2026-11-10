@@ -193,9 +193,15 @@ Detailed timing, native action limitations, and cleanup behavior are in the [ren
 
 The default state directory is `./data/stream-avatars`.
 Campaign progress uses `production/campaign.json`; independent game state uses `production/state.json`.
-Each file has an exclusive lock and a previous valid `.backup`.
+Each file has a process-lifetime ownership lock and a previous valid `.backup`.
+The operating system releases ownership after a crash or forced termination.
+The next start loads saved progress without a reset or manual lock removal.
 Keep external backups private and outside Git.
-Do not share a state directory between running instances.
+Use a local filesystem with reliable SQLite file locking.
+Network filesystems are unsupported.
+Only one instance can own each state file.
+Stop the previous version before starting an upgrade or rollback.
+Concurrent old and new versions use incompatible ownership mechanisms.
 
 For Docker, publish the listener and mount persistent state:
 
@@ -209,6 +215,10 @@ docker run --rm -it --env-file .env -p 3000:3000 \
 The Compose example already mounts this volume; uncomment its port mapping when enabling a web integration.
 Bind mounts must be writable by the container's `node` user, UID/GID 1000.
 Do not run `docker compose down -v` when you need to preserve progress.
+
+On upgrade, the bot automatically archives legacy `.lock` files after acquiring ownership.
+Saved progress, backups, and recovery markers remain in place.
+No manual lock migration is required.
 
 Corrupt state creates a durable recovery gate.
 Normal donation notifications continue if campaign accounting is unavailable.
@@ -236,7 +246,14 @@ Legacy game state migrates in place; never rename `state.json` to `campaign.json
 Back up state before upgrading if you need rollback.
 Upgrade the bot and companion together.
 
-After a crash, confirm that no process owns the state directory before removing a stale lock.
+`!sa status` reports separate campaign and game state failures with corrective actions.
+Logs report each changed failure once, without private state contents or credentials.
+Permission and disk errors do not classify readable state as corrupt.
+After correcting filesystem permissions or disk capacity, restart the bot.
+Use explicit recovery commands only when status identifies invalid state or a recovery gate.
+
+The permanent `*.ownership.sqlite` files coordinate ownership; they do not contain campaign or game progress.
+Do not delete, replace, or move these files while any bot instance is running.
 See [persistence details](stream-avatars-reference.md#campaign-accounting-details) for donation checkpoints and recovery behavior.
 
 ## Verify the installation

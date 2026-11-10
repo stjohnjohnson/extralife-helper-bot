@@ -24,6 +24,7 @@ test('retains the filesystem cause when a second store attempts to acquire owner
     const second = createSessionStore({ path: file, mode: 'production', channel: 'streamer' }); stores.push(second);
     await expect(second.load()).rejects.toMatchObject({
         message: expect.stringMatching(/owner/i),
-        cause: expect.objectContaining({ code: 'EEXIST', path: file + '.lock' })
+        code: 'STATE_LOCKED',
+        cause: expect.objectContaining({ errcode: 5 })
     });
 });
