@@ -456,9 +456,15 @@ return function()
         local dollars=string.format("%.0f",math.floor(cents/100)); local grouped=dollars:reverse():gsub("(%d%d%d)","%1,"):reverse():gsub("^,","")
         return "$"..grouped..(cents%100==0 and "" or "."..string.format("%02d",cents%100))
     end
+    local function numericAsset(char)
+        if char=="$" then return "sa_dollar" end
+        if char=="," then return "sa_comma" end
+        if char=="." then return "sa_dot" end
+        if char:match("^[0-9]$") then return "sa_digit_"..char end
+    end
     local function numericItems(text)
         local result={}
-        for char in text:gmatch(".") do result[#result+1]={asset=char=="$" and "sa_dollar" or (char=="," and "sa_comma" or (char=="." and "sa_dot" or "sa_digit_"..char)),width=17,height=23} end
+        for char in text:gmatch(".") do result[#result+1]={asset=numericAsset(char),width=17,height=23} end
         return result
     end
     -- ASCII only: Node normalizes public names before they cross the host boundary.
@@ -606,7 +612,7 @@ return function()
                     if char~=" " then
                         local index=donorAlphabet:find(char,1,true)-1
                         local key="name_"..i;wanted[key]=true
-                        place(captionLayer,key,"sa_name_"..string.format("%02d",index),nameLeft+(i-1)*18+8.5,bounds.y+bounds.height-20,1)
+                        place(captionLayer,key,numericAsset(char) or "sa_name_"..string.format("%02d",index),nameLeft+(i-1)*18+8.5,bounds.y+bounds.height-20,1)
                     end
                 end
             end

@@ -7,7 +7,7 @@ test('generated celebration and status PNGs are transparent, correctly tiled and
     const dir = fs.mkdtempSync(join(tmpdir(), 'sa-assets-'));
     try {
         generateAssets(dir); const files = fs.readdirSync(dir).sort();
-        expect(files.filter(name => name.endsWith('.json'))).toHaveLength(65);
+        expect(files.filter(name => name.endsWith('.json'))).toHaveLength(53);
         expect(files).toContain('sa_bridge_unknown.json');
         const first = files.map(name => fs.readFileSync(join(dir, name)));
         generateAssets(dir); expect(files.map(name => fs.readFileSync(join(dir, name)))).toEqual(first);
@@ -41,10 +41,22 @@ test('all uppercase name characters and requested symbols have visible pixel gly
     const alphabet='ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 .,:-\'"?';
     for(const [index,char] of [...alphabet].entries()) {
         if(char===' ') continue;
-        const name='sa_name_'+String(index).padStart(2,'0');
+        const name=/^[0-9]$/.test(char) ? 'sa_digit_'+char : char==='.' ? 'sa_dot' : char===',' ? 'sa_comma' : 'sa_name_'+String(index).padStart(2,'0');
         const manifest=JSON.parse(fs.readFileSync('integrations/stream-avatars/assets/'+name+'.json'));
         const png=PNG.sync.read(fs.readFileSync('integrations/stream-avatars/assets/'+name+'.png'));
         expect(manifest).toMatchObject({name,frameWidth:17,frameHeight:23,frames:1,transparent:true});
         expect([...png.data].some((value,i)=>i%4===3&&value>0)).toBe(true);
     }
+});
+
+test('name glyph generation reuses existing digits, periods, and commas',()=>{
+    const directory=fs.mkdtempSync(join(tmpdir(),'sa-shared-glyphs-'));
+    try {
+        generateAssets(directory);
+        for(const index of [26,27,28,29,30,31,32,33,34,35,37,38]) {
+            const base='sa_name_'+String(index).padStart(2,'0');
+            expect(fs.existsSync(join(directory,base+'.png'))).toBe(false);
+            expect(fs.existsSync(join(directory,base+'.json'))).toBe(false);
+        }
+    } finally { fs.rmSync(directory,{recursive:true,force:true}); }
 });

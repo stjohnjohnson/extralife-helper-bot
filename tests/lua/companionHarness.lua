@@ -219,7 +219,16 @@ local function addUser(id,x,y)
     end
     user.getPosition=function() return {x=user.x,y=user.y} end; users[tostring(id)]=user; return user
 end
-local function count() local n=0 for _,ob in ipairs(objects) do if not ob.removed and ob.imageLoaded and ob.scale>0 and not (ob.asset and ob.asset:match("^sa_name_")) then n=n+1 end end return n end
+local function captionRowY()
+    for _,ob in ipairs(objects) do
+        if not ob.removed and ob.imageLoaded and ob.scale>0 and (ob.asset=="sa_thanks" or ob.asset=="sa_raised" or ob.asset=="sa_goal") then return ob.y end
+    end
+end
+local function isNameObject(ob)
+    local row=captionRowY()
+    return row and ob.y and ob.y>row and ob.asset and (ob.asset:match("^sa_name_") or ob.asset:match("^sa_digit_") or ob.asset=="sa_dot" or ob.asset=="sa_comma")
+end
+local function count() local n=0 for _,ob in ipairs(objects) do if not ob.removed and ob.imageLoaded and ob.scale>0 and not isNameObject(ob) then n=n+1 end end return n end
 local function assetCount(prefix) local n=0 for _,ob in ipairs(objects) do if not ob.removed and ob.imageLoaded and ob.scale>0 and ob.asset and (ob.asset==prefix or (prefix=="sa_digit" and ob.asset:find("sa_digit_",1,true))) then n=n+1 end end return n end
 local function celebration(kind,id)
     local party=kind=="goal" or kind=="milestone"
@@ -336,8 +345,9 @@ if statusScenario then
 end
 local function captionText()
     local text=""
+    local row=captionRowY()
     local phrases={sa_dollar="$",sa_comma=",",sa_dot=".",sa_separator=" - ",sa_from=" FROM ",sa_donations=" DONATIONS - ",sa_thanks="THANK YOU!",sa_raised=" RAISED!",sa_goal="EXTRA LIFE GOAL REACHED!"}
-    for _,ob in ipairs(objects) do if not ob.removed and ob.imageLoaded and ob.scale>0 and ob.asset then
+    for _,ob in ipairs(objects) do if not ob.removed and ob.imageLoaded and ob.scale>0 and ob.asset and ob.y==row then
         text=text..(phrases[ob.asset] or ob.asset:match("^sa_digit_(%d)$") or "")
     end end
     return text
@@ -359,11 +369,11 @@ end
 local donorAlphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 .,:-'\"?"
 local function nameObjects()
     local list={}
-    for _,ob in ipairs(objects) do if not ob.removed and ob.imageLoaded and ob.scale>0 and ob.asset and ob.asset:match("^sa_name_") then list[#list+1]=ob end end
+    for _,ob in ipairs(objects) do if not ob.removed and ob.imageLoaded and ob.scale>0 and isNameObject(ob) then list[#list+1]=ob end end
     table.sort(list,function(a,b) return a.x<b.x end);return list
 end
 local function nameText()
-    local result="";for _,ob in ipairs(nameObjects()) do local i=tonumber(ob.asset:match("(%d+)$"));result=result..donorAlphabet:sub(i+1,i+1) end;return result
+    local result="";for _,ob in ipairs(nameObjects()) do local digit=ob.asset:match("^sa_digit_(%d)$");local index=tonumber(ob.asset:match("^sa_name_(%d+)$"));result=result..(digit or (ob.asset=="sa_dot" and ".") or (ob.asset=="sa_comma" and ",") or donorAlphabet:sub(index+1,index+1)) end;return result
 end
 if scenario:match("^name%-") then
     addUser(1);if scenario=="name-replay-hug" then addUser(2) end
@@ -381,11 +391,16 @@ if scenario:match("^name%-") then
         assert(jumps==priorJumps and #hugs==priorHugs and #soundPlays==1,"replay must suppress cues after history expiry")
         assert(nameText()=="ALICE" and assetCount("sa_heart")>0,"replay must restore both caption rows and hearts")
     else
-        if scenario=="name-punctuation" then v.donorName="A.,:-'\"09?" elseif scenario=="name-anonymous" then v.donorName="ANONYMOUS";v.donationTotalCents=codec.null elseif scenario=="name-fit" then v.donorName=string.rep("A",32) end
+        if scenario=="name-shared-glyphs" then v.donorName="0123456789.," elseif scenario=="name-punctuation" then v.donorName="A.,:-'\"09?" elseif scenario=="name-anonymous" then v.donorName="ANONYMOUS";v.donationTotalCents=codec.null elseif scenario=="name-fit" then v.donorName=string.rep("A",32) end
         send(v);tick()
         if scenario=="name-missing" then assert(nameText()=="LICE" and captionText()=="$25 - THANK YOU!","missing glyph must preserve other captions")
         elseif scenario=="name-delayed" then assert(#nameObjects()==0 and captionText()=="$25 - THANK YOU!","pending name glyphs must remain hidden");allowImageCompletion=true;tick();tick();assert(nameText()=="ALICE")
         else assert(nameText()==v.donorName,"name row must use the complete supported pixel alphabet") end
+        if scenario=="name-shared-glyphs" then
+            local expected={"sa_digit_0","sa_digit_1","sa_digit_2","sa_digit_3","sa_digit_4","sa_digit_5","sa_digit_6","sa_digit_7","sa_digit_8","sa_digit_9","sa_dot","sa_comma"}
+            for i,ob in ipairs(nameObjects()) do assert(ob.asset==expected[i],"name row must reuse existing number and punctuation images") end
+            assert(#nameObjects()==12 and captionText()=="$25 - THANK YOU!","shared glyph ownership must keep both rows intact")
+        end
         if scenario=="name-fit" then
             app.convertPercentToPosition=function(x,y) return {x=x*120,y=y*100} end;tick();assert(nameText()=="AAA...","narrow name must shorten at readable scale")
             for _,ob in ipairs(nameObjects()) do assert(ob.scale==1 and ob.x>=8 and ob.x<=112,"fitted name must stay inside canvas") end
