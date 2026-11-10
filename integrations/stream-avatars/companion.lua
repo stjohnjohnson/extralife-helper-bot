@@ -186,6 +186,7 @@ return function()
         return not duplicate
     end
     local function cue(value)
+        if value.replay then return end
         -- Claim even disabled/unavailable cues; reloads never retry old effects.
         if claimSound(value) then soundOperation(nextSound(value.kind)) end
     end
@@ -429,12 +430,13 @@ return function()
     end
     local function imageEntry(layer,id,asset)
         local entry=layer[id]
+        if entry and entry.asset~=asset then release(entry);layer[id]=nil;entry=nil end
         if not entry then
             local pending=get("sa_pending_images") or 0
             if pending>=128 then return nil end
             set("sa_pending_images",pending+1); loadSequence=loadSequence+1; set("sa_load_sequence",loadSequence)
             local key="sa_image_"..loadSequence
-            entry={object=app.createGameObject(),key=key,deadline=elapsed+2}; layer[id]=entry
+            entry={object=app.createGameObject(),key=key,asset=asset,deadline=elapsed+2}; layer[id]=entry
             entry.object.setScale(0,0); entry.loader=async("sa_load_heart",entry.object,key,asset)
         end
         if entry.failed then return nil end
@@ -454,10 +456,23 @@ return function()
         local dollars=string.format("%.0f",math.floor(cents/100)); local grouped=dollars:reverse():gsub("(%d%d%d)","%1,"):reverse():gsub("^,","")
         return "$"..grouped..(cents%100==0 and "" or "."..string.format("%02d",cents%100))
     end
+    local function numericAsset(char)
+        if char=="$" then return "sa_dollar" end
+        if char=="," then return "sa_comma" end
+        if char=="." then return "sa_dot" end
+        if char:match("^[0-9]$") then return "sa_digit_"..char end
+    end
     local function numericItems(text)
         local result={}
-        for char in text:gmatch(".") do result[#result+1]={asset=char=="$" and "sa_dollar" or (char=="," and "sa_comma" or (char=="." and "sa_dot" or "sa_digit_"..char)),width=17,height=23} end
+        for char in text:gmatch(".") do result[#result+1]={asset=numericAsset(char),width=17,height=23} end
         return result
+    end
+    -- ASCII only: Node normalizes public names before they cross the host boundary.
+    local donorAlphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 .,:-'\"?"
+    local function validDonorName(name)
+        if type(name)~="string" or #name<1 or #name>32 or name:sub(1,1)==" " or name:sub(-1)==" " or name:find("  ",1,true) then return false end
+        for i=1,#name do if not donorAlphabet:find(name:sub(i,i),1,true) then return false end end
+        return true
     end
     local function captionItems()
         if celebration and celebration.kind=="goal" then return {{asset="sa_goal_accent",width=32,height=32},{asset="sa_goal",width=431,height=23}} end
@@ -468,30 +483,26 @@ return function()
         if not recognition then return {} end
         if not recognition.amountKnown then return {{asset="sa_thanks",width=179,height=23}} end
         local result=numericItems(moneyGlyphs(recognition.amount))
-        if recognition.count>1 then
-            result[#result+1]={asset="sa_from",width=107,height=23}
-            for _,item in ipairs(numericItems(string.format("%.0f",recognition.count))) do result[#result+1]=item end
-            result[#result+1]={asset="sa_donations",width=233,height=23}
-        else result[#result+1]={asset="sa_separator",width=53,height=23} end
+        result[#result+1]={asset="sa_separator",width=53,height=23}
         result[#result+1]={asset="sa_thanks",width=179,height=23}; return result
     end
     local function validCelebration(value)
-        local allowed={version=true,type=true,mode=true,generation=true,campaignId=true,id=true,sequenceId=true,issuedAtMs=true,expiresAtMs=true,phase=true,kind=true,campaignTotalCents=true,milestoneCents=true,donationCount=true,donationTotalCents=true,recognitionStartedAtMs=true,recognitionAction=true,heartsUntilMs=true,partyStartedAtMs=true,partyUntilMs=true}
-        if not exact(value,allowed) or type(value.sequenceId)~="string" or #value.sequenceId==0 or #value.sequenceId>128 or type(value.id)~="string" or #value.id==0 or #value.id>128 or
+        local allowed={version=true,type=true,mode=true,generation=true,campaignId=true,id=true,sequenceId=true,donorName=true,replay=true,issuedAtMs=true,expiresAtMs=true,phase=true,kind=true,campaignTotalCents=true,milestoneCents=true,donationCount=true,donationTotalCents=true,recognitionStartedAtMs=true,recognitionAction=true,heartsUntilMs=true,partyStartedAtMs=true,partyUntilMs=true}
+        if not exact(value,allowed) or type(value.replay)~="boolean" or type(value.sequenceId)~="string" or #value.sequenceId==0 or #value.sequenceId>128 or type(value.id)~="string" or #value.id==0 or #value.id>128 or
             not integer(value.issuedAtMs) or value.issuedAtMs<0 or not integer(value.expiresAtMs) or value.expiresAtMs<=value.issuedAtMs or value.expiresAtMs>value.issuedAtMs+10000 or
             not integer(value.heartsUntilMs) or value.heartsUntilMs<0 or not integer(value.partyUntilMs) or value.partyUntilMs<0 or
             not (jsonNull(value.campaignTotalCents) or (integer(value.campaignTotalCents) and value.campaignTotalCents>=0 and value.campaignTotalCents<=9007199254740991)) or
             not (jsonNull(value.milestoneCents) or (integer(value.milestoneCents) and value.milestoneCents>0 and not jsonNull(value.campaignTotalCents) and value.milestoneCents<=value.campaignTotalCents)) then return false end
         if value.phase=="recognition" then
             return value.kind=="donation" and jsonNull(value.milestoneCents) and jsonNull(value.partyStartedAtMs) and value.partyUntilMs==0 and
-                integer(value.donationCount) and value.donationCount>0 and value.donationCount<=9007199254740991 and
+                value.donationCount==1 and validDonorName(value.donorName) and
                 (jsonNull(value.donationTotalCents) or (integer(value.donationTotalCents) and value.donationTotalCents>=0 and value.donationTotalCents<=9007199254740991)) and
                 integer(value.recognitionStartedAtMs) and value.recognitionStartedAtMs>=0 and value.recognitionStartedAtMs<=value.issuedAtMs and
-                value.heartsUntilMs>value.issuedAtMs and value.heartsUntilMs<=value.recognitionStartedAtMs+10000 and
+                value.heartsUntilMs>value.issuedAtMs and value.heartsUntilMs==value.recognitionStartedAtMs+15000 and
                 (value.recognitionAction=="jump" or value.recognitionAction=="hug")
         elseif value.phase=="party" then
             return (value.kind=="goal" or (value.kind=="milestone" and not jsonNull(value.milestoneCents))) and not jsonNull(value.campaignTotalCents) and
-                value.donationCount==0 and value.donationTotalCents==0 and jsonNull(value.recognitionStartedAtMs) and jsonNull(value.recognitionAction) and value.heartsUntilMs==0 and
+                jsonNull(value.donorName) and value.donationCount==0 and value.donationTotalCents==0 and jsonNull(value.recognitionStartedAtMs) and jsonNull(value.recognitionAction) and value.heartsUntilMs==0 and
                 integer(value.partyStartedAtMs) and value.partyStartedAtMs>=0 and value.partyStartedAtMs<=value.issuedAtMs and
                 value.partyUntilMs>value.issuedAtMs and value.partyUntilMs<=value.partyStartedAtMs+38000
         end
@@ -509,10 +520,10 @@ return function()
             if celebration then clearLayer(particleLayer); particleLayer={}; stopDances(); celebration=nil end
             local sameWindow=recognitionSequenceId==value.sequenceId and recognitionWindowStartedAt==value.recognitionStartedAtMs
             if not sameWindow then clearLayer(heartLayer); heartLayer={}; handled={} end
-            if not recognition or not sameWindow or recognition.amount~=value.donationTotalCents or recognition.count~=value.donationCount then clearLayer(captionLayer); captionLayer={} end
+            if not recognition or not sameWindow or recognition.amount~=value.donationTotalCents or recognition.count~=value.donationCount or recognition.name~=value.donorName then clearLayer(captionLayer); captionLayer={} end
             recognitionWindowStartedAt=value.recognitionStartedAtMs; recognitionSequenceId=value.sequenceId
             recognition=value.heartsUntilMs>serverNow and {ends=elapsed+(value.heartsUntilMs-serverNow)/1000,untilMs=value.heartsUntilMs,
-                startedAtMs=value.recognitionStartedAtMs,count=value.donationCount,amount=value.donationTotalCents,amountKnown=not jsonNull(value.donationTotalCents),action=value.recognitionAction} or nil
+                startedAtMs=value.recognitionStartedAtMs,name=value.donorName,replay=value.replay,count=value.donationCount,amount=value.donationTotalCents,amountKnown=not jsonNull(value.donationTotalCents),action=value.recognitionAction} or nil
             if recognition then cue(value)
             else clearLayer(heartLayer); clearLayer(captionLayer); heartLayer={}; captionLayer={}; soundOperation(false) end
         else
@@ -526,7 +537,7 @@ return function()
             if not sameParty then clearLayer(particleLayer); particleLayer={}; stopDances(); actionAttempts={} end
             if not celebration or celebration.kind~=value.kind or celebration.campaignTotalCents~=value.campaignTotalCents then clearLayer(captionLayer); captionLayer={} end
             celebration=value.partyUntilMs>serverNow and {ends=elapsed+(value.partyUntilMs-serverNow)/1000,untilMs=value.partyUntilMs,kind=value.kind,
-                campaignTotalCents=value.campaignTotalCents,sequenceId=value.sequenceId,startedAtMs=value.partyStartedAtMs} or nil
+                campaignTotalCents=value.campaignTotalCents,sequenceId=value.sequenceId,startedAtMs=value.partyStartedAtMs,replay=value.replay} or nil
             if celebration then cue(value)
             else clearLayer(particleLayer); clearLayer(captionLayer); particleLayer={}; captionLayer={}; stopDances(); soundOperation(false) end
         end
@@ -544,6 +555,7 @@ return function()
     end
     local function recognize(users)
         if not recognition or celebration then return end
+        if recognition.replay then return end
         local candidates={}
         for i=1,math.min(101,#users) do local user=users[i]
             if not handled[tostring(user.id)] and eligible(user) then candidates[#candidates+1]=user end
@@ -577,11 +589,35 @@ return function()
         if celebration and (elapsed>=celebration.ends or serverNow>=celebration.untilMs) then clearLayer(particleLayer); clearLayer(captionLayer); particleLayer={}; captionLayer={}; stopDances(); celebration=nil; soundOperation(false) end
         if not recognition and not celebration then clearLayer(captionLayer); captionLayer={}; return end
         local bounds=gameBounds(); if not bounds then report("render-error"); return end
-        -- Numeric glyphs and fixed captions remain inside the current canvas.
+        -- Keep both rows inside the canvas; names shorten before their pixels shrink.
         local items=captionItems(); local width=0; for _,item in ipairs(items) do width=width+item.width+2 end
-        local scale=math.min(1,(bounds.width-8)/math.max(1,width),(bounds.height-8)/32)
-        local left=bounds.x+(bounds.width-width*scale)/2
-        for i,item in ipairs(items) do place(captionLayer,i,item.asset,left+item.width*scale/2,bounds.y+bounds.height-20*scale,scale); left=left+(item.width+2)*scale end
+        local rowVisible=not recognition or (bounds.width>=61 and bounds.height>=60)
+        local wanted={}
+        if rowVisible then
+            local scale=math.min(1,(bounds.width-8)/math.max(1,width),(bounds.height-8)/32)
+            local left=bounds.x+(bounds.width-width*scale)/2
+            for i,item in ipairs(items) do
+                local key="amount_"..i; wanted[key]=true
+                place(captionLayer,key,item.asset,left+item.width*scale/2,bounds.y+bounds.height-(recognition and 48 or 20*scale),scale)
+                left=left+(item.width+2)*scale
+            end
+            if recognition then
+                local limit=math.max(3,math.floor((bounds.width-8+1)/18))
+                local name=recognition.name
+                if #name>limit then name=name:sub(1,limit-3).."..." end
+                local nameWidth=#name*18-1
+                local nameLeft=bounds.x+(bounds.width-nameWidth)/2
+                for i=1,#name do
+                    local char=name:sub(i,i)
+                    if char~=" " then
+                        local index=donorAlphabet:find(char,1,true)-1
+                        local key="name_"..i;wanted[key]=true
+                        place(captionLayer,key,numericAsset(char) or "sa_name_"..string.format("%02d",index),nameLeft+(i-1)*18+8.5,bounds.y+bounds.height-20,1)
+                    end
+                end
+            end
+        end
+        for key,entry in pairs(captionLayer) do if not wanted[key] then release(entry);captionLayer[key]=nil end end
         if celebration then
             for i=1,32 do
                 -- Independent deterministic phases avoid rows of synchronized falling sticks.
@@ -605,7 +641,7 @@ return function()
                 local pos=user.getPosition()
                 place(heartLayer,id,"sa_heart",math.max(bounds.x+16,math.min(bounds.x+bounds.width-16,pos.x)),math.max(bounds.y+16,math.min(bounds.y+bounds.height-16,pos.y+AVATAR_TOP+16)),id==statusHostId and 0 or 1)
             end
-            if celebration and not dancing[id] and not pendingDances[id] and not actionAttempts[id] then
+            if celebration and not celebration.replay and not dancing[id] and not pendingDances[id] and not actionAttempts[id] then
                 local ok=pcall(function()
                     -- Respect actions already running, including an existing dance.
                     if ordinaryState(user.getState()) and claimAction("dance",user) then
@@ -664,7 +700,7 @@ return function()
             if value.mode=="production" then previewHostSet=false end
             reconcileCrowd(value.mode=="integration" and value.integration.crowdIds or {}); reconcileTheme()
             local resolution=app.getResolution()
-            send({version=3,type="ready",capabilities={"hearts","crowd","campaign","celebrations","donation-recognition","themes"},resolution={width=resolution.x,height=resolution.y}})
+            send({version=3,type="ready",capabilities={"hearts","crowd","campaign","celebrations","donation-recognition","themes","individual-donations"},resolution={width=resolution.x,height=resolution.y}})
         elseif value.type=="crowd" and snapshot and snapshot.mode=="integration" and value.mode==snapshot.mode and value.generation==snapshot.generation and validCrowd(value.crowdIds) then
             reconcileCrowd(value.crowdIds)
         elseif value.type=="celebration" and snapshot and value.mode==snapshot.mode and value.generation==snapshot.generation and value.campaignId==snapshot.campaign.campaignId then
@@ -705,7 +741,7 @@ return function()
                 set("sa_pending_images",pending+1)
                 loadSequence=loadSequence+1; set("sa_load_sequence",loadSequence)
                 local key="sa_image_"..loadSequence
-                entry={object=app.createGameObject(),key=key,deadline=elapsed+2}; objects[id]=entry
+                entry={object=app.createGameObject(),key=key,asset=asset,deadline=elapsed+2}; objects[id]=entry
                 -- The host starts animation before resuming the worker. Keep
                 -- pending/cancelled images hidden until positioned and active.
                 entry.object.setScale(0,0)

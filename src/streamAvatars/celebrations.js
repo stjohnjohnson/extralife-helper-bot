@@ -1,120 +1,130 @@
 const { addCents } = require('../donations/money');
+const { normalizeDonationDisplayName } = require('../donations/displayName');
+const safe = n => Number.isSafeInteger(n) && n >= 0;
+const id = s => typeof s === 'string' && s.length > 0 && s.length <= 128;
+function validateIntent(intent) {
+    if (!id(intent.batchId) || !Array.isArray(intent.donationIds) || !intent.donationIds.every(id) || new Set(intent.donationIds).size !== intent.donationIds.length ||
+        !safe(intent.donationCount) || intent.donationCount !== intent.donationIds.length || !Array.isArray(intent.donations) || intent.donations.length !== intent.donationCount ||
+        !(intent.donationTotalCents === null || safe(intent.donationTotalCents)) || !(intent.campaignTotalCents === null || safe(intent.campaignTotalCents)) ||
+        !(intent.milestoneCents === null || (safe(intent.milestoneCents) && intent.milestoneCents > 0 && intent.campaignTotalCents !== null && intent.milestoneCents <= intent.campaignTotalCents)) ||
+        typeof intent.goalReached !== 'boolean') throw new Error('Invalid campaign celebration intent');
+    let amount = 0;
+    for (const [index, donation] of intent.donations.entries()) {
+        if (!donation || donation.id !== intent.donationIds[index] || typeof donation.displayName !== 'string' || normalizeDonationDisplayName(donation.displayName) !== donation.displayName ||
+            !(donation.amountCents === null || safe(donation.amountCents))) throw new Error('Invalid individual donation');
+        amount = amount === null || donation.amountCents === null ? null : addCents(amount, donation.amountCents);
+    }
+    if (amount !== intent.donationTotalCents) throw new Error('Invalid donation total');
+}
 function createCampaignCelebrationComposer({ clock, random = Math.random, newSequenceId = require('node:crypto').randomUUID }) {
-    let active = null, pending = null, batches = new Map(), stopped = false;
-    const safe = n => Number.isSafeInteger(n) && n >= 0;
-    const id = s => typeof s === 'string' && s.length > 0 && s.length <= 128;
-    const group = () => ({ sequenceId: newSequenceId(), giftIds: new Set(), count: 0, amount: 0, campaignTotal: null, milestone: null, reward: null,
-        phase: 'pending', thanked: false, rewardShown: false, goalShown: false, startedAt: null, heartsUntil: 0, partyStartedAt: null, partyUntil: 0, action: null });
+    let active = null, queue = [], late = [], batches = new Map(), known = new Set(), paused = false, pausedAt = null, stopped = false;
     const message = g => ({ sequenceId: g.sequenceId, phase: g.phase, kind: g.phase === 'recognition' ? 'donation' : g.reward,
+        donorName: g.phase === 'recognition' ? g.name : null, replay: g.replay,
         campaignTotalCents: g.campaignTotal, milestoneCents: g.phase === 'party' ? g.milestone : null,
-        donationCount: g.phase === 'recognition' ? g.count : 0, donationTotalCents: g.phase === 'recognition' ? g.amount : 0,
+        donationCount: g.phase === 'recognition' ? 1 : 0, donationTotalCents: g.phase === 'recognition' ? g.amount : 0,
         recognitionStartedAtMs: g.phase === 'recognition' ? g.startedAt : null, recognitionAction: g.phase === 'recognition' ? g.action : null,
-        heartsUntilMs: g.phase === 'recognition' ? g.heartsUntil : 0, partyStartedAtMs: g.phase === 'party' ? g.partyStartedAt : null,
-        partyUntilMs: g.phase === 'party' ? g.partyUntil : 0 });
+        heartsUntilMs: g.phase === 'recognition' ? g.until : 0, partyStartedAtMs: g.phase === 'party' ? g.partyStartedAt : null,
+        partyUntilMs: g.phase === 'party' ? g.until : 0 });
     const hasReward = g => g.reward === 'goal' ? !g.goalShown : g.reward === 'milestone' && !g.rewardShown;
     function recognize(g, now) {
         const draw = random();
         if (!Number.isFinite(draw) || draw < 0 || draw >= 1) throw new Error('Invalid recognition randomness');
-        g.action = draw < 0.5 ? 'jump' : 'hug'; g.phase = 'recognition'; g.startedAt = now; g.heartsUntil = now + 5000;
+        g.action = draw < 0.5 ? 'jump' : 'hug'; g.phase = 'recognition'; g.startedAt = now; g.until = now + 15000; g.replay = false;
         return message(g);
     }
     function party(g, now) {
-        g.phase = 'party'; g.partyStartedAt = now; g.partyUntil = now + (g.reward === 'goal' ? 20000 : 18000);
-        g.rewardShown = true; g.goalShown ||= g.reward === 'goal';
+        g.phase = 'party'; g.partyStartedAt = now; g.partyCapAt = now + 38000; g.until = now + (g.reward === 'goal' ? 20000 : 18000);
+        g.rewardShown = true; g.goalShown ||= g.reward === 'goal'; g.replay = false;
         return message(g);
     }
     function advance() {
-        if (stopped) return [];
+        if (stopped || paused) return [];
         const now = clock.nowMs(), messages = [];
-        for (const [key, entry] of batches) if (entry.expiresAt < now) batches.delete(key);
-        const alive = g => [...batches.values()].some(entry => entry.group === g);
-        if (active && !alive(active)) active = null;
-        if (pending && !alive(pending)) pending = null;
-        if (active?.phase === 'recognition' && active.heartsUntil <= now) {
-            active.thanked = true;
-            if (hasReward(active)) messages.push(party(active, now));
+        for (const [key, batch] of batches) if (batch.expiresAt < now && batch.tail.phase === 'completed' && !late.includes(batch.tail)) batches.delete(key);
+        if (active && active.until <= now) {
+            if (active.phase === 'recognition' && hasReward(active)) messages.push(party(active, now));
             else { active.phase = 'completed'; active = null; }
-        } else if (active?.phase === 'party' && active.partyUntil <= now) { active.phase = 'completed'; active = null; }
-        if (!active && pending) {
-            active = pending; pending = null;
-            if (active.count && !active.thanked) messages.push(recognize(active, now));
-            else if (hasReward(active)) messages.push(party(active, now));
-            else active = null;
         }
+        while (!active && late.length) {
+            const next = late.shift();
+            if (next.goalUpgrade) {
+                next.goalUpgrade = false; next.goalShown = true;
+                if (next.partyCapAt <= now) continue;
+                active = next; active.phase = 'party'; active.until = Math.min(now + 20000, active.partyCapAt);
+                active.replay = Boolean(active.freshDelivery);
+                // A reconnected recipient requires a fresh admission epoch; the original upgrade cap remains internal.
+                if (active.freshDelivery) active.partyStartedAt = now;
+                active.freshDelivery = false; messages.push(message(active));
+            } else { active = next; messages.push(party(active, now)); }
+        }
+        if (!active && queue.length) { active = queue.shift(); messages.push(recognize(active, now)); }
         return messages;
     }
-    function foldReward(target, source) {
-        if (source.reward === 'goal') target.reward = 'goal';
-        else if (!target.reward) target.reward = source.reward;
-        target.milestone = Math.max(target.milestone || 0, source.milestone || 0) || null;
-        if (source.campaignTotal !== null) target.campaignTotal = Math.max(target.campaignTotal || 0, source.campaignTotal);
-        for (const giftId of source.giftIds) target.giftIds.add(giftId);
-        for (const entry of batches.values()) if (entry.group === source) entry.group = target;
+    function accept(intent) {
+        if (stopped) return [];
+        validateIntent(intent);
+        const previous = structuredClone({ active, queue, late, batches, known });
+        try {
+            const now = clock.nowMs(), messages = advance();
+            const fresh = intent.donations.filter(d => !known.has(d.id));
+            if (fresh.length && fresh.length !== intent.donationCount) throw new Error('Partially duplicated campaign intent');
+            let batch = batches.get(intent.batchId);
+            if (fresh.length) {
+                for (const donation of fresh) {
+                    known.add(donation.id);
+                    const entry = { sequenceId: newSequenceId(), name: donation.displayName, amount: donation.amountCents,
+                        campaignTotal: intent.campaignTotalCents, milestone: null, reward: null, rewardShown: false, goalShown: false,
+                        phase: 'pending', startedAt: null, partyStartedAt: null, until: 0, action: null, replay: false };
+                    queue.push(entry);
+                    batch = { tail: entry, expiresAt: now + 120000 };
+                }
+                batches.set(intent.batchId, batch);
+            }
+            if (batch && (intent.goalReached || intent.milestoneCents !== null)) {
+                const g = batch.tail, oldReward = g.reward, oldMilestone = g.milestone, oldTotal = g.campaignTotal;
+                if (intent.goalReached) g.reward = 'goal'; else if (!g.reward) g.reward = 'milestone';
+                g.milestone = Math.max(g.milestone || 0, intent.milestoneCents || 0) || null;
+                g.campaignTotal = Math.max(g.campaignTotal || 0, intent.campaignTotalCents);
+                const changed = oldReward !== g.reward || oldMilestone !== g.milestone || oldTotal !== g.campaignTotal;
+                if (g === active && g.phase === 'party' && changed) {
+                    if (g.reward === 'goal' && !g.goalShown) {
+                        const at = paused ? pausedAt : now;
+                        g.goalShown = true; g.until = Math.min(at + 20000, g.partyCapAt);
+                        if (paused) g.remaining = Math.max(1, g.until - at);
+                    }
+                    if (!paused) messages.push(message(g));
+                } else if (g.phase === 'completed' && !g.rewardShown && !late.includes(g)) {
+                    late.push(g);
+                } else if (g.phase === 'completed' && g.rewardShown && g.reward === 'goal' && !g.goalShown && !g.goalUpgrade) {
+                    // Queue behind the current full turn; expire deliberately only when the original cap has passed.
+                    if (g.partyCapAt > now) { g.goalUpgrade = true; late.push(g); }
+                    else g.goalShown = true;
+                }
+            }
+            messages.push(...advance());
+            return messages;
+        } catch (error) { ({ active, queue, late, batches, known } = previous); throw error; }
     }
     return {
-        accept(intent) {
-            if (stopped) return [];
-            if (!id(intent.batchId) || !Array.isArray(intent.donationIds) || !intent.donationIds.every(id) || new Set(intent.donationIds).size !== intent.donationIds.length ||
-                !safe(intent.donationCount) || intent.donationCount !== intent.donationIds.length || !(intent.donationTotalCents === null || safe(intent.donationTotalCents)) ||
-                (!intent.donationCount && intent.donationTotalCents !== 0) || !(intent.campaignTotalCents === null || safe(intent.campaignTotalCents)) ||
-                !(intent.milestoneCents === null || (safe(intent.milestoneCents) && intent.milestoneCents > 0 && intent.campaignTotalCents !== null && intent.milestoneCents <= intent.campaignTotalCents)) ||
-                typeof intent.goalReached !== 'boolean') throw new Error('Invalid campaign celebration intent');
-            // Validate/aggregate transactionally: overflow or invalid randomness
-            // cannot partly consume IDs, shorten a phase or corrupt queued money.
-            const previous = structuredClone({ active, pending, batches });
-            try {
-                const now = clock.nowMs(), messages = advance();
-                let g = batches.get(intent.batchId)?.group;
-                const known = new Set([...batches.values()].flatMap(e => [...e.group.giftIds]));
-                const fresh = intent.donationIds.filter(giftId => !known.has(giftId));
-                if (fresh.length && fresh.length !== intent.donationCount) throw new Error('Partially duplicated campaign intent');
-                let recognitionChanged = false;
-                if (fresh.length) {
-                    if (active?.phase === 'recognition') g = active;
-                    else if (active?.phase === 'party') { pending ??= group(); g = pending; }
-                    else { active = group(); g = active; }
-                    g.count = addCents(g.count, intent.donationCount);
-                    g.amount = g.amount === null || intent.donationTotalCents === null ? null : addCents(g.amount, intent.donationTotalCents);
-                    if (intent.campaignTotalCents !== null) g.campaignTotal = Math.max(g.campaignTotal || 0, intent.campaignTotalCents);
-                    for (const giftId of fresh) g.giftIds.add(giftId);
-                    batches.set(intent.batchId, { group: g, expiresAt: now + 120000 });
-                    if (g === active) {
-                        if (g.phase !== 'recognition') messages.push(recognize(g, now));
-                        else { g.heartsUntil = Math.min(now + 5000, g.startedAt + 10000); recognitionChanged = true; }
-                    }
-                }
-                if (g && (intent.goalReached || intent.milestoneCents !== null)) {
-                    const oldReward = g.reward, oldMilestone = g.milestone, oldTotal = g.campaignTotal;
-                    if (intent.goalReached) g.reward = 'goal'; else if (!g.reward) g.reward = 'milestone';
-                    g.milestone = Math.max(g.milestone || 0, intent.milestoneCents || 0) || null;
-                    g.campaignTotal = Math.max(g.campaignTotal || 0, intent.campaignTotalCents);
-                    const changed = oldReward !== g.reward || oldMilestone !== g.milestone || oldTotal !== g.campaignTotal;
-                    if (g === active && g.phase === 'party' && changed) {
-                        if (g.reward === 'goal' && !g.goalShown) { g.goalShown = true; g.partyUntil = Math.min(now + 20000, g.partyStartedAt + 38000); }
-                        messages.push(message(g));
-                    } else if (g.rewardShown && g.reward === 'goal' && !g.goalShown) {
-                        // A delayed goal may resume this sequence only inside its
-                        // original bound. Never transfer a shown party into newer work.
-                        g.goalShown = true;
-                        const until = Math.min(now + 20000, g.partyStartedAt + 38000);
-                        if (!active && until > now) {
-                            active = g; g.phase = 'party'; g.partyUntil = until;
-                            messages.push(message(g));
-                        }
-                    } else if (!g.rewardShown && g !== active && g !== pending && hasReward(g)) {
-                        if (active?.phase === 'recognition') foldReward(active, g);
-                        else if (active?.phase === 'party') { pending ??= group(); foldReward(pending, g); }
-                        else { active = g; messages.push(party(g, now)); }
-                    }
-                }
-                if (recognitionChanged) messages.push(message(active));
-                return messages;
-            } catch (error) { ({ active, pending, batches } = previous); throw error; }
+        accept, advance,
+        nextTransitionAt() { return paused ? null : active?.until ?? null; },
+        pause() {
+            if (paused || stopped) return;
+            if (active?.phase === 'party') active.remaining = Math.max(1, active.until - clock.nowMs());
+            pausedAt = clock.nowMs(); paused = true;
         },
-        advance,
-        nextTransitionAt() { return active?.phase === 'recognition' ? active.heartsUntil : active?.phase === 'party' ? active.partyUntil : null; },
-        clear() { active = null; pending = null; batches.clear(); },
-        stop() { stopped = true; active = null; pending = null; batches.clear(); }
+        resume() {
+            if (!paused || stopped) return [];
+            paused = false;
+            for (const pending of late) if (pending.goalUpgrade) pending.freshDelivery = true;
+            if (!active) return advance();
+            const now = clock.nowMs(); active.replay = true;
+            if (active.phase === 'recognition') { active.startedAt = now; active.until = now + 15000; }
+            else { active.partyCapAt += now - pausedAt; active.partyStartedAt = now; active.until = now + active.remaining; }
+            return [message(active)];
+        },
+        clear() { active = null; queue = []; late = []; batches.clear(); known.clear(); },
+        stop() { stopped = true; this.clear(); }
     };
 }
 module.exports = { createCampaignCelebrationComposer };

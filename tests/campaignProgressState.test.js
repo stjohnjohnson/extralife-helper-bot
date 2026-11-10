@@ -81,3 +81,13 @@ test('a delayed first response baselines the request cutoff without losing gifts
     accept({baseline:true,complete:true,throughMs:1000,observedAtMs:3000,donations:[]});
     expect(accept({observedAtMs:3100,donations:[gift('during-request',5000,2000)]}).intent).toMatchObject({donationCount:1});
 });
+
+test('transient individual facts sort each observation and never persist names',()=>{
+    const r=accept({donations:[{...gift('z',100,1099),displayName:'ZED'}, {...gift('b',null,1001),displayName:'BEE'}, {...gift('a',200,1001),displayName:'AYE'},gift('old',50,999),{...gift('bad'),amountCents:-1}]});
+    expect(r.intent.donations).toEqual([
+        {...gift('a',200,1001),displayName:'AYE'}, {...gift('b',null,1001),displayName:'BEE'}, {...gift('z',100,1099),displayName:'ZED'}
+    ]);
+    expect(r.intent).toMatchObject({donationCount:3,donationTotalCents:null});
+    expect(JSON.stringify(state)).not.toContain('AYE');
+    expect(accept({donations:[gift('a',200,1001)]}).intent).toBeNull();
+});

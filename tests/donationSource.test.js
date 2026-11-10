@@ -130,3 +130,8 @@ test('invalid donation ID ordering within one timestamp cannot hide a newer dona
     await expect(source.poll({ participantId: 12, announcementCheckpoint: { lastDonationId: 'A' }, onAnnouncements: deliver })).rejects.toThrow('ordering');
     expect(deliver).not.toHaveBeenCalled();
 });
+
+test('normalization carries only the public display name with each amount', () => {
+    expect(normalizeDonation(raw(1, {displayName: 'José', name: 'Private name'}), 12, t))
+        .toEqual({id:'id1', participantId:'12', createdAtMs:t-1000, amountCents:10, displayName:'JOSE'});
+});

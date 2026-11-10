@@ -35,6 +35,7 @@ async function startStreamAvatars({ config, logger = { warn() {} }, signal, webS
     };
     const currentGame = () => integration ? previewGame : gameSession.getSnapshot().game;
     const composer = createCampaignCelebrationComposer({ clock: realClock, ...(integration?.recognitionAction === 'jump' ? { random: () => 0 } : integration?.recognitionAction === 'hug' ? { random: () => 0.5 } : {}) });
+    composer.pause();
     let server, events, stopping, phaseTimer = null, lastResolution = null, active = true, generation = 1;
     const snapshot = () => ({ version: 3, type: 'snapshot', mode, generation, serverNowMs: realClock.nowMs(), campaign: publicCampaign(progress.getSnapshot()),
         integration: { active: Boolean(integration), crowdIds },
@@ -51,10 +52,10 @@ async function startStreamAvatars({ config, logger = { warn() {} }, signal, webS
     });
     const ready = () => Boolean(server?.getStatus().readyClients);
     const publish = messages => {
-        if (!ready()) { discardVisuals(); return false; }
+        if (!ready()) { cancelTimer(); composer.pause(); return false; }
         let delivered = false;
         for (const message of messages) delivered = events.publishCelebration({ ...message, campaignId: participantId, mode, generation }) || delivered;
-        if (messages.length && !delivered) discardVisuals();
+        if (messages.length && !delivered) { cancelTimer(); composer.pause(); }
         return delivered;
     };
     const arm = () => {
@@ -80,9 +81,9 @@ async function startStreamAvatars({ config, logger = { warn() {} }, signal, webS
         if (signal?.aborted) throw new Error('Stream Avatars startup aborted');
         events = createEventDispatcher({ realClock, send: message => server?.send(message) || false });
         server = await startBridgeServer({ config: { ...settings, ...config.webServer }, webServer, getSnapshot: snapshot, logger, clock: realClock,
-            onLastReadyDisconnect: () => { if (active) invalidate(); },
+            onLastReadyDisconnect: () => { if (active) { cancelTimer(); composer.pause(); } },
             onClientMessage: async message => {
-                if (message.type === 'ready') lastResolution = message.resolution;
+                if (message.type === 'ready') { lastResolution = message.resolution; publish(composer.resume()); arm(); }
                 if (message.type === 'diagnostic') logger.warn('Stream Avatars companion diagnostic', { code: message.code });
             } });
         if (signal?.aborted) throw new Error('Stream Avatars startup aborted');
@@ -118,7 +119,7 @@ async function startStreamAvatars({ config, logger = { warn() {} }, signal, webS
             if (!active) return { accepted: false, intent: null, delivered: false, diagnostics: ['unavailable'] };
             const token = generation;
             const result = await progress.acceptObservation(input);
-            if (!active || token !== generation || !ready()) { discardVisuals(); return { ...result, delivered: false }; }
+            if (!active || token !== generation) return { ...result, delivered: false };
             for (const code of result.diagnostics) logger.warn('Donation accounting diagnostic', { code });
             const delivered = result.intent ? publish(composer.accept(result.intent)) : false;
             arm(); return { ...result, delivered };

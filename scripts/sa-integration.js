@@ -14,7 +14,7 @@ async function run(args = process.argv.slice(2), env = process.env) {
         else if (args[i]==='--candidate-pack' && args[i+1]) candidatePackDir=args[++i];
         else if (args[i]==='--theme-pack' && args[i+1]) themePackDir=args[++i];
         else if (args[i]==='--hue') hue=true;
-        else throw new Error('Use --scenario ordinary|anonymous|batch|milestone|large|goal|all|themes, --theme all|<theme>|neutral, --game <name>, --candidate-pack <directory> or --theme-pack <directory>, --crowd 0..100, --recognition random|jump|hug, or --hue.');
+        else throw new Error('Use --scenario ordinary|anonymous|batch|milestone|large|goal|hidden|punctuation|long-name|all|themes, --theme all|<theme>|neutral, --game <name>, --candidate-pack <directory> or --theme-pack <directory>, --crowd 0..100, --recognition random|jump|hug, or --hue.');
     }
     if (game !== undefined && cleanGameName(game) === null) throw new Error('Invalid integration game name');
     const listenerConfig = parseWebServerConfiguration(env);

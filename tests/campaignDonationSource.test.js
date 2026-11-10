@@ -53,3 +53,12 @@ test('conflicting duplicate facts are diagnosed without forwarding the same dona
     const result=await poll(source);expect(result.donations.map(d=>d.amountCents)).toEqual([2500]);
     expect(logger.warn).toHaveBeenCalledWith('Donation record excluded',{code:'conflicting-donation'});
 });
+
+test('paged callbacks retain each public name and hidden amount', async () => {
+    const {source}=setup([response([row(1,{displayName:'Zoë',amount:null}),row(2,{displayName:'Pat'})],2)]);
+    const pages=[];await poll(source,{onDonations:p=>pages.push(p)});
+    expect(pages[0].donations).toEqual([
+        expect.objectContaining({id:'id1',displayName:'ZOE',amountCents:null}),
+        expect.objectContaining({id:'id2',displayName:'PAT',amountCents:2500})
+    ]);
+});

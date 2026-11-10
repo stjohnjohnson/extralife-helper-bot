@@ -2,11 +2,23 @@
 
 Campaign-progress celebrations supersede the original broadcast-total and simultaneous-party requirements in issue #67. Bot and companion now use protocol v3; reimport the ZIP and restore private address/token together with the bot update.
 
+## Individual donation captions
+
+The latest companion shows uppercase public donation names above individual amounts with gold pixel lettering.
+Each donor receives a full 15-second turn. Milestone and goal parties follow the associated donor or batch tail.
+The in-memory queue survives companion disconnects. Bot restarts and explicit resets discard unfinished turns.
+The bot requires the companion's `individual-donations` capability before sending extended captions.
+Rebuild and reimport the ZIP. Restore the private connection address and token separately.
+
+The automated Lua harness checks two rows, punctuation, name fitting, missing glyphs, and cue suppression on reconnect.
+These checks do not establish native Stream Avatars or OBS visual acceptance for the updated captions.
+See [operator setup](stream-avatars-setup.md) for the current behavior and upgrade instructions.
+
 ## Bundled scenery scope (2026-10-12)
 
 The release ships thirty reviewed scenery images and static game mappings, alongside all 22 campaign images. Bot, Docker, default ZIP and integration previews use the same repository pack automatically. Hats, tracked gear recipes, fitting and game-title text are removed; welcoming jumps remain. There are no theme environment settings. The bundled trust decision follows the user's request to ship the assets; strict external approval/native-proof validation remains.
 
-See [current scenery artifacts and acceptance](stream-avatars-theme-verification.md) for exact revision, default ZIP hashes, regeneration and native evidence limits. The `all` runner covers six donation fixtures and ten theme/game steps. Prior verification counts, gear checks, local-only promotion holds and 22-image default packages below are historical records superseded by that current scope.
+See [current scenery artifacts and acceptance](stream-avatars-theme-verification.md) for exact revision, default ZIP hashes, regeneration and native evidence limits. The current `all` runner covers nine donation fixtures and ten theme/game steps. Prior verification counts, gear checks, local-only promotion holds and 22-image default packages below are historical records superseded by that current scope.
 
 ## Historical review correction evidence (2026-10-12)
 
@@ -26,7 +38,7 @@ Real isolated loopback WebSockets exercised the new `sa:integration` runner with
 
 Default ZIP SHA256 is `771483758e67633de7de24e64a834612b4d5a2e13d3f8cbb13836b880d078fbf` (25 entries, 22 PNGs). Candidate ZIP SHA256 is `5f9e51999ca30f62c260015b885d8ea83887b43ac093aa6e2b9c2ee3d326f43d` (67 entries, 64 PNGs; 52 script images and 12 gear pieces). Both builds are deterministic, contain placeholder credentials and no avatar definitions. All 22 base PNGs and 42 candidate PNGs match their sources. Hash verification preserved 1,182 historical non-ZIP artwork/report files and the previous 43-PNG ZIP. Strict `sa:art release --check` exits 1 with zero selected assets, as required.
 
-## Verified behavior
+## Historical behavior before individual donor captions
 
 Fresh donations, including matching records, receive five seconds of hearts, their combined amount/Thank you caption and a random jump or paired hug. Nearby gifts extend recognition only to ten seconds from its original start. A qualifying campaign milestone follows recognition for 18 seconds; a goal follows for 20 seconds and wins its simultaneous milestone. The participant's fresh `sumDonations` supplies the actual campaign banner, never an estimated sum of gifts. Delayed API totals can leave a gap after thanks without repeating it.
 

@@ -1,6 +1,7 @@
 const fs = require('node:fs');
 const { resolve, join } = require('node:path');
 const { PNG } = require('pngjs');
+const { DONOR_GLYPHS } = require('../src/donations/displayName');
 // Original 5x7 bitmap alphabet. No host text API or external font is required.
 const font = {
     '0':['01110','10001','10011','10101','11001','10001','01110'], '1':['00100','01100','00100','00100','00100','00100','01110'],
@@ -22,6 +23,14 @@ const font = {
     '-':['00000','00000','00000','11111','00000','00000','00000'], '.':['00000','00000','00000','00000','00000','00000','00100'],
     '?':['01110','10001','00001','00010','00100','00000','00100'], ' ':Array(7).fill('00000')
 };
+Object.assign(font, {
+    B:['11110','10001','10001','11110','10001','10001','11110'], J:['00111','00010','00010','00010','10010','10010','01100'],
+    P:['11110','10001','10001','11110','10000','10000','10000'], Q:['01110','10001','10001','10001','10101','10010','01101'],
+    V:['10001','10001','10001','10001','10001','01010','00100'], W:['10001','10001','10001','10101','10101','10101','01010'],
+    Z:['11111','00001','00010','00100','01000','10000','11111'], ':':['00000','00100','00100','00000','00100','00100','00000'],
+    '\'':['00100','00100','01000','00000','00000','00000','00000'], '"':['01010','01010','10100','00000','00000','00000','00000']
+});
+
 function pixel(png, x, y, color) { if (x < 0 || y < 0 || x >= png.width || y >= png.height) return; const at = (y * png.width + x) * 4; color.forEach((v,i) => { png.data[at+i] = v; }); }
 function caption(text) {
     const image = new PNG({ width: (text.length * 6 - 1) * 3 + 2, height: 23 });
@@ -39,6 +48,7 @@ function generateAssets(directory = resolve(__dirname, '../integrations/stream-a
         fs.writeFileSync(join(directory, name + '.png'), PNG.sync.write(image));
         fs.writeFileSync(join(directory, name + '.json'), JSON.stringify({ name, file: name + '.png', frameWidth, frameHeight: image.height, frames, rows: 1, framesPerSecond: fps, loop: true, transparent: true }, null, 2) + '\n');
     }
+    for (const [index, char] of [...DONOR_GLYPHS].entries()) if (char !== ' ' && !/^[0-9.,]$/.test(char)) save('sa_name_' + String(index).padStart(2, '0'), caption(char));
     for (let i=0;i<10;i++) save('sa_digit_' + i, caption(String(i)));
     for (const [name,text] of Object.entries({ sa_separator: ' - ', sa_from: ' FROM ', sa_donations: ' DONATIONS - ', sa_dollar: '$', sa_comma: ',', sa_dot: '.', sa_thanks: 'THANK YOU!', sa_raised: ' RAISED!', sa_goal: 'EXTRA LIFE GOAL REACHED!' })) save(name, caption(text));
     const confetti = new PNG({ width: 32, height: 8 });

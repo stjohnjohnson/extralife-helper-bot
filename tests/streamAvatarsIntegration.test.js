@@ -56,7 +56,7 @@ test('production keeps default randomness independently of developer action sett
         await accept([]);
         socket = new WebSocket(`ws://127.0.0.1:${webServer.address.port}/sa/socket`); await once(socket, 'open');
         const first = waitFor('snapshot'); socket.send(JSON.stringify({ version: 3, type: 'auth', token: 't'.repeat(32) })); await first;
-        socket.send(JSON.stringify({ version: 3, type: 'ready', capabilities: ['campaign', 'celebrations', 'donation-recognition'], resolution: { width: 1920, height: 1080 } }));
+        socket.send(JSON.stringify({ version: 3, type: 'ready', capabilities: ['campaign', 'celebrations', 'donation-recognition','individual-donations'], resolution: { width: 1920, height: 1080 } }));
         for (let i = 0; i < 30 && !service.getStatus().companionReady; i++) await new Promise(resolve => setTimeout(resolve, 2));
         expect(service.getStatus().companionReady).toBe(true);
         const received = waitFor('celebration'); now++;
@@ -70,7 +70,7 @@ async function connectThemes() {
     socket = new WebSocket(`ws://127.0.0.1:${service.address.port}/sa/socket`); await once(socket, 'open');
     const pending = waitFor('snapshot'); socket.send(JSON.stringify({ version: 3, type: 'auth', token: 't'.repeat(32) })); await pending;
     const upgraded = waitFor('snapshot');
-    socket.send(JSON.stringify({ version: 3, type: 'ready', capabilities: ['campaign','celebrations','donation-recognition','themes'], resolution: { width: 1920, height: 1080 } }));
+    socket.send(JSON.stringify({ version: 3, type: 'ready', capabilities: ['campaign','celebrations','donation-recognition','individual-donations','themes'], resolution: { width: 1920, height: 1080 } }));
     return upgraded;
 }
 const observeGame = (gameName, at = now, source = 'twitch') => service.observeGame({ gameName, observedAtMs: at, source });
@@ -79,7 +79,7 @@ test('default production snapshots use the same complete scenery revision as nor
     const { catalog } = require('../src/streamAvatars/themeRelease').loadThemePack({
         directory: require('../src/streamAvatars/themeRelease').BUNDLED_THEME_PACK_DIR
     });
-    expect(require('../src/streamAvatars/package').buildPackage().imageCount).toBe(54);
+    expect(require('../src/streamAvatars/package').buildPackage().imageCount).toBe(85);
     await online(); await connectThemes();
     const pending = waitFor('snapshot', value => value.theme?.gameName === 'Minecraft');
     await observeGame('Minecraft');

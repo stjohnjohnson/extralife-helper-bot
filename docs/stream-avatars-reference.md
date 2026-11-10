@@ -45,31 +45,32 @@ The ZIP supplies geometry, frame rate, and loop settings for every image.
 
 ### Recognition and parties
 
-Fresh donations create following hearts for five seconds above up to 101 active avatars, including the caster.
+Each fresh donation creates following hearts for 15 seconds above up to 101 active avatars, including the caster.
 Recognition selects one random jump or paired hug.
-A donation shows `$25 - THANK YOU!`.
-Combined donations show `$25 FROM 2 DONATIONS - THANK YOU!`.
+A donation shows its uppercase public name above `$25 - THANK YOU!`.
+Each donation has a separate caption, including donations discovered together.
 Whole dollars omit `.00`; nonzero cents remain.
 Hidden amounts use `THANK YOU!`.
-Nearby donations share a window capped at ten seconds from its original start, retaining the same action choice.
+Nearby donations queue separately. Each donor receives a full 15-second turn with its own amount and action choice.
 
 An interval crossing starts an 18-second confetti and dance party after recognition.
 Its caption shows the actual total, such as `$2,525 RAISED!` after $2,475 plus a $50 donation.
 A goal crossing uses `EXTRA LIFE GOAL REACHED!` and a 20-second party instead of a simultaneous milestone.
 Multiple crossed thresholds produce one party.
-New donations during a party wait in one combined recognition, followed by their highest qualifying party.
+New donations during a party wait for separate recognition turns. A batch reward follows its last fresh donor.
 They do not interrupt the current party.
 Delayed totals can leave a gap after recognition without repeating it.
 
 A late goal from the same batch can upgrade or resume its milestone party within 38 seconds of the original start.
 It retains existing dance attempts.
-An upgrade outside that limit, or while a newer phase owns the display, is discarded.
+A late upgrade waits for the current full donor turn or party. It expires if its original upgrade deadline passes before dispatch.
+Active party deadlines and their upgrade cap pause together during a companion disconnect.
 Donor names are not linked to Twitch avatars.
 
 ### Capacity and cleanup
 
 The renderer reads current canvas bounds, including resizing and negative coordinates.
-Its limits are 101 hearts, 32 confetti objects, 48 caption objects, and 128 pending image loads.
+Its limits are 101 hearts, 32 confetti objects, 64 caption objects across two rows, and 128 pending image loads.
 Larger crowds report `density-limit`.
 The supplied art uses 40-unit spacing above avatars; check other avatar sizes visually.
 Images remain inside the game canvas; OBS cropping is separate.
@@ -152,7 +153,7 @@ Return to the normal streaming service afterwards to restore the caster.
 
 | Option | Values or purpose |
 | --- | --- |
-| `--scenario` | `ordinary`, `anonymous`, `batch`, `milestone`, `large`, `goal`, `all`, or `themes` |
+| `--scenario` | `ordinary`, `anonymous`, `batch`, `milestone`, `large`, `goal`, `hidden`, `punctuation`, `long-name`, `all`, or `themes` |
 | `--crowd` | Integer from `0` to `100` |
 | `--recognition` | `random`, `jump`, or `hug`; default is `random` |
 | `--theme` | Focused theme, or `all` with `all`/`themes` scenarios |
@@ -213,8 +214,12 @@ Scenery exports contain no gear entries, avatar definitions, permissions, or fra
 
 | Scenario | Expected recognition and party |
 | --- | --- |
-| Ordinary or anonymous | `$25 - THANK YOU!` |
-| Batch | `$25 FROM 2 DONATIONS - THANK YOU!` for $10 plus $15 |
+| Ordinary | `ALEX JOHNSON` above `$25 - THANK YOU!` for 15 seconds |
+| Anonymous | `ANONYMOUS` above `$25 - THANK YOU!` for 15 seconds |
+| Batch | `CASEY` above `$10 - THANK YOU!`, then `JORDAN` above `$15 - THANK YOU!`; 15 seconds each |
+| Hidden amount | `TAYLOR` above `THANK YOU!` for 15 seconds |
+| Punctuation | Uppercase name retains `.,:-'"` above the amount |
+| Long name | Name ends with `...` within 32 characters or the available width |
 | Milestone | $10 recognition, then `$2,500 RAISED!` for 18 seconds |
 | Large | $1,060 recognition, then one `$3,550 RAISED!` party |
 | Goal | $10 recognition, then `EXTRA LIFE GOAL REACHED!` for 20 seconds; goal overrides its simultaneous milestone |
@@ -312,10 +317,31 @@ Notifications and recognition proceed before the separately paced total refresh.
 Accepted donation IDs persist for retries; count checkpoints advance only after a completed scan.
 Matching donation records follow the ordinary path.
 
-When the last ready companion disconnects, the service discards active effects, pending batches, phase timers, and delayed correlations.
+When the last compatible companion disconnects, the service pauses its phase timer and retains queued donations and delayed correlations.
+Reconnect restarts an interrupted donor for 15 seconds with explicit cue suppression.
+An interrupted party resumes its remaining duration without repeated sounds or avatar actions.
+Waiting entries do not expire through the old two-minute completed-entry cache.
+A bot restart or explicit reset discards unfinished turns.
+Old companions receive an upgrade instruction before they can receive extended caption packets.
 Accounting continues; reconnect shows current totals without replay.
 Writes are serialized, synchronized to storage, and atomically renamed.
 Corrupt state retains a durable `.recovery-required` gate.
 The independent game subsystem migrates legacy `production/state.json` and backups in place.
 Legacy money fields remain inert migration data.
 Old rehearsal files are no longer read and can be archived separately.
+
+
+## Individual donation name contract
+
+The bot normalizes public donation names before sending them to the companion.
+The allowed characters are uppercase A–Z, digits, spaces, `.,:-'"`, and the fallback `?`.
+Decomposable accents lose their marks. Curly quotation marks and common dash variants use their supported equivalents.
+Unsupported Unicode characters become question marks. Controls cannot introduce additional caption rows.
+The display limit is 32 characters, including a three-period suffix when shortened.
+The renderer shortens names further when needed and hides both rows when the canvas cannot fit minimal geometry.
+
+Wire version 3 requires the `individual-donations` ready capability for donation delivery.
+Recognition packets contain one donor, `donorName`, and a Boolean `replay` flag.
+The 10-second packet admission deadline is separate from the 15-second recognition duration.
+Snapshots retain their compatible initial shape. Names never enter stored campaign state.
+Fresh donations discovered without a ready companion remain queued in memory until readiness.
