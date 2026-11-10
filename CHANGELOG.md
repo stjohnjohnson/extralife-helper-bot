@@ -1,3 +1,26 @@
+# [5.0.0](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v4.17.1...v5.0.0) (2026-11-10)
+
+### Changes
+
+- Donation captions now show uppercase donor names above individual amounts in matching pixel lettering. Every donation receives a separate 15-second turn, including during bursts. ([#117](https://github.com/stjohnjohnson/extralife-helper-bot/pull/117))
+- Queued donations survive companion disconnects while the bot runs. Reconnected turns suppress repeated sounds and avatar actions. Milestone and goal parties follow their donor. ([#117](https://github.com/stjohnjohnson/extralife-helper-bot/pull/117))
+
+### Upgrade actions
+
+- Run `npm run sa:package`. ([#117](https://github.com/stjohnjohnson/extralife-helper-bot/pull/117))
+- Import `dist/stream-avatars/sa-helper-bridge.zip` into Stream Avatars. ([#117](https://github.com/stjohnjohnson/extralife-helper-bot/pull/117))
+- Restore the private connection address. ([#117](https://github.com/stjohnjohnson/extralife-helper-bot/pull/117))
+- Restore the private connection token. ([#117](https://github.com/stjohnjohnson/extralife-helper-bot/pull/117))
+- Reload the companion. ([#117](https://github.com/stjohnjohnson/extralife-helper-bot/pull/117))
+- Older companions lack the required `individual-donations` capability. ([#117](https://github.com/stjohnjohnson/extralife-helper-bot/pull/117))
+- Bot restarts and explicit resets discard unfinished donation turns. ([#117](https://github.com/stjohnjohnson/extralife-helper-bot/pull/117))
+
+### BREAKING CHANGE
+
+* Stream Avatars requires the updated companion with the
+`individual-donations` capability. Rebuild and reimport the package,
+then restore private connection settings.
+
 ## [4.17.1](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v4.17.0...v4.17.1) (2026-11-10)
 
 ### Changes
