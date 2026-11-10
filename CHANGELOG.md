@@ -1,3 +1,17 @@
+## [5.0.1](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v5.0.0...v5.0.1) (2026-11-10)
+
+### Changes
+
+- After a crash or forced stop, Stream Avatars reopens saved campaign and game progress automatically. Existing lock files migrate without clearing progress or requiring manual removal. ([#114](https://github.com/stjohnjohnson/extralife-helper-bot/pull/114))
+- Logs and `!sa status` explain state failures with safe corrective guidance. Repeated accounting warnings are suppressed. Temporary read errors no longer quarantine saved state. ([#114](https://github.com/stjohnjohnson/extralife-helper-bot/pull/114))
+
+### Upgrade actions
+
+- Stop the running bot before upgrading or rolling back. ([#114](https://github.com/stjohnjohnson/extralife-helper-bot/pull/114))
+- Concurrent old and new versions cannot share a state directory. ([#114](https://github.com/stjohnjohnson/extralife-helper-bot/pull/114))
+- Use local persistent storage. Network filesystems are unsupported. ([#114](https://github.com/stjohnjohnson/extralife-helper-bot/pull/114))
+- No manual state migration or companion update is required. ([#114](https://github.com/stjohnjohnson/extralife-helper-bot/pull/114))
+
 # [5.0.0](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v4.17.1...v5.0.0) (2026-11-10)
 
 ### Changes
