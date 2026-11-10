@@ -1,3 +1,10 @@
+## [4.17.1](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v4.17.0...v4.17.1) (2026-11-10)
+
+### Changes
+
+- Party confirmations and Stream Avatars status replies now sound more natural. Status includes clear connection details, donation progress, and recovery instructions when needed. ([#118](https://github.com/stjohnjohnson/extralife-helper-bot/pull/118))
+- Stream Avatars administrator replies now explain verification failures, offline requirements, and reset results in plain language. ([#118](https://github.com/stjohnjohnson/extralife-helper-bot/pull/118))
+
 # [4.17.0](https://github.com/stjohnjohnson/extralife-helper-bot/compare/v4.16.0...v4.17.0) (2026-10-24)
 
 ### Changes
